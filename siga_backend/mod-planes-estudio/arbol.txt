@@ -1,0 +1,42 @@
+🌳 ESTRUCTURA EN ÁRBOL - MÓDULO: mod-planes-estudio
+📅 Generado: 30/11/2025, 9:37:31 p. m.
+
+./
+    ├── database/
+    │   ├── migrations/
+    │   │   └── 001-add-versioning.sql
+    │   ├── seeders/
+    │   │   └── carrera-piloto-versionado.js
+    │   └── schema.sql
+    ├── docs/
+    │   └── TECNICAS.md
+    ├── scripts/
+    │   └── run-migration.js
+    ├── src/
+    │   ├── config/
+    │   │   └── database.js
+    │   ├── controllers/
+    │   │   ├── excelController.js
+    │   │   └── PlanEstudioController.js
+    │   ├── middleware/
+    │   │   └── upload.js
+    │   ├── models/
+    │   │   ├── Capacidad.js
+    │   │   ├── Competencia.js
+    │   │   ├── index.js
+    │   │   ├── Modulo.js
+    │   │   ├── PlanEstudio.js
+    │   │   └── UnidadDidactica.js
+    │   ├── repositories/
+    │   │   ├── ModuloRepository.js
+    │   │   └── PlanEstudioRepository.js
+    │   ├── routes/
+    │   │   ├── excelRoutes.js
+    │   │   └── planEstudioRoutes.js
+    │   └── app.js
+    ├── Dockerfile
+    ├── manifest.yaml
+    ├── package-lock.json
+    └── package.json
+
+✅ Archivo generado por gen_structure.js

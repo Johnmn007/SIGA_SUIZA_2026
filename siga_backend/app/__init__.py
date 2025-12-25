@@ -1,0 +1,3 @@
+"""
+SIGA Backend - Core Ultraligero
+"""

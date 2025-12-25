@@ -1,0 +1,8 @@
+{
+    "python.analysis.extraPaths": ["./app"],
+    "python.autoComplete.extraPaths": ["./app"],
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.indexing": true,
+    "python.analysis.diagnosticMode": "workspace",
+    "python.defaultInterpreterPath": "./venv/Scripts/python.exe"
+}
