@@ -1,4 +1,5 @@
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
 
 class SIGAApiClient {
   constructor() {
@@ -86,3 +87,78 @@ class SIGAApiClient {
 }
 
 export const apiClient = new SIGAApiClient();
+
+// WebSocket Client for real-time events
+export class SIGAWSClient {
+  constructor() {
+    this.ws = null;
+    this.listeners = {};
+    this.connected = false;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+  }
+
+  connect() {
+    if (this.ws && this.connected) return;
+
+    this.ws = new WebSocket(`${WS_BASE}/ws`);
+
+    this.ws.onopen = () => {
+      console.log('✅ WebSocket connected');
+      this.connected = true;
+      this.reconnectAttempts = 0;
+      this.trigger('connected');
+    };
+
+    this.ws.onmessage = (event) => {
+      console.log('📨 WS Message:', event.data);
+      this.trigger('message', event.data);
+    };
+
+    this.ws.onclose = () => {
+      console.log('🔌 WebSocket disconnected');
+      this.connected = false;
+      this.trigger('disconnected');
+      
+      // Auto reconnect
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.reconnectAttempts++;
+        setTimeout(() => this.connect(), 2000 * this.reconnectAttempts);
+      }
+    };
+    
+    this.ws.onerror = (error) => {
+      console.error('❌ WebSocket error:', error);
+    };
+  }
+
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+    }
+  }
+
+  send(data) {
+    if (this.ws && this.connected) {
+      this.ws.send(typeof data === 'string' ? data : JSON.stringify(data));
+    }
+  }
+
+  on(event, callback) {
+    if (!this.listeners[event]) {
+      this.listeners[event] = [];
+    }
+    this.listeners[event].push(callback);
+    return () => {
+      this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+    };
+  }
+
+  trigger(event, data) {
+    if (this.listeners[event]) {
+      this.listeners[event].forEach(callback => callback(data));
+    }
+  }
+}
+
+export const wsClient = new SIGAWSClient();

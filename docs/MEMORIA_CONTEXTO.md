@@ -167,9 +167,9 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 - [x] Configurar entorno de desarrollo (PostgreSQL, Python venv, Node.js)
 - [x] Implementar Circuit Breaker real en `app/core/resilience/circuit_breaker.py`
 - [x] Implementar persistencia del Module Registry en tabla `core_modules`
-- [ ] Core estable + Socket funcional
-- [ ] mod-planes-estudio funcional
-- [ ] mod-programas-estudio funcional
+- [x] Core estable + Socket funcional
+- [x] mod-planes-estudio funcional
+- [x] mod-programas-estudio funcional
 - [ ] Parser Excel MINEDU para importación de planes de estudio
 
 ### Fase 2 - Núcleo Académico (Semanas 9-16)
@@ -212,6 +212,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | 2026-06-27 | 1.2 | Pragmatic Boundary Fusion: Fusión de `mod-estudiantes` y `mod-matricula` en `mod-gestion-academica` para resolver problemas de límites transaccionales y alta cohesión. |
 | 2026-06-27 | 1.3 | Auditoría General del Backend: Aplicación del Golden Template (Outbox Pattern, X-Request-ID, BaseModel) a `mod-programas-estudio` y `mod-planes-estudio`. Eliminación del obsoleto `mod-carreras`. Creación del `outbox_worker` para At-Least-Once Delivery. |
 | 2026-06-27 | 1.4 | Implementación de Circuit Breaker real con 3 estados (CLOSED, OPEN, HALF_OPEN) y Persistencia del Module Registry en base de datos (`core_modules`). |
+| 2026-06-27 | 1.5 | Sockets conectados en el Frontend Layout para notificaciones en tiempo real. APIs completadas (CRUD) para `mod-planes-estudio` y `mod-programas-estudio`. |
 
 ---
 

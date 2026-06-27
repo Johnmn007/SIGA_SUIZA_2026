@@ -1,17 +1,59 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../core/auth/useAuth';
+import { wsClient } from '../core/api/client';
 
 export function DashboardLayout({ children, currentView, onNavigate }) {
   const { user, logout, permissions } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [wsStatus, setWsStatus] = useState('disconnected');
+
+  useEffect(() => {
+    wsClient.connect();
+
+    const unsubConnect = wsClient.on('connected', () => setWsStatus('connected'));
+    const unsubDisconnect = wsClient.on('disconnected', () => setWsStatus('disconnected'));
+    const unsubMessage = wsClient.on('message', (data) => {
+      setNotifications(prev => [...prev, { id: Date.now(), text: data }]);
+      setTimeout(() => {
+        setNotifications(prev => prev.slice(1));
+      }, 5000);
+    });
+
+    return () => {
+      unsubConnect();
+      unsubDisconnect();
+      unsubMessage();
+      // wsClient.disconnect(); // keep alive across views
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      {/* Notifications Overlay */}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col space-y-2">
+        {notifications.map(notif => (
+          <div key={notif.id} className="bg-white border-l-4 border-primary shadow-lg p-4 rounded-r-lg max-w-sm animate-fade-in">
+            <div className="flex items-start">
+              <span className="text-xl mr-3">🔔</span>
+              <div>
+                <h4 className="text-sm font-bold text-slate-800">Sistema</h4>
+                <p className="text-sm text-slate-600">{notif.text}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Premium Navbar */}
       <nav className="glass-panel rounded-none border-b border-white/40 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <div className="flex-shrink-0 flex items-center cursor-pointer" onClick={() => onNavigate('dashboard')}>
-              <span className="text-2xl font-bold tracking-tight text-slate-800">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">🎓 SIGA</span> Platform
+              <span className="text-2xl font-bold tracking-tight text-slate-800 flex items-center">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark mr-2">🎓 SIGA</span> Platform
+                <span className="ml-4 flex items-center" title={`WebSocket Status: ${wsStatus}`}>
+                  <span className={`h-3 w-3 rounded-full ${wsStatus === 'connected' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500'} animate-pulse`}></span>
+                </span>
               </span>
             </div>
             
