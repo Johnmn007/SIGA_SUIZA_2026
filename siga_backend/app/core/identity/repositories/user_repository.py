@@ -71,9 +71,13 @@ class UserRepository:
             if role.name == "admin":
                 permissions.extend(["core:module:manage",
                                     "core:user:manage",
-                                    "mod-demo:access",    # 👈 AGREGADO
-                                    "mod-demo:read",      # 👈 AGREGADO  
-                                    "mod-demo:write" ])   # 👈 AGREGADO])
+                                    "mod-demo:access",
+                                    "mod-demo:read",
+                                    "mod-demo:write",
+                                    "mod-carreras:access",
+                                    "mod-carreras:read",
+                                    "mod-carreras:write",
+                                    "mod-carreras:delete"])
             elif role.name == "docente":
                 permissions.extend(["mod-cursos:write", "mod-tareas:grade"])
             elif role.name == "alumno":

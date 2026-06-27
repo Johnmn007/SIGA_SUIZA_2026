@@ -1,0 +1,120 @@
+:root{
+  --oscuro:#2d3250;
+  --medio:#424769;
+  --aclarado:#676f9d;
+  --contraste:#f4be95;
+  --blanco:#ffffff; 
+}
+
+.bg-bot{
+  background-color: var(--contraste);
+  color: var(--blanco);
+}
+.bg-bot:hover{
+  background-color: #edcbaf;
+  box-shadow: #f3e0e0 0px 0px 8px 0px;
+}
+.bg-medio{
+  background-color: var(--medio) !important;
+  color: var(--blanco);
+}
+.bg-suave{
+  background-color: var(--aclarado) !important;
+  color: var(--blanco);
+}
+.oscuro{
+  color: var(--oscuro);
+}
+/* --------------------------------------------------------- */
+.form_p{
+  background-color: var(--medio) !important;
+}
+.img_pot{
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  
+}
+.container_log{
+  width: 100% ;
+  height: 100vh ;
+}
+/* -------------------------------------------------- */
+
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+
+/* --------------------------------------------- */
+.siga-login-container {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+}
+
+.siga-card {
+  border: none;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.siga-card-header {
+  border-radius: 15px 15px 0 0 !important;
+  background: linear-gradient(45deg, #007bff, #0056b3) !important;
+}
+
+.siga-btn-primary {
+  background: linear-gradient(45deg, #007bff, #0056b3);
+  border: none;
+  border-radius: 25px;
+  padding: 12px;
+}
+
+.siga-btn-primary:hover {
+  background: linear-gradient(45deg, #0056b3, #004494);
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+}

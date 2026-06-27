@@ -1,0 +1,42 @@
+name: mod-gestion-academica
+version: 2.0.0
+api_version: v1
+description: "Módulo centralizado de estudiantes y sus matrículas (Boundary Fusion)."
+author: "Equipo SIGA"
+repository: "https://github.com/siga/mod-gestion-academica"
+license: "MIT"
+
+endpoints:
+  http: "http://localhost:8006"
+  health: "/health"
+  ready: "/ready"
+  manifest: "/manifest"
+
+dependencies:
+  requires: ["mod-programas-estudio"]
+  optional: []
+
+events:
+  publishes:
+    - "gestion_academica.estudiante.creado"
+    - "gestion_academica.matricula.confirmada"
+  subscribes:
+    - "core.started"
+
+permissions:
+  - "mod-gestion-academica:read"
+  - "mod-gestion-academica:write"
+  - "mod-gestion-academica:admin"
+
+config:
+  database:
+    db_name: "mod_gestion_academica"
+    pool_size: 5
+    max_overflow: 10
+  port: 8006
+  timeout: 30
+
+tags:
+  - core-data
+  - fase-1
+  - gestion-academica

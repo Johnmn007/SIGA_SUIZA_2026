@@ -1,7 +1,8 @@
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 import logging
 import uuid
 
@@ -11,7 +12,7 @@ from .core.gateway.http_proxy import http_gateway
 from .core.gateway.websocket_proxy import ws_gateway
 from .core.gateway.event_bus import event_bus, EventFactory
 from .core.gateway.event_schemas import EventType
-from .core.gateway.security_middleware import SecurityMiddleware, security_middleware
+from .core.gateway.security_middleware import SecurityMiddleware
 from .core.identity.auth_service import AuthService
 from .core.identity.database import get_identity_db
 
@@ -119,7 +120,7 @@ async def login_user(email: str, password: str, db: AsyncSession = Depends(get_i
     return result
 
 @app.get("/auth/me")
-async def get_current_user_info(authorization: str = Depends(lambda authorization: authorization),
+async def get_current_user_info(authorization: Optional[str] = Header(None),
                                db: AsyncSession = Depends(get_identity_db)):
     """Endpoint para obtener información del usuario actual"""
     auth_service = AuthService(db)
@@ -145,7 +146,7 @@ async def get_current_user_info(authorization: str = Depends(lambda authorizatio
 @app.api_route("/api/{module_name}/{path:path}", 
                methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
 async def module_proxy(request: Request, module_name: str, path: str = "", 
-                      authorization: str = Depends(lambda authorization: authorization)):
+                      authorization: Optional[str] = Header(None)):
     """
     🔀 Proxy dinámico que redirige todas las rutas /api/{modulo}/* 
     a los módulos correspondientes con autenticación y autorización.
@@ -224,19 +225,21 @@ async def initialize_core():
     """Inicializa el Core al arrancar"""
     logger.info(f"🚀 Iniciando {settings.app_name} en modo {settings.environment}")
     
-    # 1. Inicializar servicios de Identity
+    # 1. Inicializar servicios de Identity - CORREGIDO
     logger.info("🔐 Inicializando sistema de identidad...")
-    async for db in get_identity_db():
+    
+    # Crear una sesión manualmente, no usar el generador
+    from .core.identity.database import AsyncSessionLocal
+    
+    async with AsyncSessionLocal() as db:
         auth_service = AuthService(db)
         global security_middleware
         security_middleware = SecurityMiddleware(auth_service)
         
-         # 🆕 SISTEMA DE SEEDING PROFESIONAL
+        # 🆕 SISTEMA DE SEEDING PROFESIONAL
         from .core.identity.seeds.seeder_runner import SeederRunner
         seeder_runner = SeederRunner(db)
         await seeder_runner.run_all()
-        
-        break
     
     # 2. Conectar Event Bus si está habilitado
     if settings.enable_nats:

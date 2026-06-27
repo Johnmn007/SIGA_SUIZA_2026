@@ -10,6 +10,8 @@ import yaml
 from .schemas import ModuleStatus
 from .validator import manifest_validator
 from ..config import settings
+from ..gateway.event_bus import event_bus, EventFactory
+from ..gateway.event_schemas import EventType
 
 logger = logging.getLogger(__name__)
 
@@ -321,6 +323,22 @@ class ModuleRuntime:
                     module.status = ModuleStatus.OFFLINE
             
             logger.info(f"✅ Módulo registrado: {name} v{manifest['version']}")
+            
+            # 🆕 NOTIFICAR AL EVENT BUS
+            if settings.enable_nats and event_bus.connected:
+                try:
+                    event = EventFactory.module_registered({
+                        "module_name": name,
+                        "version": manifest['version'],
+                        "api_version": manifest['api_version'],
+                        "endpoints": manifest['endpoints'],
+                        "events": manifest.get('events', {}),
+                        "status": module.status.value
+                    })
+                    await event_bus.publish(event)
+                    logger.info(f"📢 Evento module.registered publicado para {name}")
+                except Exception as e:
+                    logger.error(f"❌ Error publicando evento de registro para {name}: {e}")
             
             return {
                 "success": True,
