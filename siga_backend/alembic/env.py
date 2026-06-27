@@ -23,6 +23,7 @@ if config.config_file_name is not None:
 
 # MetaData target
 from app.core.identity.models import Base
+import app.core.registry.models
 target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:

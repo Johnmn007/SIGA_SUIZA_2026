@@ -1,6 +1,33 @@
 import { useState } from 'react';
 import { API_BASE } from '../../core/api/client';
 
+const InputGroup = ({ label, type = "text", value, onChange, options = null }) => (
+  <div className="flex flex-col space-y-1">
+    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">{label}</label>
+    {options ? (
+      <select className="input-field py-2.5 text-sm" value={value} onChange={onChange}>
+        {options.map(opt => <option key={opt}>{opt}</option>)}
+      </select>
+    ) : (
+      <input type={type} className="input-field py-2.5 text-sm" value={value} onChange={onChange} />
+    )}
+  </div>
+);
+
+const CheckboxGroup = ({ label, checked, onChange }) => (
+  <div className="flex flex-col space-y-2">
+    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">{label}</label>
+    <label className="flex items-center space-x-3 cursor-pointer">
+      <div className="relative">
+        <input type="checkbox" className="sr-only" checked={checked} onChange={onChange} />
+        <div className={`block w-10 h-6 rounded-full transition-colors ${checked ? 'bg-primary' : 'bg-slate-300'}`}></div>
+        <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${checked ? 'transform translate-x-4' : ''}`}></div>
+      </div>
+      <span className="text-sm font-semibold">{checked ? 'SÍ' : 'NO'}</span>
+    </label>
+  </div>
+);
+
 export function StudentMaster() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -64,33 +91,6 @@ export function StudentMaster() {
       }
     } catch (e) { console.error(e); }
   };
-
-  const InputGroup = ({ label, type = "text", value, onChange, options = null }) => (
-    <div className="flex flex-col space-y-1">
-      <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">{label}</label>
-      {options ? (
-        <select className="input-field py-2.5 text-sm" value={value} onChange={onChange}>
-          {options.map(opt => <option key={opt}>{opt}</option>)}
-        </select>
-      ) : (
-        <input type={type} className="input-field py-2.5 text-sm" value={value} onChange={onChange} />
-      )}
-    </div>
-  );
-
-  const CheckboxGroup = ({ label, checked, onChange }) => (
-    <div className="flex flex-col space-y-2">
-      <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">{label}</label>
-      <label className="flex items-center space-x-3 cursor-pointer">
-        <div className="relative">
-          <input type="checkbox" className="sr-only" checked={checked} onChange={onChange} />
-          <div className={`block w-10 h-6 rounded-full transition-colors ${checked ? 'bg-primary' : 'bg-slate-300'}`}></div>
-          <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${checked ? 'transform translate-x-4' : ''}`}></div>
-        </div>
-        <span className="text-sm font-semibold">{checked ? 'SÍ' : 'NO'}</span>
-      </label>
-    </div>
-  );
 
   const renderWizardStep = () => {
     switch(wizardStep) {

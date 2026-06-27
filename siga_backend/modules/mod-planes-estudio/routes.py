@@ -160,6 +160,26 @@ async def actualizar_plan(plan_id: int, plan: PlanBase, request: Request, db: As
     await db.refresh(db_plan)
     return db_plan
 
+@router.post("/planes/parse-minedu")
+async def preview_plan_minedu(file: UploadFile = File(...)):
+    """
+    Lee el archivo Excel y devuelve la estructura JSON sin guardar en la BD.
+    Ideal para un 'Preview' en el Frontend.
+    """
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="Formato de archivo inválido. Debe ser Excel (.xlsx o .xls)")
+        
+    contents = await file.read()
+    success, data, message = ExcelMineduParser.parse_plan_estudio(contents)
+    
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+        
+    return {
+        "message": "Plan estructurado exitosamente",
+        "data": data
+    }
+
 @router.post("/planes/importar-minedu")
 async def importar_plan_minedu(request: Request, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     if not file.filename.endswith(('.xlsx', '.xls')):

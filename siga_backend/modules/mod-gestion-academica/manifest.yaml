@@ -7,7 +7,7 @@ repository: "https://github.com/siga/mod-gestion-academica"
 license: "MIT"
 
 endpoints:
-  http: "http://localhost:8006"
+  http: "http://mod-gestion-academica:8006"
   health: "/health"
   ready: "/ready"
   manifest: "/manifest"

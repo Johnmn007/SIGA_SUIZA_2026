@@ -362,6 +362,7 @@ class ModuleRuntime:
                         
                         if response.status_code == 200:
                             is_healthy = True
+                            module.status = ModuleStatus.HEALTHY
                             logger.info(f"✅ [REGISTER] Módulo {name} está corriendo")
                         else:
                             is_healthy = False

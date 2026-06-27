@@ -10,6 +10,10 @@ export function AcademicDashboard() {
   const [view, setView] = useState('list'); // 'list' or 'mesh'
   const [selectedProgram, setSelectedProgram] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [previewData, setPreviewData] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [newProgram, setNewProgram] = useState({
     nombre: '',
     codigo: '',
@@ -22,8 +26,8 @@ export function AcademicDashboard() {
     setLoading(true);
     try {
       const [programsData, periodsData] = await Promise.all([
-        apiClient.callModule('mod-programas-estudio', 'programas'),
-        apiClient.callModule('mod-programas-estudio', 'periodos')
+        apiClient.callModule('mod-programas-estudio', 'api/v1/programas'),
+        apiClient.callModule('mod-programas-estudio', 'api/v1/periodos')
       ]);
 
       setPrograms(Array.isArray(programsData) ? programsData : []);
@@ -39,18 +43,82 @@ export function AcademicDashboard() {
     fetchData();
   }, []);
 
-  const handleCreateProgram = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await apiClient.callModule('mod-programas-estudio', 'programas', 'POST', newProgram);
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportFile(file);
+    setIsProcessing(true);
+    setPreviewData(null);
 
-      if (response) {
-        setShowModal(false);
-        setNewProgram({ nombre: '', codigo: '', descripcion: '', creditos_totales: 120, duracion_periodos: 6 });
-        fetchData();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      // Usamos el cliente API base pero saltándonos el default JSON content-type para FormData
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${apiClient.baseURL}/api/mod-planes-estudio/api/v1/planes/parse-minedu`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      const result = await response.json();
+      if (response.ok) {
+        setPreviewData(result.data);
+      } else {
+        alert(result.detail || 'Error al procesar el archivo');
       }
     } catch (error) {
-      console.error('Error creating program:', error);
+      console.error('Error procesando Excel:', error);
+      alert('Error de conexión al procesar el archivo');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importFile || !previewData) return;
+    setIsProcessing(true);
+    
+    try {
+      // 1. Crear el Programa en mod-programas-estudio primero (usando datos del preview)
+      const programaData = {
+        nombre: previewData.nombre,
+        codigo: previewData.codigo,
+        descripcion: previewData.descripcion || 'Carrera importada desde Plan MINEDU',
+        creditos_totales: previewData.creditos_totales,
+        duracion_periodos: 6 // Por defecto
+      };
+      
+      await apiClient.callModule('mod-programas-estudio', 'api/v1/programas', 'POST', programaData);
+
+      // 2. Importar la estructura modular en mod-planes-estudio
+      const formData = new FormData();
+      formData.append('file', importFile);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${apiClient.baseURL}/api/mod-planes-estudio/api/v1/planes/importar-minedu`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      
+      const result = await response.json();
+      if (response.ok) {
+        alert('¡Carrera y Plan de Estudios creados exitosamente!');
+        setShowImportModal(false);
+        setImportFile(null);
+        setPreviewData(null);
+        fetchData(); // Refrescar vista
+      } else {
+        alert(result.detail || 'Error al guardar el plan de estudios');
+      }
+    } catch (error) {
+      console.error('Error en importación:', error);
+      alert('Error al crear la carrera. Podría haber conflictos de código duplicado.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -69,11 +137,11 @@ export function AcademicDashboard() {
           <p className="text-slate-500 text-sm mt-1">Administración de programas de estudio y mallas curriculares</p>
         </div>
         <button 
-          className="btn-primary flex items-center space-x-2"
-          onClick={() => setShowModal(true)}
+          className="btn-primary flex items-center space-x-2 shadow-glow"
+          onClick={() => setShowImportModal(true)}
         >
-          <span className="text-xl leading-none">+</span>
-          <span>Nueva Carrera</span>
+          <span className="text-xl leading-none">🚀</span>
+          <span>Crear Carrera desde Plan</span>
         </button>
       </div>
 
@@ -168,59 +236,126 @@ export function AcademicDashboard() {
         </div>
       </div>
 
-      {/* New Program Modal */}
-      {showModal && (
+      {/* New Program Modal (Old form removed) */}
+
+      {/* Import MINEDU Modal */}
+      {showImportModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-lg overflow-hidden bg-white/95 shadow-2xl animate-fade-in-up">
+          <div className="glass-card w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden bg-white/95 shadow-2xl animate-fade-in-up">
             <div className="flex justify-between items-center p-6 border-b border-slate-200">
-              <h5 className="font-bold text-xl text-slate-800 tracking-tight">Nueva Carrera Profesional</h5>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
+              <h5 className="font-bold text-xl text-slate-800 tracking-tight">Importar Plan de Estudio MINEDU</h5>
+              <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
             </div>
             
-            <form onSubmit={handleCreateProgram}>
-              <div className="p-6 space-y-5">
-                <div>
-                  <label className="label uppercase tracking-wider text-xs">Nombre de la Carrera</label>
+            <div className="p-6 overflow-y-auto flex-grow">
+              {!previewData && (
+                <div className="border-2 border-dashed border-primary/40 rounded-xl p-12 text-center bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer relative">
                   <input 
-                    type="text" className="input-field" 
-                    value={newProgram.nombre} onChange={e => setNewProgram({...newProgram, nombre: e.target.value})}
-                    placeholder="Ej: Desarrollo de Sistemas" required
+                    type="file" 
+                    accept=".xlsx, .xls"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={handleFileChange}
+                    disabled={isProcessing}
                   />
+                  <div className="text-5xl mb-4">📄</div>
+                  <h6 className="font-bold text-slate-700 mb-2">Sube el archivo Excel del Plan MINEDU</h6>
+                  <p className="text-slate-500 text-sm">El sistema analizará las hojas y extraerá la malla curricular automáticamente.</p>
+                  
+                  {isProcessing && (
+                    <div className="mt-6 flex flex-col items-center">
+                      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-sm font-semibold text-primary mt-2">Procesando estructura...</span>
+                    </div>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label uppercase tracking-wider text-xs">Código</label>
-                    <input 
-                      type="text" className="input-field" 
-                      value={newProgram.codigo} onChange={e => setNewProgram({...newProgram, codigo: e.target.value})}
-                      placeholder="Ej: DS-2024" required
-                    />
+              )}
+
+              {previewData && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <span className="px-2 py-1 bg-primary/10 text-primary font-bold text-xs rounded uppercase tracking-wider mb-2 inline-block">Vista Previa</span>
+                      <h4 className="font-bold text-xl text-slate-800">{previewData.nombre}</h4>
+                      <p className="text-slate-500 text-sm mt-1">Código Modular: <span className="font-bold text-slate-700">{previewData.codigo}</span></p>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-black text-primary-dark">{previewData.creditos_totales}</div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Créditos</div>
+                      </div>
+                      <div className="w-px bg-slate-200"></div>
+                      <div className="text-center">
+                        <div className="text-2xl font-black text-primary-dark">{previewData.horas_totales}</div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Horas</div>
+                      </div>
+                    </div>
                   </div>
+
                   <div>
-                    <label className="label uppercase tracking-wider text-xs">Créditos Totales</label>
-                    <input 
-                      type="number" className="input-field" 
-                      value={newProgram.creditos_totales} onChange={e => setNewProgram({...newProgram, creditos_totales: e.target.value})}
-                      required
-                    />
+                    <h6 className="font-bold text-slate-700 mb-3 border-b pb-2">Estructura Modular Extraída</h6>
+                    <div className="space-y-4">
+                      {previewData.modulos.map((mod, idx) => (
+                        <div key={idx} className="border border-slate-200 rounded-lg overflow-hidden">
+                          <div className="bg-slate-100 p-3 flex justify-between items-center">
+                            <span className="font-bold text-sm text-slate-800">{mod.nombre}</span>
+                            <div className="flex gap-3 text-xs font-semibold text-slate-600">
+                              <span>{mod.creditos} CR</span>
+                              <span>{mod.horas} HR</span>
+                            </div>
+                          </div>
+                          <div className="bg-white p-0">
+                            {mod.unidades.length > 0 ? (
+                              <table className="w-full text-left text-sm">
+                                <tbody>
+                                  {mod.unidades.map((ud, uIdx) => (
+                                    <tr key={uIdx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                                      <td className="py-2 px-4 text-slate-700">• {ud.nombre}</td>
+                                      <td className="py-2 px-4 text-right text-slate-500 font-medium w-24">{ud.creditos} CR</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            ) : (
+                              <div className="p-3 text-center text-xs text-slate-400 italic">No se encontraron unidades didácticas</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <label className="label uppercase tracking-wider text-xs">Descripción</label>
-                  <textarea 
-                    className="input-field min-h-[100px] resize-y"
-                    value={newProgram.descripcion} onChange={e => setNewProgram({...newProgram, descripcion: e.target.value})}
-                    placeholder="Breve descripción del perfil profesional..."
-                  ></textarea>
-                </div>
-              </div>
-              <div className="p-6 border-t border-slate-200 bg-slate-50 flex justify-end space-x-3">
-                <button type="button" className="px-5 py-2 font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors" onClick={() => setShowModal(false)}>Cancelar</button>
-                <button type="submit" className="btn-primary px-6">Guardar Carrera</button>
-              </div>
-            </form>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-slate-200 bg-slate-50 flex justify-end space-x-3">
+              <button 
+                type="button" 
+                className="px-5 py-2 font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors" 
+                onClick={() => setShowImportModal(false)}
+                disabled={isProcessing}
+              >
+                Cancelar
+              </button>
+              {previewData && (
+                <button 
+                  type="button" 
+                  className="btn-primary px-6 flex items-center space-x-2"
+                  onClick={handleConfirmImport}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Importando...</span>
+                    </>
+                  ) : (
+                    <span>Confirmar e Importar</span>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

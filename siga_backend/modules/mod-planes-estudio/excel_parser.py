@@ -1,50 +1,67 @@
 import pandas as pd
 import io
 import logging
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List, Optional
+import math
 
 logger = logging.getLogger(__name__)
 
 class ExcelMineduParser:
     """
-    Parser especializado para importar Planes de Estudio desde el formato Excel de MINEDU.
-    Espera una estructura estándar donde la primera hoja tiene la información general del plan,
-    y las siguientes hojas/tablas tienen los módulos y unidades.
+    Motor de Extracción Semántica (Anchor-Based) para Planes de Estudio MINEDU.
     """
-    
+
+    @staticmethod
+    def _find_anchor_value(df: pd.DataFrame, anchor_keywords: List[str]) -> Optional[Any]:
+        """
+        Busca un 'ancla' (keyword) en todo el DataFrame y retorna el valor de la celda adyacente (a su derecha o abajo).
+        """
+        for i, row in df.iterrows():
+            for j, val in enumerate(row.values):
+                if pd.notna(val) and isinstance(val, str):
+                    val_lower = val.lower().strip()
+                    if any(kw in val_lower for kw in anchor_keywords):
+                        # Encontramos el ancla. Buscar a la derecha.
+                        for k in range(j + 1, len(row.values)):
+                            if pd.notna(row.values[k]) and str(row.values[k]).strip() != "":
+                                return row.values[k]
+                        # Si no hay nada a la derecha, buscar abajo
+                        if i + 1 < len(df):
+                            val_below = df.iloc[i+1, j]
+                            if pd.notna(val_below) and str(val_below).strip() != "":
+                                return val_below
+        return None
+
+    @staticmethod
+    def _find_table_headers(df: pd.DataFrame, required_keywords: List[str]) -> Optional[Tuple[int, Dict[str, int]]]:
+        """
+        Busca la fila que contiene las cabeceras de la tabla (ej: Unidad Didáctica, Créditos, Horas).
+        Retorna (row_index, {keyword: col_index})
+        """
+        for i, row in df.iterrows():
+            found_cols = {}
+            for j, val in enumerate(row.values):
+                if pd.notna(val) and isinstance(val, str):
+                    val_lower = val.lower().strip()
+                    for kw in required_keywords:
+                        if kw in val_lower and kw not in found_cols:
+                            found_cols[kw] = j
+            
+            # Si encontramos al menos 2 palabras clave, y una de ellas es 'unidad', asumimos que es la cabecera
+            if len(found_cols) >= 2 and any("unidad" in kw for kw in found_cols.keys()):
+                return i, found_cols
+                
+        return None
+
     @staticmethod
     def parse_plan_estudio(file_contents: bytes) -> Tuple[bool, Dict[str, Any], str]:
-        """
-        Analiza el archivo Excel y extrae la estructura del plan de estudio.
-        Retorna (exito, datos, mensaje_error)
-        """
         try:
-            # Leer el archivo Excel en memoria
             excel_file = pd.ExcelFile(io.BytesIO(file_contents))
-            
-            # Verificar hojas necesarias (asumiendo formato MINEDU: "Datos Generales", "Módulos")
-            sheet_names = [name.lower() for name in excel_file.sheet_names]
-            
-            # Intentar encontrar la hoja principal
-            main_sheet = None
-            for name in excel_file.sheet_names:
-                if "datos" in name.lower() or "general" in name.lower() or "plan" in name.lower():
-                    main_sheet = name
-                    break
-                    
-            if not main_sheet:
-                main_sheet = excel_file.sheet_names[0] # Fallback a la primera
-                
-            df_general = pd.read_excel(excel_file, sheet_name=main_sheet)
-            
-            # 1. Extraer Datos Generales del Plan
-            # Asumimos una estructura llave-valor o un formato específico
-            # En la vida real esto requiere mapeo exacto, aquí usaremos una heurística
-            # para buscar 'Código', 'Nombre del Programa', etc.
+            sheet_names = excel_file.sheet_names
             
             plan_data = {
-                "codigo": "TMP-" + str(pd.Timestamp.now().timestamp()).replace(".","")[-6:],
-                "nombre": "Plan Extraído (Generado automáticamente)",
+                "codigo": "",
+                "nombre": "",
                 "descripcion": "Importado desde archivo MINEDU",
                 "nivel_formativo": "Técnico Profesional",
                 "creditos_totales": 0,
@@ -53,99 +70,148 @@ class ExcelMineduParser:
                 "modulos": []
             }
             
-            # Buscando Código o Programa
-            for i, row in df_general.iterrows():
-                row_str = " ".join([str(val).lower() for val in row.values if pd.notna(val)])
-                if "código" in row_str or "codigo" in row_str:
-                    # Intentar extraer el valor en la siguiente columna
-                    for j, val in enumerate(row.values):
-                        if pd.notna(val) and ("código" in str(val).lower() or "codigo" in str(val).lower()):
-                            if j + 1 < len(row.values) and pd.notna(row.values[j+1]):
-                                plan_data["codigo"] = str(row.values[j+1]).strip()
+            # 1. Extraer Metadatos Generales
+            general_sheet = None
+            for name in sheet_names:
+                name_lower = name.lower()
+                if "programa" in name_lower or "dato" in name_lower or "general" in name_lower:
+                    general_sheet = name
+                    break
+            
+            if general_sheet:
+                df_gen = pd.read_excel(excel_file, sheet_name=general_sheet)
                 
-                if "programa" in row_str or "carrera" in row_str:
-                    for j, val in enumerate(row.values):
-                        if pd.notna(val) and ("programa" in str(val).lower() or "carrera" in str(val).lower()):
-                            if j + 1 < len(row.values) and pd.notna(row.values[j+1]):
-                                plan_data["nombre"] = str(row.values[j+1]).strip()
-                                
-            # 2. Extraer Módulos y Unidades (de la segunda hoja si existe)
-            if len(excel_file.sheet_names) > 1:
-                modulos_sheet = excel_file.sheet_names[1]
-                df_modulos = pd.read_excel(excel_file, sheet_name=modulos_sheet)
+                # Buscar Código
+                codigo = ExcelMineduParser._find_anchor_value(df_gen, ["código", "codigo"])
+                if codigo: plan_data["codigo"] = str(codigo).strip()
                 
-                # Heurística simple: buscar columnas 'Módulo', 'Unidad Didáctica', 'Horas', 'Créditos'
-                cols = [str(c).lower() for c in df_modulos.columns]
+                # Buscar Nombre
+                nombre = ExcelMineduParser._find_anchor_value(df_gen, ["denominación del programa", "programa de estudio", "carrera"])
+                if nombre: plan_data["nombre"] = str(nombre).strip()
                 
-                mod_col = None
-                ud_col = None
-                hrs_col = None
-                cred_col = None
+                # Buscar Horas
+                horas = ExcelMineduParser._find_anchor_value(df_gen, ["horas"])
+                if horas: 
+                    try: plan_data["horas_totales"] = int(float(str(horas).strip()))
+                    except: pass
                 
-                for orig_col in df_modulos.columns:
-                    c = str(orig_col).lower()
-                    if "módulo" in c or "modulo" in c: mod_col = orig_col
-                    elif "unidad" in c or "didáctica" in c or "didactica" in c: ud_col = orig_col
-                    elif "horas" in c: hrs_col = orig_col
-                    elif "crédito" in c or "credito" in c: cred_col = orig_col
+                # Buscar Créditos
+                creditos = ExcelMineduParser._find_anchor_value(df_gen, ["crédito", "credito"])
+                if creditos:
+                    try: plan_data["creditos_totales"] = int(float(str(creditos).strip()))
+                    except: pass
+
+            # Si no encontró código, generar uno temporal
+            if not plan_data["codigo"]:
+                plan_data["codigo"] = "TMP-" + str(pd.Timestamp.now().timestamp()).replace(".","")[-6:]
+            if not plan_data["nombre"]:
+                plan_data["nombre"] = "Plan Extraído (Autogenerado)"
+
+            # 2. Extraer Módulos (Hojas M1, M2... o que digan 'Modulo')
+            modulo_sheets = []
+            for name in sheet_names:
+                if name.startswith("M") and name[1:].isdigit():
+                    modulo_sheets.append(name)
+                elif "módulo" in name.lower() or "modulo" in name.lower() and "organización" not in name.lower():
+                    modulo_sheets.append(name)
+            
+            if not modulo_sheets:
+                # Fallback: intentar leer la hoja de organización modular si no hay hojas M1, M2
+                pass # Por ahora asumimos que el formato detallado es el mejor
+            
+            modulos_procesados = []
+            orden_modulo = 1
+            
+            for m_sheet in modulo_sheets:
+                df_mod = pd.read_excel(excel_file, sheet_name=m_sheet)
                 
-                # Si tenemos columnas identificadas, procesar
-                if ud_col:
-                    current_modulo = None
-                    modulos_dict = {}
+                # Buscar Nombre del Módulo
+                nombre_mod = ExcelMineduParser._find_anchor_value(df_mod, ["denominación del módulo", "nombre del módulo", "módulo"])
+                if not nombre_mod:
+                    nombre_mod = f"Módulo {orden_modulo}"
+                
+                modulo = {
+                    "codigo": f"MOD-{orden_modulo:02d}",
+                    "nombre": str(nombre_mod).strip(),
+                    "horas": 0,
+                    "creditos": 0,
+                    "orden": orden_modulo,
+                    "unidades": []
+                }
+                
+                # Buscar tabla de Unidades
+                header_info = ExcelMineduParser._find_table_headers(df_mod, ["unidad", "horas", "crédito", "credito"])
+                print(f"Header info for {m_sheet}: {header_info}")
+                
+                if header_info:
+                    header_row_idx, col_map = header_info
                     
-                    for i, row in df_modulos.iterrows():
-                        # Si hay un módulo definido en esta fila, actualizar el actual
-                        if mod_col and pd.notna(row[mod_col]) and str(row[mod_col]).strip() != "":
-                            mod_name = str(row[mod_col]).strip()
-                            if mod_name not in modulos_dict:
-                                modulos_dict[mod_name] = {
-                                    "codigo": f"MOD-{len(modulos_dict)+1:02d}",
-                                    "nombre": mod_name,
-                                    "horas": 0,
-                                    "creditos": 0,
-                                    "orden": len(modulos_dict) + 1,
-                                    "unidades": []
-                                }
-                            current_modulo = mod_name
+                    # Identificar columnas exactas
+                    ud_col = None
+                    hr_col = None
+                    cr_col = None
+                    
+                    for kw, col_idx in col_map.items():
+                        if "unidad" in kw: ud_col = col_idx
+                        elif "hora" in kw: hr_col = col_idx
+                        elif "crédito" in kw or "credito" in kw: cr_col = col_idx
+                    
+                    if ud_col is not None:
+                        orden_ud = 1
+                        # Leer desde la fila siguiente a la cabecera
+                        for idx in range(header_row_idx + 1, len(df_mod)):
+                            ud_name_raw = df_mod.iloc[idx, ud_col]
                             
-                        # Si hay una unidad didáctica
-                        if pd.notna(row[ud_col]) and str(row[ud_col]).strip() != "":
-                            # Si no hay módulo, crear uno genérico
-                            if not current_modulo:
-                                current_modulo = "Módulo Formativo General"
-                                modulos_dict[current_modulo] = {
-                                    "codigo": "MOD-GEN",
-                                    "nombre": current_modulo,
-                                    "horas": 0,
-                                    "creditos": 0,
-                                    "orden": 1,
-                                    "unidades": []
-                                }
+                            if pd.isna(ud_name_raw) or str(ud_name_raw).strip() in ["", "0"]:
+                                continue # Ignorar filas vacías
+                                
+                            ud_name_str = str(ud_name_raw).strip()
                             
-                            ud_name = str(row[ud_col]).strip()
-                            hrs = int(row[hrs_col]) if hrs_col and pd.notna(row[hrs_col]) and str(row[hrs_col]).isnumeric() else 0
-                            creds = int(row[cred_col]) if cred_col and pd.notna(row[cred_col]) and str(row[cred_col]).isnumeric() else 0
+                            # Ignorar repeticiones de la cabecera (ej. para habilidades de empleabilidad)
+                            if ud_name_str.lower() == "unidad didáctica" or ud_name_str.lower() == "unidad didactica":
+                                continue
+                                
+                            # Criterio de parada: si vemos "Total", "Subtotal", o similar, paramos de leer unidades
+                            if "total" in ud_name_str.lower() or "sumatoria" in ud_name_str.lower():
+                                break
+                            
+                            # Extraer horas y créditos asegurando que sean numéricos
+                            hrs = 0
+                            if hr_col is not None and pd.notna(df_mod.iloc[idx, hr_col]):
+                                try: hrs = int(float(str(df_mod.iloc[idx, hr_col]).strip()))
+                                except: pass
+                                
+                            creds = 0
+                            if cr_col is not None and pd.notna(df_mod.iloc[idx, cr_col]):
+                                try: creds = int(float(str(df_mod.iloc[idx, cr_col]).strip()))
+                                except: pass
                             
                             unidad = {
-                                "codigo": f"UD-{len(modulos_dict[current_modulo]['unidades'])+1:02d}",
-                                "nombre": ud_name,
+                                "codigo": f"UD-{orden_ud:02d}",
+                                "nombre": ud_name_str,
                                 "horas": hrs,
                                 "creditos": creds,
                                 "tipo": "teorico-practico",
-                                "orden": len(modulos_dict[current_modulo]["unidades"]) + 1
+                                "orden": orden_ud
                             }
-                            
-                            modulos_dict[current_modulo]["unidades"].append(unidad)
-                            modulos_dict[current_modulo]["horas"] += hrs
-                            modulos_dict[current_modulo]["creditos"] += creds
-                            plan_data["horas_totales"] += hrs
-                            plan_data["creditos_totales"] += creds
-                    
-                    plan_data["modulos"] = list(modulos_dict.values())
-                    
-            return True, plan_data, "Archivo procesado exitosamente"
+                            modulo["unidades"].append(unidad)
+                            modulo["horas"] += hrs
+                            modulo["creditos"] += creds
+                            orden_ud += 1
+                
+                modulos_procesados.append(modulo)
+                orden_modulo += 1
             
+            plan_data["modulos"] = modulos_procesados
+            
+            # Recalcular totales si no se extrajeron bien de la metadata global
+            if plan_data["creditos_totales"] == 0 and modulos_procesados:
+                plan_data["creditos_totales"] = sum(m["creditos"] for m in modulos_procesados)
+            if plan_data["horas_totales"] == 0 and modulos_procesados:
+                plan_data["horas_totales"] = sum(m["horas"] for m in modulos_procesados)
+                
+            return True, plan_data, "Archivo procesado y estructurado exitosamente"
+
         except Exception as e:
             logger.error(f"Error parseando Excel MINEDU: {e}")
             import traceback

@@ -5,7 +5,7 @@ import { DashboardLayout } from './layouts/DashboardLayout';
 import { Dashboard } from './modules/dashboard/Dashboard';
 import { AcademicDashboard } from './modules/academic/AcademicDashboard';
 import { StudentMaster } from './modules/students/StudentMaster';
-import { EnrollmentProcess } from './modules/enrollment/EnrollmentProcess';
+import { EnrollmentDashboard } from './modules/enrollment/EnrollmentDashboard';
 import { AdminDashboard } from './modules/admin/AdminDashboard';
 import { useState } from 'react';
 
@@ -32,7 +32,7 @@ function AppContent() {
     switch(currentView) {
       case 'academic': return <AcademicDashboard />;
       case 'students': return <StudentMaster />;
-      case 'enrollment': return <EnrollmentProcess />;
+      case 'enrollment': return <EnrollmentDashboard />;
       case 'admin': return <AdminDashboard />;
       default: return <Dashboard onNavigate={setCurrentView} />;
     }

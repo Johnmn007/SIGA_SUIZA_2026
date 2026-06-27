@@ -7,5 +7,10 @@ export DB_URL="postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PO
 echo "Running database migrations..."
 alembic upgrade head
 
-echo "Starting SIGA Core..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+if [ "$#" -eq 0 ]; then
+    echo "Starting SIGA Core..."
+    exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+else
+    echo "Starting Module with command: $@"
+    exec "$@"
+fi

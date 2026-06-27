@@ -1,9 +1,6 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: siga_postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: "john.007"
@@ -20,7 +17,6 @@ services:
 
   nats:
     image: nats:2.9-alpine
-    container_name: siga_nats
     ports:
       - "4222:4222"
     command: ["-js"]
@@ -32,7 +28,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: siga_redis
     ports:
       - "6379:6379"
     healthcheck:
@@ -46,7 +41,6 @@ services:
     build: 
       context: ./siga_backend
       dockerfile: Dockerfile
-    container_name: siga_core_api
     ports:
       - "8000:8000"
     environment:
@@ -70,13 +64,15 @@ services:
     build: 
       context: ./siga_backend
       dockerfile: Dockerfile
-    container_name: siga_mod_usuarios
-    command: ["uvicorn", "modules.mod-usuarios.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    command: ["sh", "-c", "cd modules/mod-usuarios && uvicorn main:app --host 0.0.0.0 --port 8001"]
     ports:
       - "8001:8001"
     environment:
-      - DB_HOST=postgres
+      - DB_USER=postgres
       - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8001
     depends_on:
@@ -87,13 +83,15 @@ services:
     build: 
       context: ./siga_backend
       dockerfile: Dockerfile
-    container_name: siga_mod_planes_estudio
-    command: ["uvicorn", "modules.mod-planes-estudio.main:app", "--host", "0.0.0.0", "--port", "8002"]
+    command: ["sh", "-c", "cd modules/mod-planes-estudio && uvicorn main:app --host 0.0.0.0 --port 8002"]
     ports:
       - "8002:8002"
     environment:
-      - DB_HOST=postgres
+      - DB_USER=postgres
       - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8002
     depends_on:
@@ -104,13 +102,15 @@ services:
     build: 
       context: ./siga_backend
       dockerfile: Dockerfile
-    container_name: siga_mod_programas_estudio
-    command: ["uvicorn", "modules.mod-programas-estudio.main:app", "--host", "0.0.0.0", "--port", "8005"]
+    command: ["sh", "-c", "cd modules/mod-programas-estudio && uvicorn main:app --host 0.0.0.0 --port 8005"]
     ports:
       - "8005:8005"
     environment:
-      - DB_HOST=postgres
+      - DB_USER=postgres
       - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8005
     depends_on:
@@ -121,13 +121,15 @@ services:
     build: 
       context: ./siga_backend
       dockerfile: Dockerfile
-    container_name: siga_mod_gestion_academica
-    command: ["uvicorn", "modules.mod-gestion-academica.main:app", "--host", "0.0.0.0", "--port", "8006"]
+    command: ["sh", "-c", "cd modules/mod-gestion-academica && uvicorn main:app --host 0.0.0.0 --port 8006"]
     ports:
       - "8006:8006"
     environment:
-      - DB_HOST=postgres
+      - DB_USER=postgres
       - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8006
     depends_on:
@@ -138,13 +140,15 @@ services:
     build: 
       context: ./siga_backend
       dockerfile: Dockerfile
-    container_name: siga_mod_auditoria
-    command: ["uvicorn", "modules.mod-auditoria.main:app", "--host", "0.0.0.0", "--port", "8007"]
+    command: ["sh", "-c", "cd modules/mod-auditoria && uvicorn main:app --host 0.0.0.0 --port 8007"]
     ports:
       - "8007:8007"
     environment:
-      - DB_HOST=postgres
+      - DB_USER=postgres
       - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8007
     depends_on:
@@ -156,9 +160,13 @@ services:
     build: 
       context: ./siga_frontend
       dockerfile: Dockerfile
-    container_name: siga_frontend
+      target: build
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "80"]
     ports:
       - "3000:80"
+    volumes:
+      - ./siga_frontend:/app
+      - /app/node_modules
     depends_on:
       - siga-core
 

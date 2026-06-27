@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { API_BASE } from '../../core/api/client';
 
-export function EnrollmentProcess() {
-  const [step, setStep] = useState(1);
+export function EnrollmentProcess({ initialStudent, onCancel }) {
+  const [step, setStep] = useState(initialStudent ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [students, setStudents] = useState([]);
@@ -10,7 +10,7 @@ export function EnrollmentProcess() {
   const [periods, setPeriods] = useState([]);
   
   const [selection, setSelection] = useState({
-    student: null,
+    student: initialStudent || null,
     program: null,
     period: null,
     tipo: 'Ordinario'
@@ -79,7 +79,16 @@ export function EnrollmentProcess() {
       <div className="glass-panel p-8 md:p-12 overflow-hidden relative">
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary to-primary-light"></div>
         
-        <div className="text-center mb-10">
+        <div className="text-center mb-10 relative">
+          {onCancel && (
+            <button 
+              onClick={onCancel}
+              className="absolute left-0 top-0 p-2 text-slate-400 hover:text-slate-600 transition-colors"
+              title="Volver al listado"
+            >
+              ← Volver
+            </button>
+          )}
           <h2 className="text-3xl font-extrabold tracking-tight text-slate-800 mb-2">
             Proceso de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Matrícula Académica</span>
           </h2>
@@ -181,7 +190,12 @@ export function EnrollmentProcess() {
                 </div>
               </div>
               <div className="mt-auto pt-6 border-t border-slate-200/50 flex gap-4">
-                <button className="px-6 py-2.5 font-semibold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={() => setStep(1)}>Volver</button>
+                {!initialStudent && (
+                  <button className="px-6 py-2.5 font-semibold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={() => setStep(1)}>Volver</button>
+                )}
+                {initialStudent && onCancel && (
+                  <button className="px-6 py-2.5 font-semibold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={onCancel}>Cancelar</button>
+                )}
                 <button 
                   className={`flex-1 py-2.5 font-semibold rounded-lg transition-all ${!selection.program || !selection.period ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'btn-primary'}`} 
                   disabled={!selection.program || !selection.period} 
@@ -247,9 +261,16 @@ export function EnrollmentProcess() {
               
               <button 
                 className="btn-primary py-3 px-8 text-lg" 
-                onClick={() => { setStep(1); setSelection({student:null, program:null, period:null, tipo:'Ordinario'}); }}
+                onClick={() => {
+                  if (onCancel) {
+                    onCancel(); // Vuelve al listado si es invocado desde dashboard
+                  } else {
+                    setStep(1); 
+                    setSelection({student:null, program:null, period:null, tipo:'Ordinario'}); 
+                  }
+                }}
               >
-                Realizar otra matrícula
+                {onCancel ? 'Volver al Inicio' : 'Realizar otra matrícula'}
               </button>
             </div>
           )}

@@ -5,8 +5,8 @@ description: "Módulo de gestión de usuarios, roles y perfiles (RBAC)"
 author: "SIGA Core Team"
 
 endpoints:
-  http: "http://localhost:8005"
-  ws: "ws://localhost:8005/ws"
+  http: "http://mod-usuarios:8001"
+  ws: "ws://mod-usuarios:8001/ws"
 
 health_check: "/health"
 

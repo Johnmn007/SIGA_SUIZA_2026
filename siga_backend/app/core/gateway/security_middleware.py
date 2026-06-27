@@ -49,7 +49,7 @@ class SecurityMiddleware:
                 module_name = request.url.path.split("/")[2]  # /api/{module_name}/...
                 has_perm = any(p.startswith(f"{module_name}:") for p in user["permissions"])
                 
-                if not has_perm:
+                if not user.get("is_superuser") and not has_perm:
                     raise HTTPException(status_code=403, detail="Permisos insuficientes para este módulo")
             
             logger.info(f"🔐 Usuario autenticado: {user['email']} - {request.method} {request.url.path}")
