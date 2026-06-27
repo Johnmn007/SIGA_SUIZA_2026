@@ -1,0 +1,28 @@
+apiVersion: "2.0"
+name: "mod-auditoria"
+version: "1.0.0"
+description: "Servicio pasivo de auditoría y trazabilidad"
+author: "SIGA Team"
+
+dependencies:
+  core: ">=1.0.0"
+
+endpoints:
+  http:
+    - path: "/health"
+      method: "GET"
+      description: "Verificar estado del módulo"
+      auth_required: false
+    - path: "/api/v1/auditoria"
+      method: "GET"
+      description: "Consultar logs de auditoría"
+      auth_required: true
+
+events:
+  consumes:
+    - "*.*.*"
+  produces: []
+
+grants:
+  - "auditoria:access"
+  - "auditoria:read"

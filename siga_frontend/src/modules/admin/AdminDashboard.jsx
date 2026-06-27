@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { UserManagement } from './UserManagement';
+import { AuditLogs } from './AuditLogs';
 
 export function AdminDashboard() {
   const { user, permissions } = useAuth();
@@ -155,6 +156,10 @@ export function AdminDashboard() {
     <UserManagement />
   );
 
+  const renderAudit = () => (
+    <AuditLogs />
+  );
+
   const renderConfig = () => (
     <div className="glass-card p-4">
       <h5 className="fw-bold mb-3">Configuración del Sistema</h5>
@@ -208,6 +213,7 @@ export function AdminDashboard() {
             { key: 'overview', label: '📊 Resumen', icon: '' },
             { key: 'modules', label: '📦 Módulos', icon: '' },
             { key: 'users', label: '👥 Usuarios', icon: '' },
+            { key: 'audit', label: '🔍 Auditoría', icon: '' },
             { key: 'config', label: '⚙️ Configuración', icon: '' },
           ].map(tab => (
             <button
@@ -227,6 +233,7 @@ export function AdminDashboard() {
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'modules' && renderModules()}
         {activeTab === 'users' && renderUsers()}
+        {activeTab === 'audit' && renderAudit()}
         {activeTab === 'config' && renderConfig()}
       </div>
     </div>

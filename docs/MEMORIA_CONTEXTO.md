@@ -176,7 +176,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 - [x] mod-estudiantes funcional
 - [x] mod-usuarios funcional (con roles)
 - [x] UI de Administración de Usuarios
-- [ ] Sistema de Auditoría
+- [x] Sistema de Auditoría
 
 ### Fases 3-6
 - Ver `docs/12-ROADMAP.md` para el plan completo
@@ -216,6 +216,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | 2026-06-27 | 1.6 | Implementación de `ExcelMineduParser` en `mod-planes-estudio` para importar los planes MINEDU (hojas de Módulos y Unidades) usando Pandas y endpoint FastAPI (`/planes/importar-minedu`). Fase 1 completada. |
 | 2026-06-27 | 2.0 | Implementación de `mod-usuarios` (Modelos y Rutas CRUD para Usuarios, Roles, Permisos) mapeando la BD `siga_core`. Creación de la interfaz de Administración de Usuarios con React (`UserManagement.jsx`) en el Frontend. Fase 2 iniciada. |
 | 2026-06-27 | 2.1 | Implementación completa de CRUDs en `mod-gestion-academica` para Estudiantes y Matrículas. Actualización de las vistas frontend `StudentMaster.jsx` y `EnrollmentProcess.jsx` para integrar correctamente el backend unificado. |
+| 2026-06-27 | 2.2 | Implementación del Sistema de Auditoría Inmutable (`mod-auditoria`). Microservicio pasivo (consumidor de NATS) que registra operaciones de todos los módulos en `core_audit_logs`. Creación del tab 'Auditoría' en el Frontend. Fase 2 Completada con éxito. |
 
 ---
 
