@@ -26,10 +26,20 @@ export function StudentMaster() {
     if (val.length < 3) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/mod-estudiantes/buscar?query=${val}`, {
+      // Usar la ruta correcta del módulo integrado
+      let url = `${API_BASE}/api/mod-gestion-academica/estudiantes/`;
+      const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
-      setStudents(await res.json());
+      const data = await res.json();
+      // Filtrar localmente por DNI, Nombres o Codigo (ya que el backend retorna todos por ahora, o podríamos hacer un endpoint de búsqueda)
+      const filtered = data.filter(s => 
+        s.dni.includes(val) || 
+        s.nombres.toLowerCase().includes(val.toLowerCase()) || 
+        s.apellidos.toLowerCase().includes(val.toLowerCase()) || 
+        s.codigo_estudiante.includes(val)
+      );
+      setStudents(filtered);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -37,13 +47,15 @@ export function StudentMaster() {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/api/mod-estudiantes/`, {
+      const payload = { ...form };
+      // Limpiar campos que no están en el schema de creación si es necesario
+      const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify(form)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         setShowModal(false);

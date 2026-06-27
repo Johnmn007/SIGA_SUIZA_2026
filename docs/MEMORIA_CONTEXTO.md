@@ -173,7 +173,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 - [x] Parser Excel MINEDU para importación de planes de estudio
 
 ### Fase 2 - Núcleo Académico (Semanas 9-16)
-- [ ] mod-estudiantes funcional
+- [x] mod-estudiantes funcional
 - [x] mod-usuarios funcional (con roles)
 - [x] UI de Administración de Usuarios
 - [ ] Sistema de Auditoría
@@ -215,6 +215,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | 2026-06-27 | 1.5 | Sockets conectados en el Frontend Layout para notificaciones en tiempo real. APIs completadas (CRUD) para `mod-planes-estudio` y `mod-programas-estudio`. |
 | 2026-06-27 | 1.6 | Implementación de `ExcelMineduParser` en `mod-planes-estudio` para importar los planes MINEDU (hojas de Módulos y Unidades) usando Pandas y endpoint FastAPI (`/planes/importar-minedu`). Fase 1 completada. |
 | 2026-06-27 | 2.0 | Implementación de `mod-usuarios` (Modelos y Rutas CRUD para Usuarios, Roles, Permisos) mapeando la BD `siga_core`. Creación de la interfaz de Administración de Usuarios con React (`UserManagement.jsx`) en el Frontend. Fase 2 iniciada. |
+| 2026-06-27 | 2.1 | Implementación completa de CRUDs en `mod-gestion-academica` para Estudiantes y Matrículas. Actualización de las vistas frontend `StudentMaster.jsx` y `EnrollmentProcess.jsx` para integrar correctamente el backend unificado. |
 
 ---
 

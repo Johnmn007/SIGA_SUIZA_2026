@@ -21,10 +21,18 @@ export function EnrollmentProcess() {
     setSearchTerm(val);
     if (val.length < 3) return;
     try {
-      const res = await fetch(`${API_BASE}/api/mod-estudiantes/buscar?query=${val}`, {
+      let url = `${API_BASE}/api/mod-gestion-academica/estudiantes/`;
+      const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
-      setStudents(await res.json());
+      const data = await res.json();
+      const filtered = data.filter(s => 
+        s.dni.includes(val) || 
+        s.nombres.toLowerCase().includes(val.toLowerCase()) || 
+        s.apellidos.toLowerCase().includes(val.toLowerCase()) || 
+        s.codigo_estudiante.includes(val)
+      );
+      setStudents(filtered);
     } catch (e) { console.error(e); }
   };
 
@@ -48,7 +56,7 @@ export function EnrollmentProcess() {
   const handleEnroll = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/mod-matriculas/`, {
+      const res = await fetch(`${API_BASE}/api/mod-gestion-academica/matriculas/`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
