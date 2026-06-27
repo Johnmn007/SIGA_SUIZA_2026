@@ -164,9 +164,9 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 ## 6. OBJETIVOS PENDIENTES (ROADMAP)
 
 ### Fase 1 - Fundación (Semanas 1-8)
-- [ ] Configurar entorno de desarrollo (PostgreSQL, Python venv, Node.js)
-- [ ] Implementar Circuit Breaker real en `app/core/resilience/circuit_breaker.py`
-- [ ] Implementar persistencia del Module Registry en tabla `core_modules`
+- [x] Configurar entorno de desarrollo (PostgreSQL, Python venv, Node.js)
+- [x] Implementar Circuit Breaker real en `app/core/resilience/circuit_breaker.py`
+- [x] Implementar persistencia del Module Registry en tabla `core_modules`
 - [ ] Core estable + Socket funcional
 - [ ] mod-planes-estudio funcional
 - [ ] mod-programas-estudio funcional
@@ -208,4 +208,11 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | Fecha | Versión | Cambios |
 |-------|---------|---------|
 | 2026-06-26 | 1.0 | Creación inicial del documento. Registro de 7 fallas críticas corregidas, metodología de trabajo, decisiones arquitectónicas y objetivos del proyecto. |
-| 2026-06-27 | 1.1 | Auditoría de Backend (Fase 1). Aplicación estricta del Transactional Outbox, BaseModels y Traza
+| 2026-06-27 | 1.1 | Auditoría de Backend (Fase 1). Aplicación estricta del Transactional Outbox, BaseModels y Trazabilidad (X-Request-ID) en `mod-estudiantes` como plantilla (Golden Template). Eliminación de passwords hardcodeados. |
+| 2026-06-27 | 1.2 | Pragmatic Boundary Fusion: Fusión de `mod-estudiantes` y `mod-matricula` en `mod-gestion-academica` para resolver problemas de límites transaccionales y alta cohesión. |
+| 2026-06-27 | 1.3 | Auditoría General del Backend: Aplicación del Golden Template (Outbox Pattern, X-Request-ID, BaseModel) a `mod-programas-estudio` y `mod-planes-estudio`. Eliminación del obsoleto `mod-carreras`. Creación del `outbox_worker` para At-Least-Once Delivery. |
+| 2026-06-27 | 1.4 | Implementación de Circuit Breaker real con 3 estados (CLOSED, OPEN, HALF_OPEN) y Persistencia del Module Registry en base de datos (`core_modules`). |
+
+---
+
+*Este documento debe actualizarse cada vez que se identifique una nueva lección, corrección importante o cambio en la metodología de trabajo.*

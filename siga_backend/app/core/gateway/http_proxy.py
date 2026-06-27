@@ -15,12 +15,14 @@ from ..config import settings
 try:
     from ..resilience.health_monitor import health_monitor, HealthStatus
     from ..resilience.fallback_manager import fallback_manager
+    from ..resilience.circuit_breaker import circuit_breaker_manager, CircuitBreakerOpenException
     RESILIENCE_AVAILABLE = True
 except ImportError as e:
     logging.warning(f"⚠️  Resiliencia no disponible: {e}")
     RESILIENCE_AVAILABLE = False
     health_monitor = None
     fallback_manager = None
+    circuit_breaker_manager = None
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +60,30 @@ class HTTPGateway:
         
         try:
             client = await self.get_client()
-            response = await client.request(
-                method=request.method,
-                url=target_url,
-                headers=headers,
-                content=await request.body(),
-                follow_redirects=False
-            )
+            
+            # Request wrapped inside Circuit Breaker
+            if self.resilience_enabled and circuit_breaker_manager:
+                response = await circuit_breaker_manager.call_with_circuit_breaker(
+                    module_name,
+                    client.request,
+                    method=request.method,
+                    url=target_url,
+                    headers=headers,
+                    content=await request.body(),
+                    follow_redirects=False
+                )
+            else:
+                response = await client.request(
+                    method=request.method,
+                    url=target_url,
+                    headers=headers,
+                    content=await request.body(),
+                    follow_redirects=False
+                )
+            
+            # Si el backend del módulo envía un 5xx, lo disparamos como excepción para el circuit breaker (opcional)
+            if response.status_code >= 500 and self.resilience_enabled and circuit_breaker_manager:
+                circuit_breaker_manager.get_breaker(module_name).on_failure()
             
             # 4. CACHEAR RESPUESTAS EXITOSAS PARA FALLBACK FUTURO
             if self.resilience_enabled and response.status_code == 200 and request.method == "GET":
@@ -76,6 +95,17 @@ class HTTPGateway:
                 status_code=response.status_code,
                 headers=dict(response.headers)
             )
+            
+        except CircuitBreakerOpenException as cbo_exc:
+            logger.error(f"🛑 Circuit Breaker ABIERTO para {module_name}: Fall-Fast activado")
+            
+            # Aplicar fallback porque el circuit breaker cortó el flujo
+            if self.resilience_enabled:
+                fallback_result = await self._execute_fallback(module_name, path, request, "circuit_breaker_open")
+                if fallback_result:
+                    return fallback_result
+            
+            raise HTTPException(503, detail=f"Módulo {module_name} no disponible (Circuit Breaker Abierto)")
             
         except httpx.TimeoutException:
             logger.error(f"⏰ Timeout comunicando con {module_name}")

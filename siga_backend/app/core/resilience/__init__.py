@@ -2,6 +2,7 @@
 from .cache_manager import cache_manager
 from .health_monitor import health_monitor
 from .fallback_manager import fallback_manager
+from .circuit_breaker import circuit_breaker_manager
 
 async def initialize_resilience():
     """Inicializa todos los componentes de resiliencia"""
