@@ -170,7 +170,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 - [x] Core estable + Socket funcional
 - [x] mod-planes-estudio funcional
 - [x] mod-programas-estudio funcional
-- [ ] Parser Excel MINEDU para importación de planes de estudio
+- [x] Parser Excel MINEDU para importación de planes de estudio
 
 ### Fase 2 - Núcleo Académico (Semanas 9-16)
 - [ ] mod-estudiantes funcional
@@ -213,6 +213,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | 2026-06-27 | 1.3 | Auditoría General del Backend: Aplicación del Golden Template (Outbox Pattern, X-Request-ID, BaseModel) a `mod-programas-estudio` y `mod-planes-estudio`. Eliminación del obsoleto `mod-carreras`. Creación del `outbox_worker` para At-Least-Once Delivery. |
 | 2026-06-27 | 1.4 | Implementación de Circuit Breaker real con 3 estados (CLOSED, OPEN, HALF_OPEN) y Persistencia del Module Registry en base de datos (`core_modules`). |
 | 2026-06-27 | 1.5 | Sockets conectados en el Frontend Layout para notificaciones en tiempo real. APIs completadas (CRUD) para `mod-planes-estudio` y `mod-programas-estudio`. |
+| 2026-06-27 | 1.6 | Implementación de `ExcelMineduParser` en `mod-planes-estudio` para importar los planes MINEDU (hojas de Módulos y Unidades) usando Pandas y endpoint FastAPI (`/planes/importar-minedu`). Fase 1 completada. |
 
 ---
 

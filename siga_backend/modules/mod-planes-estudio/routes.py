@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, Request
+from fastapi import APIRouter, HTTPException, Depends, status, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
@@ -6,6 +6,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict
 from database import get_db, OutboxEvent
 from models import PlanEstudio, ModuloPlan, UnidadPlan
+from excel_parser import ExcelMineduParser
 
 router = APIRouter()
 
@@ -158,6 +159,61 @@ async def actualizar_plan(plan_id: int, plan: PlanBase, request: Request, db: As
     await db.commit()
     await db.refresh(db_plan)
     return db_plan
+
+@router.post("/planes/importar-minedu")
+async def importar_plan_minedu(request: Request, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="Formato de archivo inválido. Debe ser Excel (.xlsx o .xls)")
+        
+    contents = await file.read()
+    success, data, message = ExcelMineduParser.parse_plan_estudio(contents)
+    
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+        
+    # Verificar si el código ya existe
+    result = await db.execute(select(PlanEstudio).where(PlanEstudio.codigo == data["codigo"]))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail=f"Ya existe un plan con el código {data['codigo']}")
+        
+    # Crear el plan
+    plan_data = {k: v for k, v in data.items() if k != "modulos"}
+    db_plan = PlanEstudio(**plan_data)
+    db.add(db_plan)
+    await db.flush()
+    
+    # Crear módulos y unidades
+    for mod_data in data.get("modulos", []):
+        unidades_data = mod_data.pop("unidades", [])
+        db_modulo = ModuloPlan(**mod_data, plan_id=db_plan.id)
+        db.add(db_modulo)
+        await db.flush()
+        
+        for ud_data in unidades_data:
+            db_unidad = UnidadPlan(**ud_data, modulo_id=db_modulo.id)
+            db.add(db_unidad)
+            
+    # Registrar en Outbox
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    event = OutboxEvent(
+        event_type="plan_estudio.importado",
+        payload={
+            "id": db_plan.id,
+            "codigo": db_plan.codigo,
+            "nombre": db_plan.nombre,
+            "metadata": {"request_id": request_id}
+        }
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(db_plan)
+    
+    return {
+        "message": "Plan importado exitosamente",
+        "plan_id": db_plan.id,
+        "codigo": db_plan.codigo,
+        "modulos_importados": len(data.get("modulos", []))
+    }
 
 @router.delete("/planes/{plan_id}")
 async def eliminar_plan(plan_id: int, request: Request, db: AsyncSession = Depends(get_db)):
