@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
+import { UserManagement } from './UserManagement';
 
 export function AdminDashboard() {
   const { user, permissions } = useAuth();
@@ -151,24 +152,7 @@ export function AdminDashboard() {
   );
 
   const renderUsers = () => (
-    <div className="glass-card p-4">
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h5 className="fw-bold mb-0">Gestión de Usuarios</h5>
-        <button className="btn-premium btn-sm" disabled>+ Nuevo Usuario</button>
-      </div>
-      <div className="alert alert-info border-0 py-3">
-        <div className="d-flex align-items-center">
-          <span className="fs-5 me-3">🚧</span>
-          <div>
-            <strong className="small">API de administración de usuarios en desarrollo</strong>
-            <p className="mb-0 small text-secondary">Los endpoints CRUD de usuarios, roles y permisos estarán disponibles en la Fase 2 del roadmap.</p>
-          </div>
-        </div>
-      </div>
-      <div className="text-center py-4">
-        <p className="text-secondary mb-0">Por ahora, los usuarios se crean vía <code>POST /auth/register</code> y los roles se asignan mediante seeders.</p>
-      </div>
-    </div>
+    <UserManagement />
   );
 
   const renderConfig = () => (

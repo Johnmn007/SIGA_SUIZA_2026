@@ -174,9 +174,9 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 
 ### Fase 2 - Núcleo Académico (Semanas 9-16)
 - [ ] mod-estudiantes funcional
-- [ ] mod-matricula funcional
-- [ ] API de administración de usuarios (CRUD)
-- [ ] Gestión de roles y permisos desde Admin UI
+- [x] mod-usuarios funcional (con roles)
+- [x] UI de Administración de Usuarios
+- [ ] Sistema de Auditoría
 
 ### Fases 3-6
 - Ver `docs/12-ROADMAP.md` para el plan completo
@@ -214,6 +214,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | 2026-06-27 | 1.4 | Implementación de Circuit Breaker real con 3 estados (CLOSED, OPEN, HALF_OPEN) y Persistencia del Module Registry en base de datos (`core_modules`). |
 | 2026-06-27 | 1.5 | Sockets conectados en el Frontend Layout para notificaciones en tiempo real. APIs completadas (CRUD) para `mod-planes-estudio` y `mod-programas-estudio`. |
 | 2026-06-27 | 1.6 | Implementación de `ExcelMineduParser` en `mod-planes-estudio` para importar los planes MINEDU (hojas de Módulos y Unidades) usando Pandas y endpoint FastAPI (`/planes/importar-minedu`). Fase 1 completada. |
+| 2026-06-27 | 2.0 | Implementación de `mod-usuarios` (Modelos y Rutas CRUD para Usuarios, Roles, Permisos) mapeando la BD `siga_core`. Creación de la interfaz de Administración de Usuarios con React (`UserManagement.jsx`) en el Frontend. Fase 2 iniciada. |
 
 ---
 
