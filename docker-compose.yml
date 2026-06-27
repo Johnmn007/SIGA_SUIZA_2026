@@ -1,22 +1,38 @@
+version: "3.8"
+
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: siga_postgres
     environment:
-      POSTGRES_DB: siga_core
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: "john.007"
+      POSTGRES_DB: siga_core
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  nats:
+    image: nats:2.9-alpine
+    container_name: siga_nats
+    ports:
+      - "4222:4222"
+    command: ["-js"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   redis:
     image: redis:7-alpine
+    container_name: siga_redis
     ports:
       - "6379:6379"
     healthcheck:
@@ -25,44 +41,126 @@ services:
       timeout: 5s
       retries: 5
 
-  nats:
-    image: nats:2-alpine
-    ports:
-      - "4222:4222"
-      - "8222:8222"
-
-  core:
-    build: ./siga_backend
+  # ====== CORE GATEWAY ======
+  siga-core:
+    build: 
+      context: ./siga_backend
+      dockerfile: Dockerfile
+    container_name: siga_core_api
     ports:
       - "8000:8000"
     environment:
-      ENVIRONMENT: development
-      DEBUG: "true"
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: siga_core
-      SECRET_KEY: siga-dev-secret-key-change-in-production
-      ENABLE_NATS: "true"
-      NATS_URL: nats://nats:4222
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      CACHE_ENABLED: "true"
+      - DB_USER=postgres
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
+      - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       nats:
         condition: service_started
+      redis:
+        condition: service_healthy
 
-  frontend:
-    build: ./siga_frontend
+  # ====== MICROSERVICES ======
+  mod-usuarios:
+    build: 
+      context: ./siga_backend
+      dockerfile: Dockerfile
+    container_name: siga_mod_usuarios
+    command: ["uvicorn", "modules.mod-usuarios.main:app", "--host", "0.0.0.0", "--port", "8001"]
     ports:
-      - "5173:80"
+      - "8001:8001"
+    environment:
+      - DB_HOST=postgres
+      - DB_PASSWORD=john.007
+      - NATS_URL=nats://nats:4222
+      - PORT=8001
     depends_on:
-      - core
+      postgres:
+        condition: service_healthy
+
+  mod-planes-estudio:
+    build: 
+      context: ./siga_backend
+      dockerfile: Dockerfile
+    container_name: siga_mod_planes_estudio
+    command: ["uvicorn", "modules.mod-planes-estudio.main:app", "--host", "0.0.0.0", "--port", "8002"]
+    ports:
+      - "8002:8002"
+    environment:
+      - DB_HOST=postgres
+      - DB_PASSWORD=john.007
+      - NATS_URL=nats://nats:4222
+      - PORT=8002
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mod-programas-estudio:
+    build: 
+      context: ./siga_backend
+      dockerfile: Dockerfile
+    container_name: siga_mod_programas_estudio
+    command: ["uvicorn", "modules.mod-programas-estudio.main:app", "--host", "0.0.0.0", "--port", "8005"]
+    ports:
+      - "8005:8005"
+    environment:
+      - DB_HOST=postgres
+      - DB_PASSWORD=john.007
+      - NATS_URL=nats://nats:4222
+      - PORT=8005
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mod-gestion-academica:
+    build: 
+      context: ./siga_backend
+      dockerfile: Dockerfile
+    container_name: siga_mod_gestion_academica
+    command: ["uvicorn", "modules.mod-gestion-academica.main:app", "--host", "0.0.0.0", "--port", "8006"]
+    ports:
+      - "8006:8006"
+    environment:
+      - DB_HOST=postgres
+      - DB_PASSWORD=john.007
+      - NATS_URL=nats://nats:4222
+      - PORT=8006
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mod-auditoria:
+    build: 
+      context: ./siga_backend
+      dockerfile: Dockerfile
+    container_name: siga_mod_auditoria
+    command: ["uvicorn", "modules.mod-auditoria.main:app", "--host", "0.0.0.0", "--port", "8007"]
+    ports:
+      - "8007:8007"
+    environment:
+      - DB_HOST=postgres
+      - DB_PASSWORD=john.007
+      - NATS_URL=nats://nats:4222
+      - PORT=8007
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ====== FRONTEND ======
+  siga-frontend:
+    build: 
+      context: ./siga_frontend
+      dockerfile: Dockerfile
+    container_name: siga_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - siga-core
 
 volumes:
-  pgdata:
+  postgres_data:
