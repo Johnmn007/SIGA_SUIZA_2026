@@ -6,7 +6,7 @@ from database import get_db, OutboxEvent
 from models import Estudiante, Matricula, MatriculaDetalle
 from schemas import EstudianteCreate, EstudianteResponse, EstudianteUpdate, MatriculaCreate, MatriculaResponse, IngestaMasivaRequest
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 import uuid
 
 router = APIRouter()
@@ -35,6 +35,7 @@ async def ingesta_admitidos(request: Request, data: IngestaMasivaRequest, db: As
             dni=admitido.dni,
             nombres=admitido.nombres,
             apellidos=admitido.apellidos,
+            programa_id=admitido.programa_id,
             celular=admitido.celular,
             email_personal=admitido.email_personal
         )
@@ -95,8 +96,11 @@ async def crear_estudiante(request: Request, data: EstudianteCreate, db: AsyncSe
     return db_estudiante
 
 @router.get("/estudiantes/", response_model=List[EstudianteResponse])
-async def obtener_estudiantes(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Estudiante).order_by(Estudiante.apellidos))
+async def obtener_estudiantes(programa_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+    query = select(Estudiante).order_by(Estudiante.apellidos)
+    if programa_id is not None:
+        query = query.where(Estudiante.programa_id == programa_id)
+    result = await db.execute(query)
     return result.scalars().all()
 
 @router.put("/estudiantes/{estudiante_id}/pago_matricula", response_model=EstudianteResponse)

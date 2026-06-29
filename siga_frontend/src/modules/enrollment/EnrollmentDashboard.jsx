@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
 import { API_BASE } from '../../core/api/client';
+import { useAuth } from '../../core/auth/useAuth';
 import { EnrollmentProcess } from './EnrollmentProcess';
 
 export function EnrollmentDashboard() {
+  const { user } = useAuth();
+  const userRole = user?.is_superuser ? 'superadmin' : (user?.role || 'invitado');
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list'); // 'list' or 'process'
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPrograma, setCurrentPrograma] = useState('ALL');
+
   const [newStudent, setNewStudent] = useState({
     codigo_estudiante: '',
     dni: '',
@@ -17,14 +22,29 @@ export function EnrollmentDashboard() {
     telefono: ''
   });
 
-  const fetchStudents = async () => {
+  const fetchStudents = async (searchVal = searchTerm) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
+      let url = `${API_BASE}/api/mod-gestion-academica/estudiantes/`;
+      if (currentPrograma && currentPrograma !== 'ALL') {
+        url += `?programa_id=${currentPrograma}`;
+      }
+      
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await response.json();
-      setStudents(Array.isArray(data) ? data : []);
+      
+      let finalData = Array.isArray(data) ? data : [];
+      if (searchVal.length >= 3) {
+        finalData = finalData.filter(s => 
+          (s.dni && s.dni.includes(searchVal)) || 
+          (s.nombres && s.nombres.toLowerCase().includes(searchVal.toLowerCase())) || 
+          (s.apellidos && s.apellidos.toLowerCase().includes(searchVal.toLowerCase())) || 
+          (s.codigo_estudiante && s.codigo_estudiante.includes(searchVal))
+        );
+      }
+      setStudents(finalData);
     } catch (error) {
       console.error('Error fetching students:', error);
     } finally {
@@ -33,8 +53,14 @@ export function EnrollmentDashboard() {
   };
 
   useEffect(() => {
-    fetchStudents();
-  }, []);
+    if (userRole !== 'invitado') {
+      if (userRole === 'secretaria_programa' && currentPrograma === 'ALL') {
+        setCurrentPrograma('1');
+      } else {
+        fetchStudents();
+      }
+    }
+  }, [currentPrograma, userRole]);
 
   const handleEnrollClick = (student) => {
     setSelectedStudent(student);
@@ -64,6 +90,36 @@ export function EnrollmentDashboard() {
           </h3>
           <p className="text-slate-500 text-sm mt-1">Control de procesos de matrícula para estudiantes registrados</p>
         </div>
+      </div>
+
+      <div className="glass-card p-2 mb-8 flex items-center max-w-3xl gap-2">
+        <select 
+          className="input-field py-3 text-sm bg-slate-50 border-none w-48 font-bold text-primary"
+          value={currentPrograma}
+          onChange={(e) => {
+            setCurrentPrograma(e.target.value);
+          }}
+        >
+          {['superadmin', 'admin'].includes(userRole) && <option value="ALL">Todos los Programas</option>}
+          <option value="1">Arquitectura de Plat.</option>
+          <option value="2">Enfermería Técnica</option>
+          <option value="3">Diseño Gráfico</option>
+          <option value="4">Administración</option>
+          <option value="5">Contabilidad</option>
+          <option value="6">Mecatrónica</option>
+        </select>
+        <span className="px-4 text-slate-400 text-xl">🔍</span>
+        <input 
+          type="text" 
+          className="w-full bg-transparent border-none focus:ring-0 py-3 text-slate-700 placeholder-slate-400 outline-none"
+          placeholder="Buscar por DNI, Nombre o Código..."
+          value={searchTerm} 
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            fetchStudents(e.target.value);
+          }}
+        />
+        {loading && <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-4"></div>}
       </div>
 
       <div className="glass-card p-6">

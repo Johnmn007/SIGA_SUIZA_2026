@@ -10,6 +10,7 @@ class Estudiante(BaseModel):
     nombres = Column(String(100), nullable=False)
     apellidos = Column(String(100), nullable=False)
     fecha_nacimiento = Column(Date)
+    programa_id = Column(Integer, index=True) # Agregado para filtrar por programa
     email_institucional = Column(String(150), unique=True)
     email_personal = Column(String(150))
     celular = Column(String(20))
