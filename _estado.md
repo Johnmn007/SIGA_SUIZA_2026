@@ -59,10 +59,17 @@ D:\SIGA\
 | Dashboard Administrador | **OK** | Rediseñado, muestra estado del sistema en tiempo real con todos los módulos conectados. |
 | Gestión de Usuarios | **OK** | Reparado el error de endpoints. Modal de registro/edición funcional y estético (RBAC). |
 | Logs de Auditoría | **OK** | Rediseñado, filtra y muestra payload del historial correctamente. |
-| Gestión de Estudiantes | **OK** | Funcional, reparado el registro del estudiante maestro sin perder el foco. |
+| Gestión de Estudiantes | **OK** | Funcional, reparado el registro y los filtros inteligentes (Race Condition fix). |
 | Gestión Académica (Carreras)| **OK** | Reparado el error 403. Ya guarda exitosamente y muestra feedback. |
+| Módulo de Admisión | **OK** | [NUEVO] Construido como microservicio aislado que publica data JSON para consumo cruzado. |
 
-## Estado Actual (2026-06-27)
+## Estado Actual (2026-06-29)
+- **Módulo Piloto de Admisión:** Creado como microservicio independiente (puerto 8008) y enrutado al gateway (`/api/mod-admision`). Funciona como una máquina de estados donde publica los datos JSON ("Ingesta Pública") en base a un diccionario en memoria (`mock_admision.json`).
+- **Orquestación de Sincronización:** Se trasladó la responsabilidad de "Importar desde Admisión" a la vista del **Superadmin**, separando lógicamente la ingestión masiva (que lanza NATS) de la Secretaría Académica.
+- **Filtros Frontend Refactorizados (Race Conditions):** 
+  - Se corrigió un error de React Lifecycle (`useEffect`) en `StudentMaster.jsx` donde la carga inicial se ejecutaba antes de poblar la sesión (`useAuth`), ocasionando que no se aplicara el `?programa_id=X` para las Secretarías de Programa.
+  - Se implementó un `<select>` de Filtro Inteligente Universal para la Matrícula Académica y el Registro de Estudiantes. Si el rol es admin, carga 'Todos los Programas'. Si es secretaria, bloquea al ID de su carrera.
+  - Se implementó un buscador rápido (DNI, Nombre, Apellidos, Código) inyectado nativamente sobre las tablas.
 - **Login:** Funcional (bcrypt==3.2.2 anclado).
 - **Gestión de Usuarios:** Modal de registro corregido visualmente (fuera de `glass-card`). Flujo de registro validado.
 - **Parser MINEDU (Planes de Estudio):** Implementado motor de extracción heurística (Anchor-based) usando Pandas. 
