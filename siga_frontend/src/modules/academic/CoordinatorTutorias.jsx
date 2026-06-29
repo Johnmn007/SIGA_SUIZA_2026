@@ -55,7 +55,7 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
 
   const getDocenteName = (id) => {
     const d = docentes.find(d => d.id === id);
-    return d ? `${d.first_name} ${d.last_name}` : `Docente #${id}`;
+    return d ? d.full_name : `Docente #${id}`;
   };
 
   if (!programId || !periodId) return null;
@@ -97,7 +97,7 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
                   onChange={e => setForm({...form, docente_id: e.target.value})}
                 >
                   <option value="">-- Seleccionar --</option>
-                  {docentes.map(d => <option key={d.id} value={d.id}>{d.first_name} {d.last_name}</option>)}
+                  {docentes.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
                 </select>
               </div>
               

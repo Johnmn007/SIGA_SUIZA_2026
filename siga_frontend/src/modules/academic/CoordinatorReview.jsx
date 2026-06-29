@@ -44,7 +44,7 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
 
   const getDocenteName = (docenteId) => {
     const d = docentes.find(d => d.id === docenteId);
-    return d ? `${d.first_name} ${d.last_name}` : `Docente #${docenteId}`;
+    return d ? d.full_name : `Docente #${docenteId}`;
   };
 
   const getUnidadName = (cargaId) => {

@@ -179,7 +179,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   />
                 )}
 
-                {['tesoreria', 'superadmin', 'admin'].includes(userRole) && (
+                {['caja_tesoreria', 'superadmin', 'admin'].includes(userRole) && (
                   <NavItem 
                     active={currentView === 'finanzas'} 
                     onClick={() => onNavigate('finanzas')} 

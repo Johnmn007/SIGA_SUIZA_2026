@@ -339,6 +339,14 @@ async def listar_carga_lectiva(programa_id: int, periodo_id: int, db: AsyncSessi
     )
     return result.scalars().all()
 
+@router.get("/docentes/{docente_id}/carga-lectiva", response_model=List[CargaLectivaResponse])
+async def listar_carga_docente(docente_id: int, periodo_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+    query = select(CargaLectiva).where(CargaLectiva.docente_id == docente_id)
+    if periodo_id:
+        query = query.where(CargaLectiva.periodo_id == periodo_id)
+    result = await db.execute(query)
+    return result.scalars().all()
+
 @router.post("/programas/{programa_id}/horarios", response_model=HorarioPeriodoResponse, status_code=status.HTTP_201_CREATED)
 async def crear_horario(programa_id: int, horario: HorarioPeriodoCreate, request: Request, db: AsyncSession = Depends(get_db)):
     db_horario = HorarioPeriodo(**horario.model_dump(), programa_id=programa_id)

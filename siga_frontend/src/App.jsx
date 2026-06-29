@@ -37,7 +37,7 @@ function AppContent() {
         else if (userRole === 'estudiante') defaultView = 'report_card';
         else if (userRole === 'secretaria_academica') defaultView = 'students';
         else if (userRole === 'secretaria_programa') defaultView = 'enrollment';
-        else if (userRole === 'tesoreria') defaultView = 'finanzas';
+        else if (userRole === 'caja_tesoreria') defaultView = 'finanzas';
         else if (userRole === 'director') defaultView = 'academic';
       }
       
