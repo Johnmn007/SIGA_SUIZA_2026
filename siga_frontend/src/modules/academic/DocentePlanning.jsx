@@ -20,18 +20,29 @@ export function DocentePlanning() {
   useEffect(() => {
     const fetchInitial = async () => {
       try {
-        const [progRes, perRes] = await Promise.all([
+        const [progRes, perRes, loadRes] = await Promise.all([
           apiClient.request('/api/mod-programas-estudio/programas').catch(() => []),
-          apiClient.request('/api/mod-programas-estudio/periodos').catch(() => [])
+          apiClient.request('/api/mod-programas-estudio/periodos').catch(() => []),
+          user?.id ? apiClient.request(`/api/mod-programas-estudio/docentes/${user.id}/carga-lectiva`).catch(() => []) : Promise.resolve([])
         ]);
         setPrograms(progRes || []);
         setPeriods(perRes || []);
+        setCargaLectiva(loadRes || []);
+
+        if (loadRes && loadRes.length > 0) {
+          setSelectedProgram(loadRes[0].programa_id.toString());
+          setSelectedPeriod(loadRes[0].periodo_id.toString());
+        } else if (perRes && perRes.length > 0) {
+          setSelectedPeriod(perRes[perRes.length - 1].id.toString());
+        }
       } catch (e) {
         console.error('Error fetching initial data', e);
       }
     };
-    fetchInitial();
-  }, []);
+    if (user) {
+      fetchInitial();
+    }
+  }, [user]);
 
   // Fetch malla when program changes (to get unidad names)
   useEffect(() => {
@@ -56,21 +67,18 @@ export function DocentePlanning() {
     fetchMalla();
   }, [selectedProgram]);
 
-  // Fetch Carga, Silabos and Planes when Period changes
+  // Fetch Silabos and Planes when Period changes
   useEffect(() => {
     if (!selectedProgram || !selectedPeriod || !user?.id) return;
     
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Carga
-        const cargaRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/carga-lectiva?periodo_id=${selectedPeriod}`).catch(() => []);
         // Planes
         const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`).catch(() => []);
         // Silabos
         const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`).catch(() => []);
         
-        setCargaLectiva(cargaRes || []);
         setPlanes(planesRes || []);
         setSilabos(silabosRes || []);
       } catch (e) {
@@ -106,7 +114,7 @@ export function DocentePlanning() {
   };
 
   const handleUploadPlan = async () => {
-    const url = prompt("Ingrese la URL de su Plan de Trabajo (Google Drive, OneDrive, etc.):");
+    const url = prompt("Ingrese la URL del Plan de Trabajo (Excel/PDF):");
     if (!url) return;
     
     try {
@@ -127,7 +135,7 @@ export function DocentePlanning() {
       const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`);
       setPlanes(planesRes || []);
     } catch (e) {
-      alert("❌ Error al enviar el plan de trabajo");
+      alert("❌ Error al enviar el Plan de Trabajo");
     }
   };
 
@@ -136,35 +144,32 @@ export function DocentePlanning() {
     return ud ? ud.nombre : `Unidad #${udId}`;
   };
 
-  const planActual = planes.find(p => p.programa_id === parseInt(selectedProgram));
+  // Filtrar carga lectiva del periodo activo
+  const cargaActiva = cargaLectiva.filter(c => c.periodo_id === parseInt(selectedPeriod));
+  const planActivo = planes.length > 0 ? planes[0] : null;
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="glass-card p-5 border-l-4 border-l-primary">
-          <label className="label uppercase tracking-wider text-[10px] font-extrabold text-slate-400 mb-2">1. Programa Académico</label>
-          <select 
-            className="input-field w-full text-sm font-medium"
-            value={selectedProgram}
-            onChange={(e) => setSelectedProgram(e.target.value)}
-          >
-            <option value="">-- Seleccionar Programa --</option>
-            {programs.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </select>
+      {/* Cabecera Informativa del Docente */}
+      {selectedProgram && selectedPeriod && (
+        <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-primary mb-6 bg-gradient-to-r from-white to-slate-50">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xl">🎓</div>
+            <div>
+              <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
+              <p className="font-bold text-slate-800">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
+            </div>
+          </div>
+          <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 text-xl">📅</div>
+            <div>
+              <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
+              <p className="font-bold text-slate-800">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
+            </div>
+          </div>
         </div>
-        <div className="glass-card p-5 border-l-4 border-l-blue-400">
-          <label className="label uppercase tracking-wider text-[10px] font-extrabold text-slate-400 mb-2">2. Periodo Académico</label>
-          <select 
-            className="input-field w-full text-sm font-medium"
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            disabled={!selectedProgram}
-          >
-            <option value="">-- Seleccionar Periodo --</option>
-            {periods.map(p => <option key={p.id} value={p.id}>{p.codigo}</option>)}
-          </select>
-        </div>
-      </div>
+      )}
 
       {selectedProgram && selectedPeriod && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -4,10 +4,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from passlib.context import CryptContext
 from database import get_db, OutboxEvent
-from models import Usuario, Rol, Permiso
+from models import Usuario, Rol, Permiso, PerfilPersonal
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -49,6 +49,37 @@ class UsuarioResponse(UsuarioBase):
     roles: List[RolResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
+
+class PerfilPersonalBase(BaseModel):
+    condicion_laboral: str
+    numero_resolucion: Optional[str] = None
+    fecha_fin_contrato: Optional[datetime] = None
+    cargo_funcional: str
+    profesion_titulo: Optional[str] = None
+    programa_estudio_id: Optional[int] = None
+
+class PerfilPersonalResponse(PerfilPersonalBase):
+    id: int
+    user_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class PersonalCreate(BaseModel):
+    # User fields
+    email: EmailStr
+    full_name: str
+    password: str
+    # Profile fields
+    condicion_laboral: str
+    numero_resolucion: Optional[str] = None
+    fecha_fin_contrato: Optional[datetime] = None
+    cargo_funcional: str
+    profesion_titulo: Optional[str] = None
+    programa_estudio_id: Optional[int] = None
+
+class PersonalResponse(BaseModel):
+    usuario: UsuarioResponse
+    perfil: PerfilPersonalResponse
+    model_config = ConfigDict(from_attributes=True)
 
 # Health Check
 @router.get("/health")
@@ -191,5 +222,87 @@ async def eliminar_usuario(usuario_id: int, request: Request, db: AsyncSession =
         payload={"id": db_user.id, "metadata": {"request_id": request_id}}
     )
     db.add(event)
+    db.add(event)
     await db.commit()
     return {"message": "Usuario desactivado correctamente"}
+
+
+# --- CRUD Personal Institucional ---
+@router.post("/personal", response_model=PersonalResponse, status_code=status.HTTP_201_CREATED)
+async def registrar_personal(personal: PersonalCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    # Validar email
+    result = await db.execute(select(Usuario).where(Usuario.email == personal.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="El email ya está registrado")
+
+    # 1. Crear Usuario
+    hashed_password = pwd_context.hash(personal.password)
+    db_user = Usuario(
+        email=personal.email,
+        full_name=personal.full_name,
+        hashed_password=hashed_password,
+        is_active=True,
+        is_superuser=False
+    )
+    
+    # Asignar rol según cargo
+    rol_name = "docente"
+    if personal.cargo_funcional == "SECRETARIA_PROGRAMA":
+        rol_name = "secretaria_programa"
+        
+    rol_result = await db.execute(select(Rol).where(Rol.name == rol_name))
+    db_rol = rol_result.scalar_one_or_none()
+    if db_rol:
+        db_user.roles = [db_rol]
+        
+    db.add(db_user)
+    await db.flush() # Para obtener db_user.id
+
+    # 2. Crear Perfil Personal
+    db_perfil = PerfilPersonal(
+        user_id=db_user.id,
+        condicion_laboral=personal.condicion_laboral,
+        numero_resolucion=personal.numero_resolucion,
+        fecha_fin_contrato=personal.fecha_fin_contrato,
+        cargo_funcional=personal.cargo_funcional,
+        profesion_titulo=personal.profesion_titulo,
+        programa_estudio_id=personal.programa_estudio_id
+    )
+    db.add(db_perfil)
+    
+    # 3. Emitir evento
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    event = OutboxEvent(
+        event_type="personal.creado",
+        payload={
+            "user_id": db_user.id,
+            "cargo": personal.cargo_funcional,
+            "metadata": {"request_id": request_id}
+        }
+    )
+    db.add(event)
+    
+    await db.commit()
+    
+    # Recargar data
+    user_result = await db.execute(
+        select(Usuario).options(selectinload(Usuario.roles)).where(Usuario.id == db_user.id)
+    )
+    final_user = user_result.scalar_one()
+    
+    return {"usuario": final_user, "perfil": db_perfil}
+
+@router.get("/personal", response_model=List[PersonalResponse])
+async def obtener_personal(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(PerfilPersonal).options(selectinload(PerfilPersonal.usuario).selectinload(Usuario.roles))
+    )
+    perfiles = result.scalars().all()
+    
+    response = []
+    for p in perfiles:
+        response.append({
+            "usuario": p.usuario,
+            "perfil": p
+        })
+    return response

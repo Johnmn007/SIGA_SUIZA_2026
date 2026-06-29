@@ -18,6 +18,7 @@ export function CoordinatorAcademic() {
   const [selectedPeriod, setSelectedPeriod] = useState('');
   
   // Data
+  const [personal, setPersonal] = useState([]);
   const [docentes, setDocentes] = useState([]);
   const [malla, setMalla] = useState([]);
   const [unidadesFlat, setUnidadesFlat] = useState([]);
@@ -25,31 +26,24 @@ export function CoordinatorAcademic() {
   const [horarios, setHorarios] = useState([]);
   
   // Forms
-  const [cargaForm, setCargaForm] = useState({ docente_id: '', unidad_didactica_id: '', turno: 'Mañana', seccion: 'A' });
+  const [cargaForm, setCargaForm] = useState({ docente_id: '', unidades_didacticas_ids: [], turno: 'Mañana', seccion: 'A' });
   const [horarioForm, setHorarioForm] = useState({ archivo_excel_url: '', observaciones: '' });
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // 1. Initial Load
   useEffect(() => {
     const fetchInitial = async () => {
       try {
-        const [progRes, perRes, usersRes, rolesRes] = await Promise.all([
+        const [progRes, perRes, personalRes] = await Promise.all([
           apiClient.request('/api/mod-programas-estudio/programas').catch(() => []),
           apiClient.request('/api/mod-programas-estudio/periodos').catch(() => []),
-          apiClient.request('/api/mod-usuarios/usuarios').catch(() => []),
-          apiClient.request('/api/mod-usuarios/roles').catch(() => [])
+          apiClient.request('/api/mod-usuarios/personal').catch(() => [])
         ]);
         
         setPrograms(progRes);
         setPeriods(perRes);
+        setPersonal(personalRes || []);
         
-        // Find docente role id
-        const docenteRole = rolesRes.find(r => r.nombre === 'docente' || r.name === 'docente');
-        if (docenteRole) {
-          const onlyDocentes = usersRes.filter(u => u.roles && u.roles.some(r => r.id === docenteRole.id || r.name === 'docente'));
-          setDocentes(onlyDocentes.length > 0 ? onlyDocentes : usersRes); // fallback to all users if none found for testing
-        } else {
-          setDocentes(usersRes); // fallback
-        }
       } catch (error) {
         console.error("Error loading initial data", error);
       }
@@ -57,13 +51,25 @@ export function CoordinatorAcademic() {
     fetchInitial();
   }, []);
 
-  // 2. Load Malla when Program changes
+  // 2. Load Malla and filter docentes when Program changes
   useEffect(() => {
     if (!selectedProgram) {
       setMalla([]);
       setUnidadesFlat([]);
+      setDocentes([]);
       return;
     }
+    
+    // Filter personal for the selected program
+    const filteredStaff = personal.filter(p => 
+      // If it's explicitly assigned to this program, OR if they are general docentes (if logic requires)
+      // The user wants them assigned directly to the areas academicas.
+      p.perfil && (p.perfil.programa_estudio_id === parseInt(selectedProgram) || p.perfil.programa_estudio_id == selectedProgram)
+    );
+    // Map to the format the form expects (d.id, d.full_name)
+    const staffFormat = filteredStaff.map(p => p.usuario);
+    setDocentes(staffFormat);
+
     const fetchMalla = async () => {
       try {
         const res = await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/malla`);
@@ -82,7 +88,7 @@ export function CoordinatorAcademic() {
       }
     };
     fetchMalla();
-  }, [selectedProgram]);
+  }, [selectedProgram, personal]);
 
   // 3. Load Carga & Horarios when Program AND Period change
   useEffect(() => {
@@ -113,26 +119,34 @@ export function CoordinatorAcademic() {
   const handleCreateCarga = async (e) => {
     e.preventDefault();
     if (!selectedProgram || !selectedPeriod) return alert("Seleccione Programa y Periodo primero");
+    if (!cargaForm.unidades_didacticas_ids || cargaForm.unidades_didacticas_ids.length === 0) return alert("Seleccione al menos una unidad didáctica");
+    if (!cargaForm.docente_id) return alert("Seleccione un docente");
     
     setSaving(true);
     try {
-      const payload = {
-        periodo_id: parseInt(selectedPeriod),
-        docente_id: parseInt(cargaForm.docente_id),
-        unidad_didactica_id: parseInt(cargaForm.unidad_didactica_id),
-        turno: cargaForm.turno,
-        seccion: cargaForm.seccion,
-        estado: 'publicado' // auto-publish for MVP
-      };
-      await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva`, {
-        method: 'POST',
-        body: JSON.stringify(payload)
+      const promises = cargaForm.unidades_didacticas_ids.map(ud_id => {
+        const payload = {
+          periodo_id: parseInt(selectedPeriod),
+          docente_id: parseInt(cargaForm.docente_id),
+          unidad_didactica_id: parseInt(ud_id),
+          turno: cargaForm.turno,
+          seccion: cargaForm.seccion,
+          estado: 'publicado' // auto-publish for MVP
+        };
+        return apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva`, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
       });
-      setCargaForm({ ...cargaForm, unidad_didactica_id: '' });
+      
+      await Promise.all(promises);
+      setCargaForm({ ...cargaForm, unidades_didacticas_ids: [] });
+      setIsModalOpen(false);
       fetchCargaYHorarios();
+      alert("✅ Docente asignado correctamente a los cursos seleccionados.");
     } catch (error) {
       console.error("Error saving carga", error);
-      alert("Error al guardar la carga lectiva");
+      alert("❌ Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
     } finally {
       setSaving(false);
     }
@@ -174,8 +188,136 @@ export function CoordinatorAcademic() {
     return ud ? ud.nombre : `ID: ${id}`;
   };
 
+  // Render Modal helper
+  const renderModal = () => {
+    if (!isModalOpen) return null;
+    
+    const periodoObj = periods.find(p => p.id == selectedPeriod);
+    const isOdd = periodoObj?.codigo?.endsWith('-I');
+    const isEven = periodoObj?.codigo?.endsWith('-II');
+    
+    const filteredUnidades = unidadesFlat.filter(u => {
+      if (isOdd) return [1, 3, 5].includes(u.periodo_sugerido);
+      if (isEven) return [2, 4, 6].includes(u.periodo_sugerido);
+      return true; // Fallback if no strict matching
+    });
+
+    // Group by cycle for better UI
+    const grouped = filteredUnidades.reduce((acc, u) => {
+      acc[u.periodo_sugerido] = acc[u.periodo_sugerido] || [];
+      acc[u.periodo_sugerido].push(u);
+      return acc;
+    }, {});
+
+    const toggleCurso = (id) => {
+      const idStr = String(id);
+      let newIds = [...cargaForm.unidades_didacticas_ids];
+      if (newIds.includes(idStr)) {
+        newIds = newIds.filter(i => i !== idStr);
+      } else {
+        newIds.push(idStr);
+      }
+      setCargaForm({ ...cargaForm, unidades_didacticas_ids: newIds });
+    };
+
+    return (
+      <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div>
+              <h3 className="text-xl font-bold text-slate-800">Asignar Cursos - {getDocenteName(parseInt(cargaForm.docente_id))}</h3>
+              <p className="text-sm text-slate-500">Periodo: {periodoObj?.codigo} (Filtrado automáticamente)</p>
+            </div>
+            <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+          </div>
+          
+          <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
+            {Object.keys(grouped).sort().map(ciclo => (
+              <div key={ciclo} className="mb-6">
+                <h4 className="font-bold text-slate-700 border-b pb-2 mb-3 text-sm uppercase tracking-wider flex items-center">
+                  <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center mr-2 text-xs">{ciclo}</span>
+                  Ciclo {ciclo}
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {grouped[ciclo].map(u => (
+                    <label key={u.id} className={`flex items-start p-3 rounded-xl border cursor-pointer transition-all ${cargaForm.unidades_didacticas_ids.includes(String(u.id)) ? 'border-indigo-500 bg-indigo-50/50 shadow-sm' : 'border-slate-200 bg-white hover:border-indigo-300'}`}>
+                      <div className="flex-shrink-0 mt-0.5">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                          checked={cargaForm.unidades_didacticas_ids.includes(String(u.id))}
+                          onChange={() => toggleCurso(u.id)}
+                        />
+                      </div>
+                      <div className="ml-3">
+                        <span className="block text-sm font-semibold text-slate-800 leading-tight">{u.nombre}</span>
+                        <span className="block text-xs text-slate-500 mt-1">{u.creditos} Créditos</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+            
+            {filteredUnidades.length === 0 && (
+              <div className="text-center py-10 text-slate-500">
+                No hay cursos disponibles para este periodo.
+              </div>
+            )}
+          </div>
+          
+          <div className="p-4 border-t border-slate-100 bg-white flex justify-between items-center">
+            <div className="text-sm text-slate-600 font-medium">
+              <span className="text-indigo-600 font-bold">{cargaForm.unidades_didacticas_ids.length}</span> cursos seleccionados
+            </div>
+            
+            <div className="flex space-x-3 items-center">
+              <div className="flex space-x-2 mr-4">
+                <select 
+                  className="rounded-lg border-slate-200 text-sm"
+                  value={cargaForm.turno}
+                  onChange={e => setCargaForm({...cargaForm, turno: e.target.value})}
+                >
+                  <option value="Mañana">Mañana</option>
+                  <option value="Tarde">Tarde</option>
+                  <option value="Noche">Noche</option>
+                </select>
+                <select 
+                  className="rounded-lg border-slate-200 text-sm"
+                  value={cargaForm.seccion}
+                  onChange={e => setCargaForm({...cargaForm, seccion: e.target.value})}
+                >
+                  <option value="A">Sec A</option>
+                  <option value="B">Sec B</option>
+                  <option value="C">Sec C</option>
+                </select>
+              </div>
+              
+              <button 
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 text-sm font-medium"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={handleCreateCarga}
+                disabled={saving || cargaForm.unidades_didacticas_ids.length === 0}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-50"
+              >
+                {saving ? 'Guardando...' : 'Guardar Asignación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="animate-fade-in pb-12">
+    <div className="space-y-6 animate-fade-in pb-12">
+      {renderModal()}
       <div className="glass-panel p-6 mb-8 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-800">
@@ -264,7 +406,7 @@ export function CoordinatorAcademic() {
               {activeTab === 'carga' && (
                 <>
                   <div className="lg:col-span-1">
-                    <form onSubmit={handleCreateCarga} className="glass-card p-6 sticky top-6">
+                    <form className="glass-card p-6 sticky top-6">
                       <h3 className="text-lg font-semibold text-slate-800 mb-4">Nueva Asignación</h3>
                       
                       <div className="space-y-4">
@@ -283,55 +425,15 @@ export function CoordinatorAcademic() {
                           </select>
                         </div>
                         
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Unidad Didáctica</label>
-                          <select 
-                            required
-                            className="w-full rounded-xl border-slate-200"
-                            value={cargaForm.unidad_didactica_id}
-                            onChange={e => setCargaForm({...cargaForm, unidad_didactica_id: e.target.value})}
+                        {cargaForm.docente_id && (
+                          <button 
+                            type="button" 
+                            onClick={() => setIsModalOpen(true)}
+                            className="w-full py-2 px-4 border border-indigo-200 rounded-xl shadow-sm text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                           >
-                            <option value="">Seleccione Unidad (Curso)</option>
-                            {unidadesFlat.map(u => (
-                              <option key={u.id} value={u.id}>[Ciclo {u.periodo_sugerido}] {u.nombre}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Turno</label>
-                            <select 
-                              className="w-full rounded-xl border-slate-200"
-                              value={cargaForm.turno}
-                              onChange={e => setCargaForm({...cargaForm, turno: e.target.value})}
-                            >
-                              <option value="Mañana">Mañana</option>
-                              <option value="Tarde">Tarde</option>
-                              <option value="Noche">Noche</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Sección</label>
-                            <select 
-                              className="w-full rounded-xl border-slate-200"
-                              value={cargaForm.seccion}
-                              onChange={e => setCargaForm({...cargaForm, seccion: e.target.value})}
-                            >
-                              <option value="A">A</option>
-                              <option value="B">B</option>
-                              <option value="C">C</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <button 
-                          type="submit" 
-                          disabled={saving}
-                          className="w-full py-2 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
-                        >
-                          {saving ? 'Asignando...' : 'Asignar Docente a Curso'}
-                        </button>
+                            📝 Seleccionar Cursos ({cargaForm.unidades_didacticas_ids.length} seleccionados)
+                          </button>
+                        )}
                       </div>
                     </form>
                   </div>

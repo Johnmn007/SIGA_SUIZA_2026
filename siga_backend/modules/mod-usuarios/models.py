@@ -49,3 +49,18 @@ class Permiso(Base):
     name = Column(String, unique=True, index=True, nullable=False)
     description = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class PerfilPersonal(Base):
+    """Perfil extendido para personal institucional y docentes"""
+    __tablename__ = "perfiles_personal"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("core_users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    condicion_laboral = Column(String(50), nullable=False) # NOMBRADO_ESTADO, CONTRATADO_DRE, CONTRATADO_INSTITUCIONAL
+    numero_resolucion = Column(String(100), nullable=True)
+    fecha_fin_contrato = Column(DateTime, nullable=True)
+    cargo_funcional = Column(String(50), nullable=False) # DOCENTE_AULA, ASISTENTE_LABORATORIO, JEFE_AREA, SECRETARIA_PROGRAMA
+    profesion_titulo = Column(String(200), nullable=True)
+    programa_estudio_id = Column(Integer, nullable=True) # Referencia lógica cruzada (no FK dura)
+    
+    usuario = relationship("Usuario", backref="perfil_personal")

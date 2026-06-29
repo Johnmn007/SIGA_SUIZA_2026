@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
 import { DocentePlanning } from '../academic/DocentePlanning';
+import { useAuth } from '../../core/auth/useAuth';
 
 export function EvaluationDashboard() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('notas'); // 'notas', 'planificacion'
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -10,6 +12,7 @@ export function EvaluationDashboard() {
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [malla, setMalla] = useState([]);
+  const [teacherLoad, setTeacherLoad] = useState([]);
   
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
@@ -17,22 +20,34 @@ export function EvaluationDashboard() {
   
   const [students, setStudents] = useState([]);
 
-  // Cargar Programas y Periodos al iniciar
+  // Cargar Programas, Periodos y Carga del Docente al iniciar
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [progRes, perRes] = await Promise.all([
+        const [progRes, perRes, loadRes] = await Promise.all([
           apiClient.request('/api/mod-programas-estudio/programas'),
-          apiClient.request('/api/mod-programas-estudio/periodos')
+          apiClient.request('/api/mod-programas-estudio/periodos'),
+          user?.id ? apiClient.request(`/api/mod-programas-estudio/docentes/${user.id}/carga-lectiva`).catch(() => []) : Promise.resolve([])
         ]);
         setPrograms(progRes || []);
         setPeriods(perRes || []);
+        setTeacherLoad(loadRes || []);
+
+        if (loadRes && loadRes.length > 0) {
+          // Pre-seleccionar el programa y periodo del primer curso asignado
+          setSelectedProgram(loadRes[0].programa_id.toString());
+          setSelectedPeriod(loadRes[0].periodo_id.toString());
+        } else if (perRes && perRes.length > 0) {
+          setSelectedPeriod(perRes[perRes.length - 1].id.toString());
+        }
       } catch (e) {
         console.error('Error fetching initial data', e);
       }
     };
-    fetchInitialData();
-  }, []);
+    if (user) {
+      fetchInitialData();
+    }
+  }, [user]);
 
   // Cargar Malla cuando se selecciona un Programa
   useEffect(() => {
@@ -245,51 +260,70 @@ export function EvaluationDashboard() {
         <DocentePlanning />
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-        <div className="glass-card p-5 border-l-4 border-l-primary md:col-span-3">
-          <label className="label uppercase tracking-wider text-[10px] font-extrabold text-slate-400 mb-2">1. Seleccionar Programa</label>
-          <select 
-            className="input-field w-full text-sm font-medium"
-            value={selectedProgram}
-            onChange={(e) => setSelectedProgram(e.target.value)}
-          >
-            <option value="">-- Programa --</option>
-            {programs.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </select>
-        </div>
-        
-        <div className="glass-card p-5 border-l-4 border-l-blue-400 md:col-span-3">
-          <label className="label uppercase tracking-wider text-[10px] font-extrabold text-slate-400 mb-2">2. Periodo Académico</label>
-          <select 
-            className="input-field w-full text-sm font-medium"
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            disabled={!selectedProgram}
-          >
-            <option value="">-- Periodo --</option>
-            {periods.map(p => <option key={p.id} value={p.id}>{p.codigo}</option>)}
-          </select>
-        </div>
-        
-        <div className="glass-card p-5 border-l-4 border-l-purple-400 md:col-span-6">
-          <label className="label uppercase tracking-wider text-[10px] font-extrabold text-slate-400 mb-2">3. Unidad Didáctica</label>
-          <select 
-            className="input-field w-full text-sm font-bold text-slate-700"
-            value={selectedUnit}
-            onChange={(e) => setSelectedUnit(e.target.value)}
-            disabled={!selectedProgram || !selectedPeriod || malla.length === 0}
-          >
-            <option value="">-- Seleccione Unidad --</option>
-            {malla.map(modulo => (
-              <optgroup key={`mod-${modulo.id}`} label={`Ciclo ${modulo.periodo} - ${modulo.nombre}`}>
-                {modulo.unidades.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombre}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-      </div>
+          {/* Cabecera Informativa del Docente */}
+          {selectedProgram && selectedPeriod && (
+            <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-primary mb-6 bg-gradient-to-r from-white to-slate-50">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xl">🎓</div>
+                <div>
+                  <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
+                  <p className="font-bold text-slate-800">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
+                </div>
+              </div>
+              <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 text-xl">📅</div>
+                <div>
+                  <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
+                  <p className="font-bold text-slate-800">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Selección de Curso */}
+          <div className="glass-card p-6 border border-slate-200 shadow-sm mb-6">
+            <label className="label text-sm font-bold text-slate-700 mb-3 flex items-center">
+              <span className="text-xl mr-2">📚</span> Mis Cursos Asignados
+            </label>
+            <div className="relative">
+              <select 
+                className="w-full appearance-none bg-white border-2 border-slate-200 text-slate-800 text-base font-semibold rounded-xl px-4 py-3.5 pr-10 hover:border-primary focus:outline-none focus:ring-4 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
+                value={selectedUnit}
+                onChange={(e) => setSelectedUnit(e.target.value)}
+                disabled={!selectedProgram || !selectedPeriod || malla.length === 0}
+              >
+                <option value="" className="text-slate-400">-- Seleccione el curso a evaluar --</option>
+                {malla.map(modulo => {
+                  const assignedUnits = modulo.unidades.filter(u => 
+                    teacherLoad.some(t => t.unidad_didactica_id === u.id && t.periodo_id === parseInt(selectedPeriod))
+                  );
+                  
+                  if (assignedUnits.length === 0) return null;
+                  
+                  return (
+                    <optgroup key={`mod-${modulo.id}`} label={`Ciclo ${modulo.periodo} - ${modulo.nombre}`} className="bg-slate-50 font-bold text-slate-500 text-xs uppercase tracking-wider">
+                      {assignedUnits.map(u => (
+                        <option key={u.id} value={u.id} className="font-medium text-slate-800 text-base normal-case">
+                          {u.nombre}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                <svg className="fill-current h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                </svg>
+              </div>
+            </div>
+            {teacherLoad.length === 0 && (
+              <p className="text-amber-600 text-sm mt-3 flex items-center bg-amber-50 p-3 rounded-lg border border-amber-200">
+                <span className="mr-2">⚠️</span> No tienes cursos asignados para este periodo. Contacta a Secretaría Académica.
+              </p>
+            )}
+          </div>
 
       {selectedUnit && selectedPeriod && (
         <div className="glass-card p-0 overflow-hidden animate-fade-in-up border border-slate-200/60 shadow-lg">
