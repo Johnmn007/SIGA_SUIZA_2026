@@ -24,8 +24,8 @@ export function UserManagement() {
     setLoading(true);
     try {
       const [usersRes, rolesRes] = await Promise.all([
-        apiClient.request('/api/mod-usuarios/api/v1/usuarios'),
-        apiClient.request('/api/mod-usuarios/api/v1/roles')
+        apiClient.request('/api/mod-usuarios/usuarios'),
+        apiClient.request('/api/mod-usuarios/roles')
       ]);
       setUsers(usersRes);
       setRoles(rolesRes);
@@ -78,9 +78,9 @@ export function UserManagement() {
       if (editingId) {
         const updateData = { ...formData };
         delete updateData.password; // backend update doesn't handle password directly yet
-        await apiClient.request(`/api/mod-usuarios/api/v1/usuarios/${editingId}`, { method: 'PUT', body: JSON.stringify(updateData) });
+        await apiClient.request(`/api/mod-usuarios/usuarios/${editingId}`, { method: 'PUT', body: JSON.stringify(updateData) });
       } else {
-        await apiClient.request('/api/mod-usuarios/api/v1/usuarios', { method: 'POST', body: JSON.stringify(formData) });
+        await apiClient.request('/api/mod-usuarios/usuarios', { method: 'POST', body: JSON.stringify(formData) });
       }
       setShowModal(false);
       loadData();
@@ -93,7 +93,7 @@ export function UserManagement() {
   const handleDelete = async (id) => {
     if (confirm('¿Estás seguro de desactivar este usuario?')) {
       try {
-        await apiClient.request(`/api/mod-usuarios/api/v1/usuarios/${id}`, { method: 'DELETE' });
+        await apiClient.request(`/api/mod-usuarios/usuarios/${id}`, { method: 'DELETE' });
         loadData();
       } catch (error) {
         console.error('Error deleting user:', error);

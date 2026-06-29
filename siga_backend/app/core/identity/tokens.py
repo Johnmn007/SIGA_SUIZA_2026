@@ -10,11 +10,12 @@ class TokenService:
         self.secret_key = settings.secret_key
         self.algorithm = "HS256"
     
-    def create_user_token(self, user_id: str, email: str, permissions: List[str]) -> str:
+    def create_user_token(self, user_id: str, email: str, permissions: List[str], role: str = "estudiante") -> str:
         """Crea JWT para usuarios del sistema"""
         payload = {
             "sub": user_id,
             "email": email,
+            "role": role,
             "permissions": permissions,
             "type": "user_access",
             "exp": datetime.utcnow() + timedelta(minutes=settings.token_expire_minutes)

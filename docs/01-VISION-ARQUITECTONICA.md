@@ -562,6 +562,15 @@ Ejemplo: Cuando `mod-estudiantes` crea un estudiante, publica `estudiante.creado
 | **Fundamento** | (1) Hace explícito el contrato de eventos entre módulos. (2) Permite al Core hacer validación temprana (un módulo no puede suscribirse a eventos que no existen). (3) Sirve como documentación viva del bus de eventos. (4) Permite generar automáticamente la topología de eventos para debugging. |
 | **Consecuencias** | + Contrato explícito, validación temprana, documentación viva. - El manifiesto debe mantenerse sincronizado con la implementación. - Mayor verbosidad en la definición del módulo. |
 
+### ADR-011: Integración con Sistema Externo de Admisión
+
+| Campo | Valor |
+|-------|-------|
+| **Contexto** | Los estudiantes ingresan a la institución tras un proceso de admisión. El módulo de Admisión manejará pagos, puntajes y prospectos (cientos de candidatos). Mezclar esta data temporal con el SIGA ensuciaría la base de datos principal. |
+| **Decisión** | **Mantener Admisión como una App/Módulo Externo** (Separación de Contextos / Bounded Context). La integración se hará mediante **Ingesta por Push masiva** hacia `mod-gestion-academica` una vez culminado el proceso. |
+| **Fundamento** | (1) *Domain-Driven Design (DDD)*: El contexto "Postulante" es efímero y diferente al contexto "Estudiante". (2) *Single Source of Truth*: `mod-gestion-academica` actúa como MDM (Master Data Management); recibe el JSON masivo de admitidos, aplica una Capa Anticorrupción (ACL), genera los códigos universitarios y asienta a los alumnos en el Ciclo I. (3) *Seguridad*: Al asentar al estudiante, se gatilla la creación de credenciales en `mod-usuarios`. |
+| **Consecuencias** | + Base de datos académica limpia, escalabilidad separada para exámenes de admisión, alta cohesión. - Requiere construir el endpoint de ingesta masiva (ACL) en `mod-gestion-academica`. |
+
 ---
 
 ## 10. Glosario de Términos

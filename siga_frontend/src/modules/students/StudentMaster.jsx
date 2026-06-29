@@ -45,12 +45,12 @@ export function StudentMaster() {
     tipo_sangre: 'O+', seguro_salud: 'Ninguno', discapacidad: false,
     colegio_procedencia: '', año_egreso_colegio: 2023,
     contacto_emergencia_nombre: '', contacto_emergencia_telefono: '',
-    nombre_padre: '', nombre_madre: '', estado_academico: 'postulante'
+    nombre_padre: '', nombre_madre: '', estado_academico: 'postulante',
+    documentos_completos: true, fecha_limite_documentos: ''
   });
 
-  const handleSearch = async (val) => {
+  const handleSearch = async (val = '') => {
     setSearchTerm(val);
-    if (val.length < 3) return;
     setLoading(true);
     try {
       // Usar la ruta correcta del módulo integrado
@@ -59,14 +59,18 @@ export function StudentMaster() {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await res.json();
-      // Filtrar localmente por DNI, Nombres o Codigo (ya que el backend retorna todos por ahora, o podríamos hacer un endpoint de búsqueda)
-      const filtered = data.filter(s => 
-        s.dni.includes(val) || 
-        s.nombres.toLowerCase().includes(val.toLowerCase()) || 
-        s.apellidos.toLowerCase().includes(val.toLowerCase()) || 
-        s.codigo_estudiante.includes(val)
-      );
-      setStudents(filtered);
+      
+      if (val.length >= 3) {
+        const filtered = data.filter(s => 
+          s.dni.includes(val) || 
+          s.nombres.toLowerCase().includes(val.toLowerCase()) || 
+          s.apellidos.toLowerCase().includes(val.toLowerCase()) || 
+          s.codigo_estudiante.includes(val)
+        );
+        setStudents(filtered);
+      } else {
+        setStudents(data);
+      }
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -76,6 +80,15 @@ export function StudentMaster() {
     try {
       const payload = { ...form };
       // Limpiar campos que no están en el schema de creación si es necesario
+      if (payload.fecha_nacimiento === '') payload.fecha_nacimiento = null;
+      if (payload.email_institucional === '') payload.email_institucional = null;
+      if (payload.email_personal === '') payload.email_personal = null;
+      
+      // Mapear campos al schema de Pydantic
+      payload.celular = payload.telefono_movil;
+      payload.direccion_domicilio = payload.direccion_residencia;
+      if (payload.fecha_limite_documentos === '') payload.fecha_limite_documentos = null;
+      
       const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
         method: 'POST',
         headers: {
@@ -87,9 +100,16 @@ export function StudentMaster() {
       if (res.ok) {
         setShowModal(false);
         setWizardStep(1);
-        handleSearch(searchTerm);
+        handleSearch('');
+      } else {
+        const errorText = await res.text();
+        console.error("Error creating student:", errorText);
+        alert(`Error al registrar el estudiante: ${errorText}`);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error(e); 
+      alert("Error de conexión al registrar el estudiante.");
+    }
   };
 
   const renderWizardStep = () => {
@@ -149,6 +169,16 @@ export function StudentMaster() {
               <InputGroup label="Contacto Emergencia (Nombre)" value={form.contacto_emergencia_nombre} onChange={e=>setForm({...form, contacto_emergencia_nombre: e.target.value})} />
             </div>
             <InputGroup label="Teléfono Emergencia" value={form.contacto_emergencia_telefono} onChange={e=>setForm({...form, contacto_emergencia_telefono: e.target.value})} />
+            
+            <div className="md:col-span-2 pt-4 border-t border-slate-100">
+              <h6 className="font-bold text-slate-700 mb-4 text-xs uppercase">Validación de Expediente</h6>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <CheckboxGroup label="¿Entregó todos los documentos?" checked={form.documentos_completos} onChange={e=>setForm({...form, documentos_completos: e.target.checked})} />
+                {!form.documentos_completos && (
+                  <InputGroup label="Fecha Límite de Subsanación" type="date" value={form.fecha_limite_documentos} onChange={e=>setForm({...form, fecha_limite_documentos: e.target.value})} />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       );
@@ -192,7 +222,7 @@ export function StudentMaster() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h3 className="text-3xl font-bold tracking-tight text-slate-800">
-            Maestro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Estudiantes</span>
+            Registro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Estudiantes</span>
           </h3>
           <p className="text-slate-500 text-sm mt-1">Censo Institucional y Registro Maestro de Identidad</p>
         </div>

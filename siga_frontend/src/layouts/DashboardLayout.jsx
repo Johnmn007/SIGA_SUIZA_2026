@@ -6,6 +6,14 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
   const { user, logout, permissions } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [wsStatus, setWsStatus] = useState('disconnected');
+  const getUserRole = () => {
+    if (user?.is_superuser) return 'superadmin';
+    if (user?.role) return user.role;
+    if (!user?.roles || user.roles.length === 0) return 'invitado';
+    const r = user.roles[0];
+    return typeof r === 'string' ? r : (r.name || r.nombre || 'invitado');
+  };
+  const userRole = getUserRole();
 
   useEffect(() => {
     wsClient.connect();
@@ -85,46 +93,109 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   👤
                 </div>
                 <h5 className="text-lg font-bold text-slate-800">{user?.full_name}</h5>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1">{user?.role || 'Personal Académico'}</p>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1">
+                  {user?.is_superuser ? 'Superadmin' : userRole}
+                </p>
               </div>
               
               <div className="flex flex-col space-y-2 mb-8">
-                <NavItem 
-                  active={currentView === 'dashboard'} 
-                  onClick={() => onNavigate('dashboard')} 
-                  icon="🏠" 
-                  label="Dashboard General" 
-                />
-                <NavItem 
-                  active={currentView === 'academic'} 
-                  onClick={() => onNavigate('academic')} 
-                  icon="📚" 
-                  label="Gestión Académica" 
-                />
-                <NavItem 
-                  active={currentView === 'students'} 
-                  onClick={() => onNavigate('students')} 
-                  icon="👤" 
-                  label="Maestro de Estudiantes" 
-                />
-                <NavItem 
-                  active={currentView === 'enrollment'} 
-                  onClick={() => onNavigate('enrollment')} 
-                  icon="📝" 
-                  label="Proceso de Matrícula" 
-                />
-                <NavItem 
-                  active={false} 
-                  icon="💳" 
-                  label="Finanzas y Pagos" 
-                  disabled
-                />
-                <NavItem 
-                  active={currentView === 'admin'} 
-                  onClick={() => onNavigate('admin')} 
-                  icon="⚙️" 
-                  label="Administración" 
-                />
+                {['superadmin', 'admin'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'dashboard'} 
+                    onClick={() => onNavigate('dashboard')} 
+                    icon="🏠" 
+                    label="Dashboard General" 
+                  />
+                )}
+                {['superadmin', 'admin', 'secretaria_academica', 'director'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'academic'} 
+                    onClick={() => onNavigate('academic')} 
+                    icon="📚" 
+                    label="Gestión Académica Central" 
+                  />
+                )}
+                
+                {['superadmin', 'admin', 'secretaria_academica', 'secretaria_programa', 'admin_admision'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'students'} 
+                    onClick={() => onNavigate('students')} 
+                    icon="👤" 
+                    label="Registro de Estudiantes" 
+                  />
+                )}
+                
+                {['superadmin', 'admin', 'secretaria_programa'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'enrollment'} 
+                    onClick={() => onNavigate('enrollment')} 
+                    icon="📝" 
+                    label="Proceso de Matrícula" 
+                  />
+                )}
+
+                {['superadmin', 'admin', 'coordinador_programa'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'coordinator_academic'} 
+                    onClick={() => onNavigate('coordinator_academic')} 
+                    icon="📋" 
+                    label="Coordinación de Programa" 
+                  />
+                )}
+
+                {['superadmin', 'admin', 'docente'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'evaluation'} 
+                    onClick={() => onNavigate('evaluation')} 
+                    icon="📊" 
+                    label="Panel Docente" 
+                  />
+                )}
+
+                {['superadmin', 'admin', 'coordinador_programa', 'director'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'coordinator_eval'} 
+                    onClick={() => onNavigate('coordinator_eval')} 
+                    icon="👁️" 
+                    label="Supervisión de Actas" 
+                  />
+                )}
+
+                {['superadmin', 'admin', 'secretaria_academica', 'secretaria_programa', 'director'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'tramites'} 
+                    onClick={() => onNavigate('tramites')} 
+                    icon="📑" 
+                    label="Trámites y Casuísticas" 
+                  />
+                )}
+
+                {['superadmin', 'admin', 'estudiante'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'report_card'} 
+                    onClick={() => onNavigate('report_card')} 
+                    icon="🎓" 
+                    label="Boletín (Estudiante)" 
+                  />
+                )}
+
+                {['tesoreria', 'superadmin', 'admin'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'finanzas'} 
+                    onClick={() => onNavigate('finanzas')} 
+                    icon="💳" 
+                    label="Finanzas y Pagos" 
+                  />
+                )}
+
+                {['superadmin', 'admin'].includes(userRole) && (
+                  <NavItem 
+                    active={currentView === 'admin'} 
+                    onClick={() => onNavigate('admin')} 
+                    icon="⚙️" 
+                    label="Administración" 
+                  />
+                )}
               </div>
 
               <div className="mt-auto pt-6 border-t border-slate-200/50">

@@ -28,7 +28,11 @@ class PeriodoAcademico(BaseModel):
     codigo = Column(String(20), unique=True, nullable=False) # Ej: 2024-I
     fecha_inicio = Column(TIMESTAMP, nullable=False)
     fecha_fin = Column(TIMESTAMP, nullable=False)
-    estado = Column(String(20), default="planificacion") # planificacion, matricula, lectivo, cerrado
+    estado = Column(String(20), default="planificacion") # planificacion, matricula_abierta, en_curso, cerrado
+    
+    # Nuevos campos para precisión de Matrícula Regular vs Extemporánea
+    fecha_fin_matricula_regular = Column(TIMESTAMP)
+    fecha_fin_matricula_extemporanea = Column(TIMESTAMP)
 
 class ProgramaConfiguracion(BaseModel):
     """Configuración por periodo académico"""
@@ -81,3 +85,55 @@ class ProgramaRequisito(BaseModel):
     obligatorio = Column(Boolean, default=True)
 
     programa = relationship("ProgramaEstudio", back_populates="requisitos")
+
+class CargaLectiva(BaseModel):
+    """Programación Académica: Asignación de Docente a Unidad Didáctica"""
+    __tablename__ = "carga_lectiva"
+
+    periodo_id = Column(Integer, ForeignKey("periodos_academicos.id"), nullable=False)
+    programa_id = Column(Integer, ForeignKey("programas_estudio.id"), nullable=False)
+    docente_id = Column(Integer, nullable=False) # Referencia a core_users
+    unidad_didactica_id = Column(Integer, nullable=False) # Referencia a la UD en Planes de Estudio
+    turno = Column(String(50)) # Mañana, Tarde, Noche
+    seccion = Column(String(10)) # A, B, C
+    estado = Column(String(30), default="borrador") # borrador, revision, publicado
+
+class Silabo(BaseModel):
+    """Sílabo elaborado por el Docente para una Carga Lectiva"""
+    __tablename__ = "silabos"
+
+    carga_lectiva_id = Column(Integer, ForeignKey("carga_lectiva.id"), unique=True, nullable=False)
+    estado = Column(String(30), default="borrador") # borrador, presentado, aprobado, observado
+    archivo_url = Column(String(255))
+    observaciones = Column(Text)
+
+class PlanTrabajoDocente(BaseModel):
+    """Plan de trabajo del Docente por Periodo"""
+    __tablename__ = "planes_trabajo_docente"
+
+    periodo_id = Column(Integer, ForeignKey("periodos_academicos.id"), nullable=False)
+    programa_id = Column(Integer, ForeignKey("programas_estudio.id"), nullable=False)
+    docente_id = Column(Integer, nullable=False)
+    estado = Column(String(30), default="borrador") # borrador, presentado, aprobado, observado
+    archivo_url = Column(String(255))
+    observaciones = Column(Text)
+
+class Tutoria(BaseModel):
+    """Asignación de Tutoría por Ciclo"""
+    __tablename__ = "tutorias"
+
+    periodo_id = Column(Integer, ForeignKey("periodos_academicos.id"), nullable=False)
+    programa_id = Column(Integer, ForeignKey("programas_estudio.id"), nullable=False)
+    docente_id = Column(Integer, nullable=False)
+    ciclo = Column(Integer, nullable=False) # 1, 2, 3, 4, 5, 6
+    observaciones = Column(Text)
+
+class HorarioPeriodo(BaseModel):
+    """Horario en Excel subido por el Coordinador"""
+    __tablename__ = "horarios_periodo"
+
+    periodo_id = Column(Integer, ForeignKey("periodos_academicos.id"), nullable=False)
+    programa_id = Column(Integer, ForeignKey("programas_estudio.id"), nullable=False)
+    estado = Column(String(30), default="borrador") # borrador, revision, publicado
+    archivo_excel_url = Column(String(255), nullable=False)
+    observaciones = Column(Text)

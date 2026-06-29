@@ -7,7 +7,7 @@ from outbox_worker import outbox_worker
 
 app = FastAPI(title="SIGA - Gestión Académica", version="2.0.0")
 
-app.include_router(router, prefix="/api/v1/gestion-academica")
+app.include_router(router)
 
 @app.get("/")
 async def root():

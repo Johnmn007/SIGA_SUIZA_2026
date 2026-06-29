@@ -17,10 +17,9 @@ El frontend de SIGA es una **Single Page Application (SPA)** construida con **Re
 | **Single Source of Truth** | El estado de autenticación y permisos se gestiona globalmente via Context API |
 | **Lazy Loading** | Cada módulo funcional se carga bajo demanda (code splitting) |
 | **Separation of Concerns** | UI pura: el frontend no contiene lógica de negocio, solo la presenta |
-| **Responsive Design** | Mobile-first con Tailwind CSS |
+| **Responsive Design** | Mobile-first con Bootstrap 5 |
 | **Resilience** | Manejo de errores en todos los niveles: ErrorBoundary, try/catch, fallbacks |
 | **Security** | El frontend solo oculta UI basado en permisos; las decisiones de autorización son del backend |
-| **Escalabilidad de Equipo** | Para evitar que la SPA monolítica sea un cuello de botella entre equipos, se adoptará un enfoque de **Monorepo (ej. Turborepo)** y se estructurará considerando a futuro **Module Federation** (Micro-frontends) si los módulos crecen demasiado. |
 
 ---
 
@@ -30,7 +29,7 @@ El frontend de SIGA es una **Single Page Application (SPA)** construida con **Re
 |-----------|---------|-----------|---------------|
 | React | 19.x | UI Framework | Ecosistema maduro, hooks, concurrent features |
 | Vite | 7.x | Build tool / Dev server | Extremadamente rápido (esbuild), HMR instantáneo |
-| Tailwind CSS | 3.4.x | CSS Framework | Utility-first CSS, altamente personalizable, menor tamaño de bundle |
+|  | 5.3.x | CSS Framework | Componentes accesibles, grid responsive, personalizable |
 | React Router | 7.x (futuro) | Routing SPA | Navegación del lado del cliente, lazy routes |
 | React Query / TanStack Query | 5.x (futuro) | Data fetching / Caché | Caché automático, stale-while-revalidate, devtools |
 | ESLint + Prettier | — | Linting / Formato | Consistencia de código |
@@ -397,7 +396,7 @@ export function ProtectedRoute({ children, requiredPermission, requiredRole }) {
 
     if (requiredPermission && !hasPermission(requiredPermission)) {
         return (
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4">
+            <div className="alert alert-warning">
                 No tienes permisos para acceder a esta sección.
             </div>
         );
@@ -405,7 +404,7 @@ export function ProtectedRoute({ children, requiredPermission, requiredRole }) {
 
     if (requiredRole && !hasRole(requiredRole)) {
         return (
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4">
+            <div className="alert alert-warning">
                 No tienes el rol necesario para acceder a esta sección.
             </div>
         );
@@ -662,7 +661,7 @@ export function StudentMaster() {
             label: 'Estado',
             sortable: true,
             render: (row) => (
-                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getEstadoColor(row.estado_academico)}`}>
+                <span className={`badge bg-${getEstadoColor(row.estado_academico)}`}>
                     {row.estado_academico}
                 </span>
             ),
@@ -671,16 +670,16 @@ export function StudentMaster() {
             key: 'acciones',
             label: '',
             render: (row) => (
-                <div className="flex space-x-2">
-                    <button className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm" onClick={() => handleView(row)}>
+                <div className="btn-group">
+                    <button className="btn btn-sm btn-info" onClick={() => handleView(row)}>
                         Ver
                     </button>
                     {hasPermission('mod-estudiantes:write') && (
                         <>
-                            <button className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 text-sm" onClick={() => handleEdit(row)}>
+                            <button className="btn btn-sm btn-warning" onClick={() => handleEdit(row)}>
                                 Editar
                             </button>
-                            <button className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-sm" onClick={() => handleDelete(row)}>
+                            <button className="btn btn-sm btn-danger" onClick={() => handleDelete(row)}>
                                 Eliminar
                             </button>
                         </>
@@ -695,10 +694,10 @@ export function StudentMaster() {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold">Maestro de Estudiantes</h2>
+            <div className="d-flex justify-content-between align-items-center mb-3">
+                <h2>Maestro de Estudiantes</h2>
                 {hasPermission('mod-estudiantes:write') && (
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700" onClick={handleCreate}>
+                    <button className="btn btn-primary" onClick={handleCreate}>
                         + Nuevo Estudiante
                     </button>
                 )}
@@ -735,14 +734,14 @@ export function StudentMaster() {
 
 function getEstadoColor(estado) {
     const colors = {
-        regular: 'bg-green-100 text-green-800',
-        irregular: 'bg-yellow-100 text-yellow-800',
-        admitido: 'bg-blue-100 text-blue-800',
-        egresado: 'bg-indigo-100 text-indigo-800',
-        titulado: 'bg-gray-100 text-gray-800',
-        retirado: 'bg-red-100 text-red-800',
+        regular: 'success',
+        irregular: 'warning',
+        admitido: 'info',
+        egresado: 'primary',
+        titulado: 'secondary',
+        retirado: 'danger',
     };
-    return colors[estado] || 'bg-gray-100 text-gray-800';
+    return colors[estado] || 'secondary';
 }
 ```
 
@@ -871,29 +870,22 @@ export function ToastProvider({ children }) {
     return (
         <ToastContext.Provider value={{ success, error, warning, info }}>
             {children}
-            <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-                {toasts.map(toast => {
-                    const bgColors = {
-                        success: 'bg-green-500',
-                        error: 'bg-red-500',
-                        warning: 'bg-yellow-500',
-                        info: 'bg-blue-500'
-                    };
-                    const bgColor = bgColors[toast.type] || 'bg-gray-500';
-                    return (
-                        <div key={toast.id} className={`${bgColor} text-white px-4 py-3 rounded shadow-lg flex justify-between items-center min-w-[300px]`}>
-                            <div>
-                                <strong className="block font-bold">
-                                    {toast.type.charAt(0).toUpperCase() + toast.type.slice(1)}
-                                </strong>
-                                <span className="block sm:inline">{toast.message}</span>
-                            </div>
-                            <button className="text-white hover:text-gray-200 font-bold ml-4" onClick={() => removeToast(toast.id)}>
-                                ✕
-                            </button>
+            <div className="toast-container position-fixed bottom-0 end-0 p-3">
+                {toasts.map(toast => (
+                    <div key={toast.id}
+                         className={`toast show bg-${toast.type === 'error' ? 'danger' : toast.type}`}
+                         role="alert">
+                        <div className="toast-header">
+                            <strong className="me-auto">
+                                {toast.type.charAt(0).toUpperCase() + toast.type.slice(1)}
+                            </strong>
+                            <button className="btn-close" onClick={() => removeToast(toast.id)} />
                         </div>
-                    );
-                })}
+                        <div className="toast-body text-white">
+                            {toast.message}
+                        </div>
+                    </div>
+                ))}
             </div>
         </ToastContext.Provider>
     );
@@ -933,38 +925,36 @@ export function DataTable({ data, columns, pagination, onRowClick, emptyMessage 
 
     if (!data || data.length === 0) {
         return (
-            <div className="text-center py-10 text-gray-500">
+            <div className="text-center py-5 text-muted">
                 {emptyMessage}
             </div>
         );
     }
 
     return (
-        <div className="overflow-x-auto rounded-lg shadow">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-800 text-white">
+        <div className="table-responsive">
+            <table className="table table-striped table-hover">
+                <thead className="table-dark">
                     <tr>
                         {columns.map(col => (
                             <th key={col.key}
-                                className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${col.sortable ? 'cursor-pointer hover:bg-gray-700' : ''}`}
+                                style={col.sortable ? { cursor: 'pointer' } : {}}
                                 onClick={() => col.sortable && handleSort(col.key)}>
-                                <div className="flex items-center space-x-1">
-                                    <span>{col.label}</span>
-                                    {col.sortable && sortKey === col.key && (
-                                        <span>{sortDir === 'asc' ? '▲' : '▼'}</span>
-                                    )}
-                                </div>
+                                {col.label}
+                                {col.sortable && sortKey === col.key && (
+                                    <span className="ms-1">{sortDir === 'asc' ? '▲' : '▼'}</span>
+                                )}
                             </th>
                         ))}
                     </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody>
                     {sortedData.map((row, i) => (
                         <tr key={row.id || i}
-                            className={onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''}
+                            style={onRowClick ? { cursor: 'pointer' } : {}}
                             onClick={() => onRowClick?.(row)}>
                             {columns.map(col => (
-                                <td key={col.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <td key={col.key}>
                                     {col.render ? col.render(row) : row[col.key]}
                                 </td>
                             ))}
@@ -1098,11 +1088,11 @@ export const router = createBrowserRouter([
 ### 12.2 Responsive Breakpoints
 
 ```scss
-// Puntos de quiebra (coinciden con Tailwind)
-$breakpoint-sm: 640px;   // Móvil landscape
+// Puntos de quiebra (coinciden con Bootstrap)
+$breakpoint-sm: 576px;   // Móvil landscape
 $breakpoint-md: 768px;   // Tablet
-$breakpoint-lg: 1024px;  // Desktop
-$breakpoint-xl: 1280px;  // Desktop grande
+$breakpoint-lg: 992px;   // Desktop
+$breakpoint-xl: 1200px;  // Desktop grande
 
 // Sidebar responsive
 @media (max-width: $breakpoint-md) {
@@ -1214,7 +1204,7 @@ export default defineConfig({
             output: {
                 manualChunks: {
                     vendor: ['react', 'react-dom'],
-                    tailwindcss: ['tailwindcss'],
+                    bootstrap: ['bootstrap'],
                 },
             },
         },
@@ -1287,14 +1277,13 @@ VITE_DEBUG=false
     },
     "dependencies": {
         "react": "^19.0.0",
-        "react-dom": "^19.0.0"
+        "react-dom": "^19.0.0",
+        "bootstrap": "^5.3.3",
+        "@popperjs/core": "^2.11.8"
     },
     "devDependencies": {
         "@vitejs/plugin-react": "^4.3.0",
         "vite": "^7.0.0",
-        "tailwindcss": "^3.4.1",
-        "postcss": "^8.4.35",
-        "autoprefixer": "^10.4.18",
         "eslint": "^9.0.0",
         "eslint-plugin-react": "^7.37.0",
         "eslint-plugin-react-hooks": "^5.0.0",
@@ -1422,7 +1411,7 @@ npm run build
 #   ├── assets/
 #   │   ├── index-abc123.js       (entry point)
 #   │   ├── vendor-xyz789.js      (React, ReactDOM)
-#   │   ├── tailwind-def456.js    (Tailwind CSS)
+#   │   ├── bootstrap-def456.js    (Bootstrap)
 #   │   ├── module-academic-xxx.js (lazy loaded)
 #   │   ├── module-student-yyy.js  (lazy loaded)
 #   │   └── styles-ghi789.css

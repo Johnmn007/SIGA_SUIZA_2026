@@ -56,6 +56,9 @@ class HTTPGateway:
         
         # 3. Módulo saludable - proceder normalmente
         target_url = self._build_target_url(module, path)
+        if request.url.query:
+            target_url = f"{target_url}?{request.url.query}"
+            
         headers = self._prepare_forward_headers(request, module_name, user)
         
         try:

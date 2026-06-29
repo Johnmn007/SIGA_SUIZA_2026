@@ -20,7 +20,7 @@ export function EnrollmentDashboard() {
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/mod-matricula/estudiantes`, {
+      const response = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await response.json();
@@ -35,27 +35,6 @@ export function EnrollmentDashboard() {
   useEffect(() => {
     fetchStudents();
   }, []);
-
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await fetch(`${API_BASE}/api/mod-matricula/estudiantes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(newStudent)
-      });
-      if (response.ok) {
-        setShowModal(false);
-        setNewStudent({ codigo_estudiante: '', dni: '', nombres: '', apellidos: '', email: '', telefono: '' });
-        fetchStudents();
-      }
-    } catch (error) {
-      console.error('Error registering student:', error);
-    }
-  };
 
   const handleEnrollClick = (student) => {
     setSelectedStudent(student);
@@ -81,17 +60,10 @@ export function EnrollmentDashboard() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h3 className="text-3xl font-bold tracking-tight text-slate-800">
-            Gestión de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Estudiantes y Matrícula</span>
+            Gestión de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Matrícula Académica</span>
           </h3>
-          <p className="text-slate-500 text-sm mt-1">Control de ingresos, registros académicos y procesos de matrícula</p>
+          <p className="text-slate-500 text-sm mt-1">Control de procesos de matrícula para estudiantes registrados</p>
         </div>
-        <button 
-          className="btn-primary flex items-center space-x-2 shadow-glow"
-          onClick={() => setShowModal(true)}
-        >
-          <span className="text-xl leading-none">+</span>
-          <span>Registrar Estudiante</span>
-        </button>
       </div>
 
       <div className="glass-card p-6">
@@ -128,10 +100,10 @@ export function EnrollmentDashboard() {
                     <td className="py-3 px-4 font-bold text-slate-700">{student.codigo_estudiante}</td>
                     <td className="py-3 px-4 text-slate-800 font-medium">{student.nombres} {student.apellidos}</td>
                     <td className="py-3 px-4 text-slate-600">{student.dni}</td>
-                    <td className="py-3 px-4 text-slate-500 text-sm">{student.email}</td>
+                    <td className="py-3 px-4 text-slate-500 text-sm">{student.email_personal || '-'}</td>
                     <td className="py-3 px-4">
                       <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase rounded border border-green-200">
-                        {student.estado}
+                        {student.estado_academico}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -149,73 +121,6 @@ export function EnrollmentDashboard() {
           </table>
         </div>
       </div>
-
-      {/* Register Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-lg overflow-hidden bg-white/95 shadow-2xl animate-fade-in-up">
-            <div className="flex justify-between items-center p-6 border-b border-slate-200">
-              <h5 className="font-bold text-xl text-slate-800 tracking-tight">Nuevo Estudiante</h5>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-              </button>
-            </div>
-            
-            <form onSubmit={handleRegister}>
-              <div className="p-6 space-y-5">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label uppercase tracking-wider text-xs">CÓDIGO ESTUDIANTE</label>
-                    <input 
-                      type="text" className="input-field" 
-                      value={newStudent.codigo_estudiante} onChange={e => setNewStudent({...newStudent, codigo_estudiante: e.target.value})}
-                      required 
-                    />
-                  </div>
-                  <div>
-                    <label className="label uppercase tracking-wider text-xs">DNI / DOCUMENTO</label>
-                    <input 
-                      type="text" className="input-field" 
-                      value={newStudent.dni} onChange={e => setNewStudent({...newStudent, dni: e.target.value})}
-                      required 
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label uppercase tracking-wider text-xs">NOMBRES</label>
-                    <input 
-                      type="text" className="input-field" 
-                      value={newStudent.nombres} onChange={e => setNewStudent({...newStudent, nombres: e.target.value})}
-                      required 
-                    />
-                  </div>
-                  <div>
-                    <label className="label uppercase tracking-wider text-xs">APELLIDOS</label>
-                    <input 
-                      type="text" className="input-field" 
-                      value={newStudent.apellidos} onChange={e => setNewStudent({...newStudent, apellidos: e.target.value})}
-                      required 
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="label uppercase tracking-wider text-xs">EMAIL INSTITUCIONAL</label>
-                  <input 
-                    type="email" className="input-field" 
-                    value={newStudent.email} onChange={e => setNewStudent({...newStudent, email: e.target.value})}
-                    required 
-                  />
-                </div>
-              </div>
-              <div className="p-6 border-t border-slate-200 bg-slate-50 flex justify-end space-x-3">
-                <button type="button" className="px-5 py-2 font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors" onClick={() => setShowModal(false)}>Cancelar</button>
-                <button type="submit" className="btn-primary px-6">Registrar Estudiante</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

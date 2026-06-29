@@ -31,22 +31,57 @@ class UserSeeder(BaseSeeder):
             {
                 "email": "admin@siga.edu",
                 "password": "admin123",
-                "full_name": "Administrador SIGA",
-                "roles": ["admin"],
+                "full_name": "Super Admin",
+                "roles": ["superadmin"],
                 "is_superuser": True
             },
             {
-                "email": "docente@example.com", 
+                "email": "tesoreria@siga.edu",
+                "password": "tesoreria123",
+                "full_name": "Caja Principal",
+                "roles": ["tesoreria"],
+                "is_superuser": False
+            },
+            {
+                "email": "secretaria@siga.edu",
+                "password": "secretaria123",
+                "full_name": "Secretaría Académica",
+                "roles": ["secretaria_academica"],
+                "is_superuser": False
+            },
+            {
+                "email": "secretaria_prog@siga.edu",
+                "password": "secretariaprog123",
+                "full_name": "Secretaría de Programa (Computación)",
+                "roles": ["secretaria_programa"],
+                "is_superuser": False
+            },
+            {
+                "email": "coordinador@siga.edu",
+                "password": "coordinador123",
+                "full_name": "Jefatura de Programa (Computación)",
+                "roles": ["coordinador_programa"],
+                "is_superuser": False
+            },
+            {
+                "email": "admision@siga.edu",
+                "password": "admision123",
+                "full_name": "Oficina de Admisión",
+                "roles": ["admin_admision"],
+                "is_superuser": False
+            },
+            {
+                "email": "docente@siga.edu", 
                 "password": "docente123",
-                "full_name": "Profesor Ejemplo",
+                "full_name": "Docente Titular",
                 "roles": ["docente"],
                 "is_superuser": False
             },
             {
-                "email": "alumno@example.com",
-                "password": "alumno123", 
-                "full_name": "Estudiante Ejemplo",
-                "roles": ["alumno"],
+                "email": "estudiante@siga.edu",
+                "password": "estudiante123", 
+                "full_name": "Estudiante Promedio",
+                "roles": ["estudiante"],
                 "is_superuser": False
             }
         ]

@@ -216,8 +216,10 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | 2026-06-27 | 1.6 | Implementación de `ExcelMineduParser` en `mod-planes-estudio` para importar los planes MINEDU (hojas de Módulos y Unidades) usando Pandas y endpoint FastAPI (`/planes/importar-minedu`). Fase 1 completada. |
 | 2026-06-27 | 2.0 | Implementación de `mod-usuarios` (Modelos y Rutas CRUD para Usuarios, Roles, Permisos) mapeando la BD `siga_core`. Creación de la interfaz de Administración de Usuarios con React (`UserManagement.jsx`) en el Frontend. Fase 2 iniciada. |
 | 2026-06-27 | 2.1 | Implementación completa de CRUDs en `mod-gestion-academica` para Estudiantes y Matrículas. Actualización de las vistas frontend `StudentMaster.jsx` y `EnrollmentProcess.jsx` para integrar correctamente el backend unificado. |
-| 2026-06-27 | 2.2 | Implementación del Sistema de Auditoría Inmutable (`mod-auditoria`). Microservicio pasivo (consumidor de NATS) que registra operaciones de todos los módulos en `core_audit_logs`. Creación del tab 'Auditoría' en el Frontend. Fase 2 Completada con éxito. |
+| 2026-06-27 | 3.0 | Implementación de Fase 3 (Evaluación - MVP). Creación de `EvaluationDashboard.jsx` para docentes y `CoordinatorSupervision.jsx` para supervisión de actas, con integración al `mod-evaluacion` y cálculo de la Regla del 70%. |
+| 2026-06-27 | 4.0 | Implementación de Fase 4 (Trámites y Casuísticas). Creación de documento arquitectónico maestro (`13-PLAN-CASUISTICAS-ACADEMICAS.md`). Adición de 6 entidades a `mod-gestion-academica` (HistorialAcademico, Beneficios, Convalidaciones) y desarrollo del UI `TramitesDashboard.jsx` (Glassmorphism) para Secretaría Académica. Próximo paso prioritario definido: Parser Excel MINEDU. |
 
 ---
 
 *Este documento debe actualizarse cada vez que se identifique una nueva lección, corrección importante o cambio en la metodología de trabajo.*
+

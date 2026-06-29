@@ -47,10 +47,21 @@ class SecurityMiddleware:
             # Verificar permisos para rutas de módulos
             if request.url.path.startswith("/api/"):
                 module_name = request.url.path.split("/")[2]  # /api/{module_name}/...
-                has_perm = any(p.startswith(f"{module_name}:") for p in user["permissions"])
+                
+                # Mapear método HTTP a tipo de permiso
+                required_perm_type = "read" if request.method in ["GET", "OPTIONS", "HEAD"] else "write"
+                required_perm = f"{module_name}:{required_perm_type}"
+                
+                # Check for either the specific read/write permission, or a generic access/manage permission
+                has_perm = any(
+                    p == required_perm or 
+                    p == f"{module_name}:manage" or 
+                    p.startswith("core:module:manage") 
+                    for p in user["permissions"]
+                )
                 
                 if not user.get("is_superuser") and not has_perm:
-                    raise HTTPException(status_code=403, detail="Permisos insuficientes para este módulo")
+                    raise HTTPException(status_code=403, detail=f"Permisos insuficientes. Se requiere {required_perm}")
             
             logger.info(f"🔐 Usuario autenticado: {user['email']} - {request.method} {request.url.path}")
             return user

@@ -57,13 +57,13 @@ export function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="glass-card p-6 text-center transform hover:-translate-y-1 transition-all">
           <div className="text-slate-500 text-sm font-medium uppercase tracking-wider mb-2">Estado del Core</div>
-          <h1 className={`text-4xl font-extrabold ${systemStatus?.status === 'healthy' ? 'text-green-500' : 'text-amber-500'}`}>
+          <h1 className={`text-2xl font-extrabold ${systemStatus?.status === 'healthy' ? 'text-green-500' : 'text-amber-500'}`}>
             {systemStatus?.status || 'Desconocido'}
           </h1>
         </div>
         <div className="glass-card p-6 text-center transform hover:-translate-y-1 transition-all">
           <div className="text-slate-500 text-sm font-medium uppercase tracking-wider mb-2">Módulos Registrados</div>
-          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-500">
+          <h1 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-500">
             {systemStatus?.modules?.total || 0}
           </h1>
         </div>
@@ -73,7 +73,7 @@ export function AdminDashboard() {
         </div>
         <div className="glass-card p-6 text-center transform hover:-translate-y-1 transition-all">
           <div className="text-slate-500 text-sm font-medium uppercase tracking-wider mb-2">Entorno</div>
-          <h1 className="text-4xl font-extrabold text-blue-500 capitalize">{systemStatus?.environment || 'N/A'}</h1>
+          <h1 className="text-2xl font-extrabold text-blue-500 capitalize">{systemStatus?.environment || 'N/A'}</h1>
         </div>
       </div>
 
@@ -104,7 +104,7 @@ export function AdminDashboard() {
           </div>
           <div className="p-4 rounded-xl bg-slate-50/50 border border-slate-100 flex justify-between items-center">
             <span className="text-slate-500 font-medium">Rol</span>
-            <span className="font-bold text-slate-800 bg-white px-3 py-1 rounded-md shadow-sm capitalize">{user?.role || 'N/A'}</span>
+            <span className="font-bold text-slate-800 bg-white px-3 py-1 rounded-md shadow-sm capitalize">{user?.is_superuser ? 'Superadmin' : user?.role || 'N/A'}</span>
           </div>
         </div>
       </div>

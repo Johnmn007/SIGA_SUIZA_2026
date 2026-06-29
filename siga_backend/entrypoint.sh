@@ -8,8 +8,8 @@ echo "Running database migrations..."
 alembic upgrade head
 
 if [ "$#" -eq 0 ]; then
-    echo "Starting SIGA Core..."
-    exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+    echo "Starting SIGA Core con Hot Reload..."
+    exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 else
     echo "Starting Module with command: $@"
     exec "$@"

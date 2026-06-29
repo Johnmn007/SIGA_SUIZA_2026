@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
 
 import { CurriculumMesh } from './CurriculumMesh';
+import { PeriodManager } from './PeriodManager';
 
 export function AcademicDashboard() {
   const [programs, setPrograms] = useState([]);
@@ -9,8 +10,8 @@ export function AcademicDashboard() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list'); // 'list' or 'mesh'
   const [selectedProgram, setSelectedProgram] = useState(null);
-  const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showPeriodManager, setShowPeriodManager] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -26,8 +27,8 @@ export function AcademicDashboard() {
     setLoading(true);
     try {
       const [programsData, periodsData] = await Promise.all([
-        apiClient.callModule('mod-programas-estudio', 'api/v1/programas'),
-        apiClient.callModule('mod-programas-estudio', 'api/v1/periodos')
+        apiClient.callModule('mod-programas-estudio', 'programas'),
+        apiClient.callModule('mod-programas-estudio', 'periodos')
       ]);
 
       setPrograms(Array.isArray(programsData) ? programsData : []);
@@ -56,7 +57,7 @@ export function AcademicDashboard() {
     try {
       // Usamos el cliente API base pero saltándonos el default JSON content-type para FormData
       const token = localStorage.getItem('token');
-      const response = await fetch(`${apiClient.baseURL}/api/mod-planes-estudio/api/v1/planes/parse-minedu`, {
+      const response = await fetch(`${apiClient.baseURL}/api/mod-planes-estudio/planes/parse-minedu`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -92,13 +93,43 @@ export function AcademicDashboard() {
         duracion_periodos: 6 // Por defecto
       };
       
-      await apiClient.callModule('mod-programas-estudio', 'api/v1/programas', 'POST', programaData);
+      const createdProgram = await apiClient.callModule('mod-programas-estudio', 'programas', 'POST', programaData);
 
-      // 2. Importar la estructura modular en mod-planes-estudio
+      // 1.5 Crear los módulos y unidades en mod-programas-estudio
+      if (createdProgram && createdProgram.id) {
+        for (let i = 0; i < previewData.modulos.length; i++) {
+          const modData = previewData.modulos[i];
+          const moduloToCreate = {
+            nombre: modData.nombre,
+            periodo: modData.orden || i + 1,
+            horas_totales: modData.horas || 0,
+            creditos: modData.creditos || 0,
+            orden: modData.orden || i + 1
+          };
+          
+          const createdModulo = await apiClient.callModule('mod-programas-estudio', `programas/${createdProgram.id}/modulos`, 'POST', moduloToCreate);
+          
+          if (createdModulo && createdModulo.id && modData.unidades) {
+            for (let j = 0; j < modData.unidades.length; j++) {
+              const udData = modData.unidades[j];
+              const unidadToCreate = {
+                nombre: udData.nombre,
+                horas_teoria: udData.horas || 0,
+                horas_practica: 0,
+                creditos: udData.creditos || 0,
+                orden: j + 1
+              };
+              await apiClient.callModule('mod-programas-estudio', `modulos/${createdModulo.id}/unidades`, 'POST', unidadToCreate);
+            }
+          }
+        }
+      }
+
+      // 2. Importar la estructura modular en mod-planes-estudio (respaldo oficial MINEDU)
       const formData = new FormData();
       formData.append('file', importFile);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${apiClient.baseURL}/api/mod-planes-estudio/api/v1/planes/importar-minedu`, {
+      const response = await fetch(`${apiClient.baseURL}/api/mod-planes-estudio/planes/importar-minedu`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -164,7 +195,10 @@ export function AcademicDashboard() {
                 ))}
               </div>
             )}
-            <button className="w-full mt-6 py-2 border-2 border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition-colors">
+            <button 
+              className="w-full mt-6 py-2 border-2 border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition-colors"
+              onClick={() => setShowPeriodManager(true)}
+            >
               Gestionar Calendario
             </button>
           </div>
@@ -358,6 +392,14 @@ export function AcademicDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Period Manager Modal */}
+      {showPeriodManager && (
+        <PeriodManager 
+          onClose={() => setShowPeriodManager(false)} 
+          onUpdate={fetchData} 
+        />
       )}
     </div>
   );

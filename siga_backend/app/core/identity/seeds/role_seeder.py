@@ -25,11 +25,14 @@ class RoleSeeder(BaseSeeder):
             return
         
         roles_data = [
-            {"name": "admin", "description": "Administrador del sistema"},
+            {"name": "superadmin", "description": "Administrador de TI"},
+            {"name": "tesoreria", "description": "Caja y Finanzas"},
+            {"name": "secretaria_academica", "description": "Secretaría Central"},
+            {"name": "secretaria_programa", "description": "Secretaría de Programa de Estudios"},
+            {"name": "coordinador_programa", "description": "Coordinador de Programa de Estudios"},
+            {"name": "admin_admision", "description": "Gestor de Admisiones"},
             {"name": "docente", "description": "Docente"},
-            {"name": "alumno", "description": "Alumno"},
-            {"name": "director", "description": "Director de carrera"},
-            {"name": "secretario", "description": "Secretario académico"}
+            {"name": "estudiante", "description": "Estudiante Regular"}
         ]
         
         roles = []

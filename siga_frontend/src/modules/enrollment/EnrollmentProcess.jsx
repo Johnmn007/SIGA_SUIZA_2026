@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { API_BASE } from '../../core/api/client';
+import { apiClient } from '../../core/api/client';
 
 export function EnrollmentProcess({ initialStudent, onCancel }) {
   const [step, setStep] = useState(initialStudent ? 2 : 1);
@@ -16,16 +16,15 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
     tipo: 'Ordinario'
   });
 
+  const [malla, setMalla] = useState([]);
+  const [selectedUDs, setSelectedUDs] = useState({}); // { [ud_id]: true/false }
+
   // 1. Buscar Estudiante Maestro
   const searchStudent = async (val) => {
     setSearchTerm(val);
     if (val.length < 3) return;
     try {
-      let url = `${API_BASE}/api/mod-gestion-academica/estudiantes/`;
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      const data = await res.json();
+      const data = await apiClient.callModule('mod-gestion-academica', 'estudiantes/');
       const filtered = data.filter(s => 
         s.dni.includes(val) || 
         s.nombres.toLowerCase().includes(val.toLowerCase()) || 
@@ -40,42 +39,139 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
   useEffect(() => {
     const fetchAcademic = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const headers = { 'Authorization': `Bearer ${token}` };
         const [pRes, peRes] = await Promise.all([
-          fetch(`${API_BASE}/api/mod-programas-estudio/programas`, { headers }),
-          fetch(`${API_BASE}/api/mod-programas-estudio/periodos`, { headers })
+          apiClient.callModule('mod-programas-estudio', 'programas'),
+          apiClient.callModule('mod-programas-estudio', 'periodos')
         ]);
-        setPrograms(await pRes.json());
-        setPeriods(await peRes.json());
+        setPrograms(Array.isArray(pRes) ? pRes : []);
+        setPeriods(Array.isArray(peRes) ? peRes : []);
       } catch (e) { console.error(e); }
     };
     fetchAcademic();
   }, []);
 
+  const loadMallaAndContinue = async () => {
+    // 0. Validar Pago Financiero
+    if (selection.student && !selection.student.pago_matricula) {
+      alert("MATRÍCULA BLOQUEADA: El estudiante registra deuda pendiente. Debe realizar el pago físico en Caja/Tesorería antes de proceder.");
+      return;
+    }
+
+    // 1. Validar Documentos
+    if (selection.student && selection.student.documentos_completos === false) {
+      if (selection.student.fecha_limite_documentos) {
+         const today = new Date();
+         const limit = new Date(selection.student.fecha_limite_documentos);
+         if (today > limit) {
+           alert("MATRÍCULA BLOQUEADA: El periodo de gracia para entregar documentos ha expirado.");
+           return;
+         } else {
+           alert(`ADVERTENCIA: Matrícula Condicional. Tiene hasta el ${limit.toLocaleDateString()} para regularizar sus documentos.`);
+         }
+      } else {
+         alert("MATRÍCULA BLOQUEADA: El estudiante no ha completado sus documentos y no tiene periodo de gracia.");
+         return;
+      }
+    }
+
+    // 2. Validar Fechas del Periodo
+    if (selection.period) {
+      const today = new Date();
+      const finRegular = selection.period.fecha_fin_matricula_regular ? new Date(selection.period.fecha_fin_matricula_regular) : null;
+      const finExt = selection.period.fecha_fin_matricula_extemporanea ? new Date(selection.period.fecha_fin_matricula_extemporanea) : null;
+      
+      if (finExt && today > finExt) {
+        alert("MATRÍCULA CERRADA: La fase de matrícula extemporánea ha finalizado definitivamente para este periodo.");
+        return;
+      } else if (finRegular && today > finRegular) {
+        alert("ADVERTENCIA: Fase de Matrícula Extemporánea. Se aplicarán las reglas correspondientes.");
+      }
+    }
+
+    setLoading(true);
+    try {
+      const mallaData = await apiClient.callModule('mod-programas-estudio', `programas/${selection.program.id}/malla`);
+      setMalla(mallaData);
+
+      // Pre-selección según casuística
+      const newSelection = {};
+      
+      if (selection.tipo === 'Ordinario') {
+        // Ingresantes: Pre-cargar todo el Ciclo 1
+        mallaData.filter(m => m.periodo === 1).forEach(m => {
+          m.unidades.forEach(u => newSelection[u.id] = true);
+        });
+      }
+      
+      setSelectedUDs(newSelection);
+      setStep(3);
+    } catch (e) {
+      console.error(e);
+      alert("Error al cargar la malla curricular del programa.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleUD = (udId) => {
+    setSelectedUDs(prev => ({ ...prev, [udId]: !prev[udId] }));
+  };
+
+  const checkAllByPeriod = (periodoIndex) => {
+    const newSelection = { ...selectedUDs };
+    const modulo = malla.find(m => m.periodo === periodoIndex);
+    if (modulo) {
+      modulo.unidades.forEach(u => newSelection[u.id] = true);
+    }
+    setSelectedUDs(newSelection);
+  };
+
+  const uncheckAll = () => setSelectedUDs({});
+
   const handleEnroll = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/mod-gestion-academica/matriculas/`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}` 
-        },
-        body: JSON.stringify({
-          estudiante_id: selection.student.id,
-          programa_id: selection.program.id,
-          periodo_id: selection.period.id,
-          tipo_ingreso: selection.tipo
-        })
+      // Filtrar los IDs seleccionados
+      const udIds = Object.keys(selectedUDs).filter(id => selectedUDs[id]).map(Number);
+      
+      // Buscar los créditos para cada UD
+      const detalles = [];
+      malla.forEach(m => {
+        m.unidades.forEach(u => {
+          if (udIds.includes(u.id)) {
+            detalles.push({ unidad_didactica_id: u.id, creditos: u.creditos });
+          }
+        });
       });
-      if (res.ok) setStep(4);
-    } catch (e) { console.error(e); }
+
+      // Validar si hay créditos (MVP hack para evitar crasheos)
+      if (detalles.length === 0) {
+        throw new Error("No hay unidades didácticas seleccionadas");
+      }
+
+      await apiClient.callModule('mod-gestion-academica', 'matriculas/', 'POST', {
+        estudiante_id: selection.student.id,
+        programa_id: selection.program.id,
+        periodo_id: selection.period.id,
+        tipo_ingreso: selection.tipo,
+        detalles: detalles
+      });
+      
+      setStep(4);
+    } catch (e) { 
+      console.error(e);
+      alert("Error al confirmar la matrícula. Verifique que cumpla los créditos requeridos.");
+    }
     setLoading(false);
   };
 
+  // Calcular créditos totales seleccionados
+  const totalCreditos = malla.reduce((acc, m) => {
+    return acc + m.unidades.reduce((accU, u) => accU + (selectedUDs[u.id] ? u.creditos : 0), 0);
+  }, 0);
+
   return (
-    <div className="animate-fade-in max-w-4xl mx-auto py-8">
+    <div className="animate-fade-in max-w-5xl mx-auto py-8">
       <div className="glass-panel p-8 md:p-12 overflow-hidden relative">
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary to-primary-light"></div>
         
@@ -92,7 +188,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           <h2 className="text-3xl font-extrabold tracking-tight text-slate-800 mb-2">
             Proceso de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Matrícula Académica</span>
           </h2>
-          <p className="text-slate-500 font-medium">Vinculación de identidad maestra con programas profesionales</p>
+          <p className="text-slate-500 font-medium">Motor Flexible de Matrícula (Selección Asistida)</p>
           
           <div className="flex justify-center items-center mt-8 relative">
             <div className="absolute left-1/2 top-1/2 w-64 h-0.5 bg-slate-200 -translate-x-1/2 -translate-y-1/2 -z-10"></div>
@@ -106,10 +202,10 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           </div>
         </div>
 
-        <div className="relative min-h-[400px]">
+        <div className="relative">
           {/* Paso 1: Ubicar Estudiante */}
           {step === 1 && (
-            <div className="animate-fade-in-right absolute inset-0 bg-white/40 p-6 rounded-xl border border-white/60">
+            <div className="animate-fade-in-right bg-white/40 p-6 rounded-xl border border-white/60 min-h-[400px]">
               <h5 className="font-bold text-xl text-slate-800 mb-6">1. Identificar Estudiante Maestro</h5>
               <div className="mb-6 relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
@@ -121,7 +217,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
                   onChange={(e) => searchStudent(e.target.value)}
                 />
               </div>
-              <div className="space-y-3 max-h-[250px] overflow-y-auto custom-scrollbar pr-2">
+              <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
                 {students.map(s => (
                   <button 
                     key={s.id} 
@@ -149,7 +245,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
 
           {/* Paso 2: Selección Académica */}
           {step === 2 && (
-            <div className="animate-fade-in-right absolute inset-0 bg-white/40 p-6 rounded-xl border border-white/60 flex flex-col">
+            <div className="animate-fade-in-right bg-white/40 p-6 rounded-xl border border-white/60 flex flex-col min-h-[400px]">
               <h5 className="font-bold text-xl text-slate-800 mb-6 flex items-center">
                 <span className="text-2xl mr-3">📚</span>
                 2. Selección de Programa y Periodo
@@ -167,7 +263,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div>
                   <label className="label uppercase tracking-wider text-xs font-bold">Carrera Profesional</label>
                   <select 
@@ -188,6 +284,19 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
                     {periods.map(p => <option key={p.id} value={p.id}>{p.codigo}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label className="label uppercase tracking-wider text-xs font-bold">Tipo de Ingreso</label>
+                  <select 
+                    className="input-field" 
+                    value={selection.tipo}
+                    onChange={(e) => setSelection({...selection, tipo: e.target.value})}
+                  >
+                    <option value="Ordinario">Ingresante (Primera Vez)</option>
+                    <option value="Regular">Estudiante Regular / Invicto</option>
+                    <option value="Irregular">Estudiante Irregular</option>
+                    <option value="Reingresante">Reingresante</option>
+                  </select>
+                </div>
               </div>
               <div className="mt-auto pt-6 border-t border-slate-200/50 flex gap-4">
                 {!initialStudent && (
@@ -198,53 +307,88 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
                 )}
                 <button 
                   className={`flex-1 py-2.5 font-semibold rounded-lg transition-all ${!selection.program || !selection.period ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'btn-primary'}`} 
-                  disabled={!selection.program || !selection.period} 
-                  onClick={() => setStep(3)}
+                  disabled={!selection.program || !selection.period || loading} 
+                  onClick={loadMallaAndContinue}
                 >
-                  Continuar
+                  {loading ? 'Cargando Malla...' : 'Continuar a Selección de Cursos'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Paso 3: Confirmación */}
+          {/* Paso 3: Selección de Unidades Didácticas (Menú a la carta) */}
           {step === 3 && (
-            <div className="animate-fade-in-up absolute inset-0 bg-white/40 p-6 rounded-xl border border-white/60 flex flex-col items-center">
-              <div className="text-5xl mb-4">📋</div>
-              <h4 className="font-bold text-2xl text-slate-800 tracking-tight">Resumen de Matrícula</h4>
-              
-              <div className="w-full max-w-md bg-white p-6 rounded-xl shadow-sm border border-slate-100 my-8 space-y-4">
-                <div className="flex justify-between items-center border-b border-slate-50 pb-3">
-                  <span className="text-slate-500 font-semibold">Estudiante:</span>
-                  <span className="font-bold text-slate-800 text-right">{selection.student?.nombres} {selection.student?.apellidos}</span>
-                </div>
-                <div className="flex justify-between items-center border-b border-slate-50 pb-3">
-                  <span className="text-slate-500 font-semibold">Carrera:</span>
-                  <span className="font-semibold text-primary text-right">{selection.program?.nombre}</span>
-                </div>
-                <div className="flex justify-between items-center border-b border-slate-50 pb-3">
-                  <span className="text-slate-500 font-semibold">Periodo:</span>
-                  <span className="font-semibold text-slate-700 text-right">{selection.period?.codigo}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-semibold">Tipo Ingreso:</span>
-                  <span className="font-semibold text-slate-700 text-right bg-slate-100 px-2 py-1 rounded">{selection.tipo}</span>
+            <div className="animate-fade-in-up bg-white/40 p-6 rounded-xl border border-white/60 flex flex-col min-h-[600px]">
+              <div className="flex justify-between items-center mb-6">
+                <h4 className="font-bold text-xl text-slate-800 tracking-tight flex items-center">
+                  <span className="text-2xl mr-3">☑️</span>
+                  3. Selección de Unidades Didácticas
+                </h4>
+                <div className={`px-4 py-2 rounded-lg font-bold text-sm ${totalCreditos < 1 || totalCreditos > 40 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                  Créditos Seleccionados: {totalCreditos} {totalCreditos > 40 && '(Excede el límite)'}
                 </div>
               </div>
+
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-100 p-3 rounded-lg mb-4 text-sm font-medium gap-3">
+                <span className="text-slate-600">Herramientas rápidas:</span>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={uncheckAll} className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-50 text-slate-600 font-bold">Limpiar Todo</button>
+                  {malla.map(m => (
+                    <button key={m.periodo} onClick={() => checkAllByPeriod(m.periodo)} className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-50 text-slate-600">
+                      Ciclo {m.periodo}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6 max-h-[500px]">
+                {malla.map((modulo, idx) => (
+                  <div key={modulo.id || idx} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center sticky top-0 z-10">
+                      <h5 className="font-bold text-slate-700">Ciclo {modulo.periodo} - {modulo.nombre}</h5>
+                      <button 
+                        onClick={() => checkAllByPeriod(modulo.periodo)}
+                        className="text-xs font-bold text-primary hover:text-primary-dark"
+                      >
+                        Seleccionar Todo el Ciclo
+                      </button>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {modulo.unidades.map(ud => (
+                        <label key={ud.id} className={`flex items-center p-3 cursor-pointer transition-colors ${selectedUDs[ud.id] ? 'bg-primary/5' : 'hover:bg-slate-50'}`}>
+                          <input 
+                            type="checkbox" 
+                            className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary mr-4"
+                            checked={!!selectedUDs[ud.id]}
+                            onChange={() => toggleUD(ud.id)}
+                          />
+                          <div className="flex-1">
+                            <div className={`font-semibold ${selectedUDs[ud.id] ? 'text-primary' : 'text-slate-700'}`}>{ud.nombre}</div>
+                            <div className="text-xs text-slate-500">{ud.creditos} Créditos • {ud.horas} Horas</div>
+                          </div>
+                        </label>
+                      ))}
+                      {(!modulo.unidades || modulo.unidades.length === 0) && (
+                        <div className="p-4 text-center text-slate-400 text-sm italic">No hay unidades en este ciclo.</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
               
-              <div className="flex gap-4 w-full max-w-md mt-auto">
-                <button className="flex-1 py-3 font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={() => setStep(2)}>Modificar</button>
+              <div className="flex gap-4 mt-6 pt-4 border-t border-slate-200">
+                <button className="flex-1 py-3 font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={() => setStep(2)}>Volver</button>
                 <button 
-                  className="flex-1 py-3 font-semibold btn-primary" 
+                  className={`flex-1 py-3 font-semibold rounded-lg transition-all ${totalCreditos === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'btn-primary'}`}
                   onClick={handleEnroll} 
-                  disabled={loading}
+                  disabled={loading || totalCreditos === 0}
                 >
                   {loading ? (
                     <div className="flex justify-center items-center">
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                       Procesando...
                     </div>
-                  ) : 'Confirmar Matrícula'}
+                  ) : 'Confirmar Matrícula Oficial'}
                 </button>
               </div>
             </div>
@@ -252,18 +396,18 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
 
           {/* Paso 4: Éxito */}
           {step === 4 && (
-            <div className="animate-bounce-in absolute inset-0 bg-white/60 backdrop-blur-sm p-6 rounded-xl border border-white flex flex-col items-center justify-center">
+            <div className="animate-bounce-in bg-white/60 backdrop-blur-sm p-6 rounded-xl border border-white flex flex-col items-center justify-center min-h-[400px]">
               <div className="w-24 h-24 bg-green-100 text-green-500 rounded-full flex items-center justify-center text-5xl mb-6 shadow-lg shadow-green-100">
                 ✅
               </div>
               <h3 className="font-extrabold text-3xl text-slate-800 mb-3">¡Matrícula Exitosa!</h3>
-              <p className="text-slate-500 text-center max-w-sm mb-10 text-lg">El estudiante ha sido matriculado y vinculado correctamente al programa académico.</p>
+              <p className="text-slate-500 text-center max-w-sm mb-10 text-lg">El estudiante ha sido matriculado y vinculado correctamente con las unidades seleccionadas.</p>
               
               <button 
                 className="btn-primary py-3 px-8 text-lg" 
                 onClick={() => {
                   if (onCancel) {
-                    onCancel(); // Vuelve al listado si es invocado desde dashboard
+                    onCancel(); 
                   } else {
                     setStep(1); 
                     setSelection({student:null, program:null, period:null, tipo:'Ordinario'}); 
