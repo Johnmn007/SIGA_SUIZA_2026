@@ -24,7 +24,10 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
     setSearchTerm(val);
     if (val.length < 3) return;
     try {
-      const data = await apiClient.callModule('mod-gestion-academica', 'estudiantes/');
+      // Obtenemos el usuario de localStorage para saber el rol
+      let url = 'estudiantes/';
+      
+      const data = await apiClient.callModule('mod-gestion-academica', url);
       const filtered = data.filter(s => 
         s.dni.includes(val) || 
         s.nombres.toLowerCase().includes(val.toLowerCase()) || 

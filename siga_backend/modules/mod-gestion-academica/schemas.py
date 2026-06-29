@@ -8,6 +8,7 @@ class EstudianteBase(BaseModel):
     nombres: str
     apellidos: str
     fecha_nacimiento: Optional[date] = None
+    programa_id: Optional[int] = None
     email_institucional: Optional[EmailStr] = None
     email_personal: Optional[EmailStr] = None
     celular: Optional[str] = None

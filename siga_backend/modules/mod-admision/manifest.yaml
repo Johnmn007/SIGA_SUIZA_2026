@@ -1,0 +1,18 @@
+api_version: "2.0"
+name: "mod-admision"
+description: "Módulo Piloto de Admisión. Expone JSON de estudiantes admitidos para ingesta."
+version: "1.0.0"
+
+endpoints:
+  http:
+    port: 8009
+    health_check: "/health"
+    base_path: "/api/v1/mod-admision"
+
+dependencies: []
+
+grants: []
+
+tags:
+  - "admision"
+  - "piloto"
