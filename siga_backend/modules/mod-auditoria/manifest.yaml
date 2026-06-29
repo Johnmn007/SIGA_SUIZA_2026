@@ -1,0 +1,22 @@
+name: "mod-auditoria"
+version: "1.0.0"
+api_version: "v1"
+description: "Servicio pasivo de auditoría y trazabilidad"
+author: "SIGA Team"
+
+endpoints:
+  http: "http://mod-auditoria:8007"
+  ws: "ws://mod-auditoria:8007/ws"
+
+health_check: "/health"
+
+dependencies: []
+
+permissions:
+  - "auditoria:access"
+  - "auditoria:read"
+
+events:
+  publishes: []
+  subscribes:
+    - "*.*.*"

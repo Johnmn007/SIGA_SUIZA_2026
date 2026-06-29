@@ -56,27 +56,23 @@ class UserRepository:
         return user
     
     async def get_user_permissions(self, user_id: int) -> List[str]:
-        """Obtiene permisos del usuario CON roles cargados"""
-        # Usar el método que carga roles explícitamente
-        user = await self.get_by_id_with_roles(user_id)
+        """Obtiene permisos del usuario desde la base de datos"""
+        result = await self.db.execute(
+            select(CoreUser)
+            .options(selectinload(CoreUser.roles).selectinload(CoreRole.permissions))
+            .filter(CoreUser.id == user_id)
+        )
+        user = result.scalar_one_or_none()
         
         if not user:
             return []
         
-        # Por ahora permisos básicos, luego se expande con roles
-        permissions = ["core:access"]
+        permissions = set(["core:access"])
         
-        # Agregar permisos de módulos basados en roles
         for role in user.roles:
-            if role.name == "admin":
-                permissions.extend(["core:module:manage",
-                                    "core:user:manage",
-                                    "mod-demo:access",    # 👈 AGREGADO
-                                    "mod-demo:read",      # 👈 AGREGADO  
-                                    "mod-demo:write" ])   # 👈 AGREGADO])
-            elif role.name == "docente":
-                permissions.extend(["mod-cursos:write", "mod-tareas:grade"])
-            elif role.name == "alumno":
-                permissions.extend(["mod-cursos:read", "mod-tareas:submit"])
+            if role.name == "superadmin":
+                permissions.update(["core:module:manage", "core:user:manage", "core:roles:manage"])
+            for perm in role.permissions:
+                permissions.add(perm.name)
         
-        return permissions
+        return list(permissions)

@@ -1,7 +1,16 @@
-name: "mod-programas-estudio"
-version: "1.0.0"
-api_version: "v1"
-description: "Gestión de programas de estudio"
+name: mod-programas-estudio
+version: 1.0.0
+api_version: v1
+description: Gestión de programas de estudio académicos
 endpoints:
-  http: "http://localhost:8005"
-health_check: "/health"
+  http: http://mod-programas-estudio:8005
+health_check: /health
+events:
+  publishes: []
+  subscribes: []
+permissions:
+  - mod-programas-estudio:read
+  - mod-programas-estudio:write
+  - mod-programas-estudio:admin
+config:
+  database: mod_programas_estudio

@@ -58,11 +58,15 @@ class AuthService:
         # Obtener permisos del usuario
         permissions = await self.user_repo.get_user_permissions(user.id)
         
+        # Obtener rol primario
+        primary_role = user.roles[0].name if user.roles else "estudiante"
+        
         # Generar token
         access_token = token_service.create_user_token(
             user_id=str(user.id),
             email=user.email,
-            permissions=permissions
+            permissions=permissions,
+            role=primary_role
         )
         
         return {
@@ -72,6 +76,7 @@ class AuthService:
                 "id": user.id,
                 "email": user.email,
                 "full_name": user.full_name,
+                "role": primary_role,
                 "permissions": permissions
             }
         }
@@ -93,17 +98,20 @@ class AuthService:
             return None
         
         user_id = payload.get("sub")
-        user = await self.user_repo.get_by_id(int(user_id))
+        user = await self.user_repo.get_by_id_with_roles(int(user_id))
         
         if not user or not user.is_active:
             return None
         
         permissions = await self.user_repo.get_user_permissions(user.id)
         
+        primary_role = user.roles[0].name if user.roles else "estudiante"
+        
         return {
             "id": user.id,
             "email": user.email,
             "full_name": user.full_name,
+            "role": primary_role,
             "permissions": permissions,
             "is_superuser": user.is_superuser
         }

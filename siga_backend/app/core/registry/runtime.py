@@ -10,6 +10,11 @@ import yaml
 from .schemas import ModuleStatus
 from .validator import manifest_validator
 from ..config import settings
+from ..gateway.event_bus import event_bus, EventFactory
+from ..gateway.event_schemas import EventType
+from sqlalchemy.future import select
+from ..database import AsyncSessionLocal
+from .models import CoreModule
 
 logger = logging.getLogger(__name__)
 
@@ -139,15 +144,64 @@ class ModuleRuntime:
         
         logger.info(f"📦 Módulos descubiertos: {len(discovered)}")
         
-        # Mostrar resumen detallado
-        for module_name in discovered:
-            module = self.modules.get(module_name)
-            if module:
-                status_icon = "✅" if module.status == ModuleStatus.HEALTHY else "⚠️"
-                compliant_icon = "✓" if module.compliance_result and module.compliance_result.get("compliant") else "✗"
-                logger.info(f"   {status_icon} {module_name} v{module.version} - {module.status.value} [Std: {compliant_icon}]")
-        
+        # 2. Sincronizar con Base de Datos
+        async with AsyncSessionLocal() as db:
+            for module_name in discovered:
+                module = self.modules.get(module_name)
+                if module:
+                    # Guardar o actualizar en base de datos
+                    await self._persist_module(db, module)
+                    
+                    status_icon = "✅" if module.status == ModuleStatus.HEALTHY else "⚠️"
+                    compliant_icon = "✓" if module.compliance_result and module.compliance_result.get("compliant") else "✗"
+                    logger.info(f"   {status_icon} {module_name} v{module.version} - {module.status.value} [Std: {compliant_icon}]")
+            
+            # Cargar módulos inactivos de la base de datos (por si un módulo no está localmente)
+            result = await db.execute(select(CoreModule))
+            db_modules = result.scalars().all()
+            for db_m in db_modules:
+                if db_m.name not in self.modules:
+                    # Reconstruir ModuleInfo a partir de la BD pero como OFFLINE
+                    manifest_mock = {
+                        "name": db_m.name,
+                        "version": db_m.version,
+                        "api_version": db_m.api_version,
+                        "description": db_m.description,
+                        "endpoints": db_m.endpoints,
+                        "events": db_m.events or {"publishes": [], "subscribes": []},
+                        "permissions": db_m.permissions or [],
+                        "health_check": db_m.health_check,
+                        "config": db_m.config or {}
+                    }
+                    mod_info = ModuleInfo(manifest_mock, db_m.compliance_data)
+                    mod_info.status = ModuleStatus.OFFLINE
+                    self.modules[db_m.name] = mod_info
+                    logger.info(f"   🔄 Recuperado de BD: {db_m.name} (OFFLINE)")
+                    
         return discovered
+        
+    async def _persist_module(self, db, module: ModuleInfo):
+        """Guarda o actualiza la info del módulo en la base de datos"""
+        result = await db.execute(select(CoreModule).where(CoreModule.name == module.name))
+        db_module = result.scalar_one_or_none()
+        
+        if not db_module:
+            db_module = CoreModule(name=module.name)
+            db.add(db_module)
+            
+        db_module.version = module.version
+        db_module.api_version = module.api_version
+        db_module.description = module.description
+        db_module.endpoints = module.endpoints
+        db_module.events = module.events
+        db_module.permissions = module.permissions
+        db_module.health_check = module.health_check
+        db_module.config = module.config
+        db_module.status = module.status.value
+        db_module.compliance_data = module.compliance_result
+        db_module.last_health_check = module.last_health_check
+        
+        await db.commit()
     
     async def _discover_local_modules(self) -> List[str]:
         """Descubre módulos en la carpeta local modules/"""
@@ -308,6 +362,7 @@ class ModuleRuntime:
                         
                         if response.status_code == 200:
                             is_healthy = True
+                            module.status = ModuleStatus.HEALTHY
                             logger.info(f"✅ [REGISTER] Módulo {name} está corriendo")
                         else:
                             is_healthy = False
@@ -320,7 +375,27 @@ class ModuleRuntime:
                 if not is_healthy:
                     module.status = ModuleStatus.OFFLINE
             
+            # Persistir en la BD
+            async with AsyncSessionLocal() as db:
+                await self._persist_module(db, module)
+                
             logger.info(f"✅ Módulo registrado: {name} v{manifest['version']}")
+            
+            # 🆕 NOTIFICAR AL EVENT BUS
+            if settings.enable_nats and event_bus.connected:
+                try:
+                    event = EventFactory.module_registered({
+                        "module_name": name,
+                        "version": manifest['version'],
+                        "api_version": manifest['api_version'],
+                        "endpoints": manifest['endpoints'],
+                        "events": manifest.get('events', {}),
+                        "status": module.status.value
+                    })
+                    await event_bus.publish(event)
+                    logger.info(f"📢 Evento module.registered publicado para {name}")
+                except Exception as e:
+                    logger.error(f"❌ Error publicando evento de registro para {name}: {e}")
             
             return {
                 "success": True,

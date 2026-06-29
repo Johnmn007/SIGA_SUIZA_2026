@@ -11,6 +11,13 @@ class EventType(str, Enum):
     MODULE_REGISTERED = "module.registered"
     MODULE_HEALTH_CHANGED = "module.health.changed"
     CORE_STARTED = "core.started"
+    
+    # Eventos Académicos
+    STUDENT_CREATED = "student.created"
+    ENROLLMENT_VALIDATED = "enrollment.validated"
+    GRADE_PUBLISHED = "grade.published"
+    PLAN_ESTUDIO_PUBLICADO = "plan.publicado"
+    CARRERA_CREADA = "carrera.creada"
 
 class BaseEvent(BaseModel):
     """Evento base para todos los eventos del sistema"""

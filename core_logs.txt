@@ -1,0 +1,83 @@
+Running database migrations...
+Starting SIGA Core...
+2026-06-27 14:18:51,190 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+2026-06-27 14:18:51,191 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-06-27 14:18:51,192 INFO sqlalchemy.engine.Engine select current_schema()
+2026-06-27 14:18:51,192 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-06-27 14:18:51,194 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+2026-06-27 14:18:51,194 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-06-27 14:18:51,196 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-06-27 14:18:51,203 INFO sqlalchemy.engine.Engine SELECT core_roles.id, core_roles.name, core_roles.description, core_roles.created_at 
+FROM core_roles
+2026-06-27 14:18:51,203 INFO sqlalchemy.engine.Engine [generated in 0.00015s] ()
+2026-06-27 14:18:51,206 INFO sqlalchemy.engine.Engine SELECT core_users.id, core_users.email, core_users.full_name, core_users.hashed_password, core_users.is_active, core_users.is_superuser, core_users.created_at, core_users.updated_at 
+FROM core_users
+2026-06-27 14:18:51,207 INFO sqlalchemy.engine.Engine [generated in 0.00012s] ()
+2026-06-27 14:18:51,209 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-06-27 14:18:51,392 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+2026-06-27 14:18:51,392 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-06-27 14:18:51,402 INFO sqlalchemy.engine.Engine select current_schema()
+2026-06-27 14:18:51,402 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-06-27 14:18:51,410 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+2026-06-27 14:18:51,410 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-06-27 14:18:51,413 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-06-27 14:18:51,418 INFO sqlalchemy.engine.Engine SELECT core_modules.id, core_modules.name, core_modules.version, core_modules.api_version, core_modules.description, core_modules.endpoints, core_modules.events, core_modules.permissions, core_modules.health_check, core_modules.config, core_modules.status, core_modules.is_active, core_modules.registered_at, core_modules.last_health_check, core_modules.compliance_data 
+FROM core_modules 
+WHERE core_modules.name = $1::VARCHAR
+2026-06-27 14:18:51,418 INFO sqlalchemy.engine.Engine [generated in 0.00033s] ('mod-usuarios',)
+2026-06-27 14:18:51,435 INFO sqlalchemy.engine.Engine INSERT INTO core_modules (name, version, api_version, description, endpoints, events, permissions, health_check, config, status, is_active, registered_at, last_health_check, compliance_data) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::JSON, $6::JSON, $7::JSON, $8::VARCHAR, $9::JSON, $10::VARCHAR, $11::BOOLEAN, $12::TIMESTAMP WITHOUT TIME ZONE, $13::TIMESTAMP WITHOUT TIME ZONE, $14::JSON) RETURNING core_modules.id
+2026-06-27 14:18:51,435 INFO sqlalchemy.engine.Engine [generated in 0.00084s] ('mod-usuarios', '1.0.0', 'v1', 'Módulo de gestión de usuarios, roles y perfiles (RBAC)', '{"http": "http://localhost:8005", "ws": "ws://localhost:8005/ws"}', '{"publishes": ["usuario.creado", "usuario.actualizado", "usuario.eliminado", "rol.asignado"], "subscribes": []}', '["usuarios:read", "usuarios:write", "roles:read", "roles:write"]', '/health', '{}', 'offline', True, datetime.datetime(2026, 6, 27, 14, 18, 51, 434743), None, '{"compliant": true, "standard_version": "1.0", "validation_date": "2026-06-27T14:18:51.257568", "summary": {"passed": 5, "total": 5, "percentage": 10 ... (881 characters truncated) ...  []}, "permissions": ["usuarios:read", "usuarios:write", "roles:read", "roles:write"], "config": {}, "author": "SIGA Core Team", "dependencies": []}}')
+2026-06-27 14:18:51,440 INFO sqlalchemy.engine.Engine COMMIT
+2026-06-27 14:18:51,468 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-06-27 14:18:51,468 INFO sqlalchemy.engine.Engine SELECT core_modules.id, core_modules.name, core_modules.version, core_modules.api_version, core_modules.description, core_modules.endpoints, core_modules.events, core_modules.permissions, core_modules.health_check, core_modules.config, core_modules.status, core_modules.is_active, core_modules.registered_at, core_modules.last_health_check, core_modules.compliance_data 
+FROM core_modules 
+WHERE core_modules.name = $1::VARCHAR
+2026-06-27 14:18:51,468 INFO sqlalchemy.engine.Engine [cached since 0.0508s ago] ('mod-programas-estudio',)
+2026-06-27 14:18:51,471 INFO sqlalchemy.engine.Engine INSERT INTO core_modules (name, version, api_version, description, endpoints, events, permissions, health_check, config, status, is_active, registered_at, last_health_check, compliance_data) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::JSON, $6::JSON, $7::JSON, $8::VARCHAR, $9::JSON, $10::VARCHAR, $11::BOOLEAN, $12::TIMESTAMP WITHOUT TIME ZONE, $13::TIMESTAMP WITHOUT TIME ZONE, $14::JSON) RETURNING core_modules.id
+2026-06-27 14:18:51,471 INFO sqlalchemy.engine.Engine [cached since 0.03665s ago] ('mod-programas-estudio', '1.0.0', 'v1', 'Gestión de programas de estudio académicos', '{"http": "http://localhost:8005"}', '{"publishes": [], "subscribes": []}', '["mod-programas-estudio:read", "mod-programas-estudio:write", "mod-programas-estudio:admin"]', '/health', '{"database": "mod_programas_estudio"}', 'offline', True, datetime.datetime(2026, 6, 27, 14, 18, 51, 470996), None, '{"compliant": true, "standard_version": "1.0", "validation_date": "2026-06-27T14:18:51.448452", "summary": {"passed": 5, "total": 5, "percentage": 10 ... (794 characters truncated) ... ons": ["mod-programas-estudio:read", "mod-programas-estudio:write", "mod-programas-estudio:admin"], "config": {"database": "mod_programas_estudio"}}}')
+2026-06-27 14:18:51,472 INFO sqlalchemy.engine.Engine COMMIT
+2026-06-27 14:18:51,498 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-06-27 14:18:51,498 INFO sqlalchemy.engine.Engine SELECT core_modules.id, core_modules.name, core_modules.version, core_modules.api_version, core_modules.description, core_modules.endpoints, core_modules.events, core_modules.permissions, core_modules.health_check, core_modules.config, core_modules.status, core_modules.is_active, core_modules.registered_at, core_modules.last_health_check, core_modules.compliance_data 
+FROM core_modules 
+WHERE core_modules.name = $1::VARCHAR
+2026-06-27 14:18:51,498 INFO sqlalchemy.engine.Engine [cached since 0.08069s ago] ('mod-planes-estudio',)
+2026-06-27 14:18:51,500 INFO sqlalchemy.engine.Engine INSERT INTO core_modules (name, version, api_version, description, endpoints, events, permissions, health_check, config, status, is_active, registered_at, last_health_check, compliance_data) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::JSON, $6::JSON, $7::JSON, $8::VARCHAR, $9::JSON, $10::VARCHAR, $11::BOOLEAN, $12::TIMESTAMP WITHOUT TIME ZONE, $13::TIMESTAMP WITHOUT TIME ZONE, $14::JSON) RETURNING core_modules.id
+2026-06-27 14:18:51,500 INFO sqlalchemy.engine.Engine [cached since 0.06594s ago] ('mod-planes-estudio', '1.0.0', 'v1', 'Gestión de planes de estudio según estándar MINEDU', '{"http": "http://localhost:8002"}', '{"publishes": [], "subscribes": []}', '["mod-planes-estudio:read", "mod-planes-estudio:write", "mod-planes-estudio:admin"]', '/health', '{"database": "mod_planes_estudio"}', 'offline', True, datetime.datetime(2026, 6, 27, 14, 18, 51, 500270), None, '{"compliant": true, "standard_version": "1.0", "validation_date": "2026-06-27T14:18:51.479196", "summary": {"passed": 5, "total": 5, "percentage": 10 ... (790 characters truncated) ... }, "permissions": ["mod-planes-estudio:read", "mod-planes-estudio:write", "mod-planes-estudio:admin"], "config": {"database": "mod_planes_estudio"}}}')
+2026-06-27 14:18:51,501 INFO sqlalchemy.engine.Engine COMMIT
+2026-06-27 14:18:51,525 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-06-27 14:18:51,525 INFO sqlalchemy.engine.Engine SELECT core_modules.id, core_modules.name, core_modules.version, core_modules.api_version, core_modules.description, core_modules.endpoints, core_modules.events, core_modules.permissions, core_modules.health_check, core_modules.config, core_modules.status, core_modules.is_active, core_modules.registered_at, core_modules.last_health_check, core_modules.compliance_data 
+FROM core_modules 
+WHERE core_modules.name = $1::VARCHAR
+2026-06-27 14:18:51,525 INFO sqlalchemy.engine.Engine [cached since 0.1076s ago] ('mod-gestion-academica',)
+2026-06-27 14:18:51,527 INFO sqlalchemy.engine.Engine INSERT INTO core_modules (name, version, api_version, description, endpoints, events, permissions, health_check, config, status, is_active, registered_at, last_health_check, compliance_data) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::JSON, $6::JSON, $7::JSON, $8::VARCHAR, $9::JSON, $10::VARCHAR, $11::BOOLEAN, $12::TIMESTAMP WITHOUT TIME ZONE, $13::TIMESTAMP WITHOUT TIME ZONE, $14::JSON) RETURNING core_modules.id
+2026-06-27 14:18:51,527 INFO sqlalchemy.engine.Engine [cached since 0.09318s ago] ('mod-gestion-academica', '2.0.0', 'v1', 'Módulo centralizado de estudiantes y sus matrículas (Boundary Fusion).', '{"http": "http://localhost:8006", "health": "/health", "ready": "/ready", "manifest": "/manifest"}', '{"publishes": ["gestion_academica.estudiante.creado", "gestion_academica.matricula.confirmada"], "subscribes": ["core.started"]}', '["mod-gestion-academica:read", "mod-gestion-academica:write", "mod-gestion-academica:admin"]', '/health', '{"database": {"db_name": "mod_gestion_academica", "pool_size": 5, "max_overflow": 10}, "port": 8006, "timeout": 30}', 'offline', True, datetime.datetime(2026, 6, 27, 14, 18, 51, 527500), None, '{"compliant": true, "standard_version": "1.0", "validation_date": "2026-06-27T14:18:51.508814", "summary": {"passed": 5, "total": 5, "percentage": 10 ... (1291 characters truncated) ... a", "license": "MIT", "dependencies": {"requires": ["mod-programas-estudio"], "optional": []}, "tags": ["core-data", "fase-1", "gestion-academica"]}}')
+2026-06-27 14:18:51,528 INFO sqlalchemy.engine.Engine COMMIT
+2026-06-27 14:18:51,537 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-06-27 14:18:51,537 INFO sqlalchemy.engine.Engine SELECT core_modules.id, core_modules.name, core_modules.version, core_modules.api_version, core_modules.description, core_modules.endpoints, core_modules.events, core_modules.permissions, core_modules.health_check, core_modules.config, core_modules.status, core_modules.is_active, core_modules.registered_at, core_modules.last_health_check, core_modules.compliance_data 
+FROM core_modules 
+WHERE core_modules.name = $1::VARCHAR
+2026-06-27 14:18:51,537 INFO sqlalchemy.engine.Engine [cached since 0.1199s ago] ('mod-usuarios',)
+2026-06-27 14:18:51,541 INFO sqlalchemy.engine.Engine COMMIT
+2026-06-27 14:18:51,542 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-06-27 14:18:51,542 INFO sqlalchemy.engine.Engine SELECT core_modules.id, core_modules.name, core_modules.version, core_modules.api_version, core_modules.description, core_modules.endpoints, core_modules.events, core_modules.permissions, core_modules.health_check, core_modules.config, core_modules.status, core_modules.is_active, core_modules.registered_at, core_modules.last_health_check, core_modules.compliance_data 
+FROM core_modules 
+WHERE core_modules.name = $1::VARCHAR
+2026-06-27 14:18:51,542 INFO sqlalchemy.engine.Engine [cached since 0.1249s ago] ('mod-programas-estudio',)
+2026-06-27 14:18:51,544 INFO sqlalchemy.engine.Engine COMMIT
+2026-06-27 14:18:51,545 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-06-27 14:18:51,545 INFO sqlalchemy.engine.Engine SELECT core_modules.id, core_modules.name, core_modules.version, core_modules.api_version, core_modules.description, core_modules.endpoints, core_modules.events, core_modules.permissions, core_modules.health_check, core_modules.config, core_modules.status, core_modules.is_active, core_modules.registered_at, core_modules.last_health_check, core_modules.compliance_data 
+FROM core_modules 
+WHERE core_modules.name = $1::VARCHAR
+2026-06-27 14:18:51,545 INFO sqlalchemy.engine.Engine [cached since 0.1278s ago] ('mod-planes-estudio',)
+2026-06-27 14:18:51,547 INFO sqlalchemy.engine.Engine COMMIT
+2026-06-27 14:18:51,548 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-06-27 14:18:51,548 INFO sqlalchemy.engine.Engine SELECT core_modules.id, core_modules.name, core_modules.version, core_modules.api_version, core_modules.description, core_modules.endpoints, core_modules.events, core_modules.permissions, core_modules.health_check, core_modules.config, core_modules.status, core_modules.is_active, core_modules.registered_at, core_modules.last_health_check, core_modules.compliance_data 
+FROM core_modules 
+WHERE core_modules.name = $1::VARCHAR
+2026-06-27 14:18:51,548 INFO sqlalchemy.engine.Engine [cached since 0.1304s ago] ('mod-gestion-academica',)
+2026-06-27 14:18:51,549 INFO sqlalchemy.engine.Engine COMMIT
+2026-06-27 14:18:51,550 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-06-27 14:18:51,551 INFO sqlalchemy.engine.Engine SELECT core_modules.id, core_modules.name, core_modules.version, core_modules.api_version, core_modules.description, core_modules.endpoints, core_modules.events, core_modules.permissions, core_modules.health_check, core_modules.config, core_modules.status, core_modules.is_active, core_modules.registered_at, core_modules.last_health_check, core_modules.compliance_data 
+FROM core_modules
+2026-06-27 14:18:51,551 INFO sqlalchemy.engine.Engine [generated in 0.00017s] ()
+2026-06-27 14:18:51,558 INFO sqlalchemy.engine.Engine ROLLBACK

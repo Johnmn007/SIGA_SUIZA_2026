@@ -1,0 +1,27 @@
+name: "mod-usuarios"
+version: "1.0.0"
+api_version: "v1"
+description: "Módulo de gestión de usuarios, roles y perfiles (RBAC)"
+author: "SIGA Core Team"
+
+endpoints:
+  http: "http://mod-usuarios:8001"
+  ws: "ws://mod-usuarios:8001/ws"
+
+health_check: "/health"
+
+dependencies: []
+
+permissions:
+  - "usuarios:read"
+  - "usuarios:write"
+  - "roles:read"
+  - "roles:write"
+
+events:
+  publishes:
+    - "usuario.creado"
+    - "usuario.actualizado"
+    - "usuario.eliminado"
+    - "rol.asignado"
+  subscribes: []

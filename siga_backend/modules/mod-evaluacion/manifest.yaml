@@ -1,0 +1,24 @@
+name: mod-evaluacion
+version: "1.0.0"
+description: "Módulo de registro de notas, promedios y evaluación"
+author: "SIGA Architecture Team"
+
+endpoints:
+  http: "http://localhost:8008"
+  health_check: "/health"
+
+dependencies:
+  - mod-gestion-academica
+  - mod-planes-estudio
+
+events:
+  publishes:
+    - "evaluacion.nota.registrada"
+    - "evaluacion.promedio.calculado"
+  consumes:
+    - "gestion_academica.matricula.confirmada"
+
+permissions:
+  - "evaluacion:read"
+  - "evaluacion:write"
+  - "evaluacion:admin"

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Dict, List, Optional, Any
 from enum import Enum
 import re
@@ -65,23 +65,25 @@ class ModuleManifest(BaseModel):
         description="Configuración adicional"
     )
     
-    @validator('endpoints')
-    def validate_endpoints(cls, v):
+    @field_validator('endpoints')
+    @classmethod
+    def validate_endpoints(cls, v: Dict[str, str]):
         if "http" not in v:
             raise ValueError("Endpoint HTTP es requerido")
         if not v["http"].startswith(("http://", "https://")):
             raise ValueError("Endpoint HTTP debe ser URL completa")
         return v
     
-    @validator('health_check')
-    def validate_health_check(cls, v):
+    @field_validator('health_check')
+    @classmethod
+    def validate_health_check(cls, v: str):
         if not v.startswith("/"):
             raise ValueError("Health check debe comenzar con /")
         return v
     
-    class Config:
-        extra = "allow"
-        json_schema_extra = {
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
             "example": {
                 "name": "mod-ejemplo",
                 "version": "1.0.0",
@@ -94,3 +96,4 @@ class ModuleManifest(BaseModel):
                 "config": {}
             }
         }
+    )

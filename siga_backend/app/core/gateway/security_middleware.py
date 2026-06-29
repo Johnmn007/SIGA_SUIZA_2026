@@ -16,13 +16,17 @@ class SecurityMiddleware:
     async def authenticate_request(self, request: Request, authorization: Optional[str] = Header(None)) -> Optional[Dict[str, Any]]:
         """Autentica request y retorna usuario si es válido"""
         
+        # Normalizar path (quitar / al final)
+        path = request.url.path.rstrip("/")
+        if not path: path = "/"
+        
         # Rutas públicas que no requieren autenticación
         public_paths = {
             "/", "/health", "/core/status", "/core/modules",
             "/docs", "/redoc", "/openapi.json"
         }
         
-        if request.url.path in public_paths:
+        if path in public_paths:
             return None
         
         # Verificar header de autorización
@@ -43,10 +47,21 @@ class SecurityMiddleware:
             # Verificar permisos para rutas de módulos
             if request.url.path.startswith("/api/"):
                 module_name = request.url.path.split("/")[2]  # /api/{module_name}/...
-                required_permission = f"{module_name}:access"
                 
-                if required_permission not in user["permissions"]:
-                    raise HTTPException(status_code=403, detail="Permisos insuficientes")
+                # Mapear método HTTP a tipo de permiso
+                required_perm_type = "read" if request.method in ["GET", "OPTIONS", "HEAD"] else "write"
+                required_perm = f"{module_name}:{required_perm_type}"
+                
+                # Check for either the specific read/write permission, or a generic access/manage permission
+                has_perm = any(
+                    p == required_perm or 
+                    p == f"{module_name}:manage" or 
+                    p.startswith("core:module:manage") 
+                    for p in user["permissions"]
+                )
+                
+                if not user.get("is_superuser") and not has_perm:
+                    raise HTTPException(status_code=403, detail=f"Permisos insuficientes. Se requiere {required_perm}")
             
             logger.info(f"🔐 Usuario autenticado: {user['email']} - {request.method} {request.url.path}")
             return user
@@ -60,4 +75,4 @@ class SecurityMiddleware:
             raise HTTPException(status_code=500, detail="Error de autenticación")
 
 # Instancia global (se inicializará en main.py)
-security_middleware = None
+security_middleware: Optional[SecurityMiddleware] = None

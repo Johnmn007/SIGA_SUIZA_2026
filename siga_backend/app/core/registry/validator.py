@@ -56,7 +56,7 @@ class ManifestValidator:
             
             return {
                 "valid": len(errors) == 0,
-                "manifest": manifest.dict(),
+                "manifest": manifest.model_dump(),
                 "errors": errors
             }
             
@@ -303,7 +303,7 @@ class ManifestValidator:
             }
             
             if manifest:
-                result["manifest"] = manifest.dict()
+                result["manifest"] = manifest.model_dump()
                 
             return result
             
