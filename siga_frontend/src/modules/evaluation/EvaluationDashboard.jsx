@@ -92,9 +92,7 @@ export function EvaluationDashboard() {
             matricula_detalle_id: est.matricula_detalle_id,
             name: `${est.apellidos}, ${est.nombres}`,
             registro_id: gradeRecord ? gradeRecord.id : null,
-            c1: gradeRecord?.nota_c1 ?? '',
-            c2: gradeRecord?.nota_c2 ?? '',
-            c3: gradeRecord?.nota_c3 ?? ''
+            nota_final: gradeRecord?.nota_final ?? ''
           };
         });
         
@@ -125,24 +123,7 @@ export function EvaluationDashboard() {
     }));
   };
 
-  const calculateAverage = (student) => {
-    const grades = [student.c1, student.c2, student.c3]
-      .filter(g => g !== '')
-      .map(g => parseInt(g, 10));
-    
-    if (grades.length === 0) return '-';
-    
-    const sum = grades.reduce((acc, curr) => acc + curr, 0);
-    const avg = Math.round(sum / grades.length);
-    return avg;
-  };
 
-  const getGradeColorClass = (grade) => {
-    if (grade === '' || grade === '-') return 'text-slate-500';
-    const num = parseInt(grade, 10);
-    return num >= 13 ? 'text-blue-600 font-bold' : 'text-red-600 font-bold';
-  };
-  
   const handleSaveGrades = async () => {
     if (!selectedUnit || !selectedPeriod || students.length === 0) return;
     
@@ -150,9 +131,7 @@ export function EvaluationDashboard() {
     try {
       const promises = students.map(student => {
         const payload = {
-          nota_c1: student.c1 !== '' ? parseInt(student.c1) : null,
-          nota_c2: student.c2 !== '' ? parseInt(student.c2) : null,
-          nota_c3: student.c3 !== '' ? parseInt(student.c3) : null
+          nota_final: student.nota_final !== '' ? parseInt(student.nota_final) : null
         };
         
         if (student.registro_id) {
@@ -215,7 +194,7 @@ export function EvaluationDashboard() {
           <h3 className="text-3xl font-bold tracking-tight text-slate-800">
             Registro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Evaluaciones</span>
           </h3>
-          <p className="text-slate-500 text-sm mt-1">Ingreso de calificaciones por Unidad Didáctica (Sistema Vigesimal)</p>
+          <p className="text-slate-500 text-sm mt-1">Ingreso de Promedios Finales por Unidad Didáctica (Sistema Vigesimal)</p>
         </div>
         <button 
           onClick={handleSaveGrades}
@@ -227,7 +206,7 @@ export function EvaluationDashboard() {
           ) : (
             <>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-              <span>Guardar Acta</span>
+              <span>Guardar Promedios</span>
             </>
           )}
         </button>
@@ -331,7 +310,7 @@ export function EvaluationDashboard() {
             <div>
               <h4 className="font-bold flex items-center text-xl">
                 <span className="text-3xl mr-3">📋</span>
-                Acta de Evaluaciones
+                Registro de Promedios
               </h4>
               {tipoCompetencia && (
                 <div className={`mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${tipoCompetencia.includes('Transversal') ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'}`}>
@@ -363,50 +342,23 @@ export function EvaluationDashboard() {
                   <tr className="border-b border-slate-200 bg-slate-100/80">
                     <th className="py-4 px-6 font-bold text-slate-500 uppercase text-xs tracking-wider w-16 text-center">N°</th>
                     <th className="py-4 px-6 font-bold text-slate-500 uppercase text-xs tracking-wider">Apellidos y Nombres</th>
-                    <th className="py-4 px-3 font-bold text-slate-500 uppercase text-xs tracking-wider text-center w-28">Capacidad 1<br/><span className="text-[10px] text-slate-400 font-normal">PC1 + Tareas</span></th>
-                    <th className="py-4 px-3 font-bold text-slate-500 uppercase text-xs tracking-wider text-center w-28">Capacidad 2<br/><span className="text-[10px] text-slate-400 font-normal">Ex. Parcial</span></th>
-                    <th className="py-4 px-3 font-bold text-slate-500 uppercase text-xs tracking-wider text-center w-28">Capacidad 3<br/><span className="text-[10px] text-slate-400 font-normal">Ex. Final</span></th>
-                    <th className="py-4 px-6 font-extrabold text-slate-800 uppercase text-xs tracking-wider text-center w-32 bg-slate-200/50 shadow-inner">Promedio</th>
+                    <th className="py-4 px-6 font-extrabold text-slate-800 uppercase text-xs tracking-wider text-center w-32 bg-slate-200/50 shadow-inner">Promedio Final</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {students.map((student, idx) => {
-                    const avg = calculateAverage(student);
                     return (
                       <tr key={student.id} className="hover:bg-blue-50/40 transition-colors group">
                         <td className="py-4 px-6 text-slate-400 font-medium text-sm text-center">{idx + 1}</td>
                         <td className="py-4 px-6 font-semibold text-slate-700">{student.name}</td>
-                        
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-3 bg-slate-100/50 group-hover:bg-slate-200/50 transition-colors shadow-[inset_1px_0_0_rgba(0,0,0,0.02)]">
                           <input 
                             type="text" 
-                            className={`w-full text-center py-2.5 px-1 border-2 rounded-xl outline-none transition-all focus:shadow-md ${student.c1 === '' ? 'border-slate-200 focus:border-primary bg-white' : parseInt(student.c1) >= 13 ? 'border-blue-200 text-blue-700 bg-blue-50/80 focus:border-blue-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]' : 'border-red-200 text-red-700 bg-red-50/80 focus:border-red-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]'} font-bold text-lg`}
-                            value={student.c1}
-                            onChange={(e) => handleGradeChange(student.id, 'c1', e.target.value)}
+                            className={`w-full text-center py-2.5 px-1 border-2 rounded-xl outline-none transition-all focus:shadow-md ${student.nota_final === '' ? 'border-slate-300 focus:border-primary bg-white' : parseInt(student.nota_final) >= 13 ? 'border-blue-400 text-blue-700 bg-blue-50 focus:border-blue-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]' : 'border-red-400 text-red-700 bg-red-50 focus:border-red-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]'} font-bold text-xl`}
+                            value={student.nota_final}
+                            onChange={(e) => handleGradeChange(student.id, 'nota_final', e.target.value)}
                             maxLength={2}
                           />
-                        </td>
-                        <td className="py-2 px-3">
-                          <input 
-                            type="text" 
-                            className={`w-full text-center py-2.5 px-1 border-2 rounded-xl outline-none transition-all focus:shadow-md ${student.c2 === '' ? 'border-slate-200 focus:border-primary bg-white' : parseInt(student.c2) >= 13 ? 'border-blue-200 text-blue-700 bg-blue-50/80 focus:border-blue-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]' : 'border-red-200 text-red-700 bg-red-50/80 focus:border-red-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]'} font-bold text-lg`}
-                            value={student.c2}
-                            onChange={(e) => handleGradeChange(student.id, 'c2', e.target.value)}
-                            maxLength={2}
-                          />
-                        </td>
-                        <td className="py-2 px-3">
-                          <input 
-                            type="text" 
-                            className={`w-full text-center py-2.5 px-1 border-2 rounded-xl outline-none transition-all focus:shadow-md ${student.c3 === '' ? 'border-slate-200 focus:border-primary bg-white' : parseInt(student.c3) >= 13 ? 'border-blue-200 text-blue-700 bg-blue-50/80 focus:border-blue-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]' : 'border-red-200 text-red-700 bg-red-50/80 focus:border-red-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]'} font-bold text-lg`}
-                            value={student.c3}
-                            onChange={(e) => handleGradeChange(student.id, 'c3', e.target.value)}
-                            maxLength={2}
-                          />
-                        </td>
-                        
-                        <td className={`py-4 px-6 text-center text-2xl bg-slate-100/50 group-hover:bg-slate-200/50 transition-colors shadow-[inset_1px_0_0_rgba(0,0,0,0.02)] ${getGradeColorClass(avg)}`}>
-                          {avg}
                         </td>
                       </tr>
                     );

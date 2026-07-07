@@ -2,25 +2,21 @@ import { useState, useEffect } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { EnrollmentProcess } from './EnrollmentProcess';
+import ExtraordinaryEnrollmentModal from './ExtraordinaryEnrollmentModal';
 
 export function EnrollmentDashboard() {
   const { user } = useAuth();
-  const userRole = user?.is_superuser ? 'superadmin' : (user?.role || 'invitado');
+  const userRoles = user?.roles ? user.roles.map(r => typeof r === 'string' ? r : r.nombre || r.name) : [];
+  const primaryRole = user?.is_superuser ? 'superadmin' : (userRoles.length > 0 ? userRoles[0] : (user?.role || 'invitado'));
+  const userRole = primaryRole;
   const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [view, setView] = useState('list'); // 'list' or 'process'
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPrograma, setCurrentPrograma] = useState('ALL');
 
-  const [newStudent, setNewStudent] = useState({
-    codigo_estudiante: '',
-    dni: '',
-    nombres: '',
-    apellidos: '',
-    email: '',
-    telefono: ''
-  });
 
   const fetchStudents = async (searchVal = searchTerm) => {
     setLoading(true);
@@ -55,7 +51,8 @@ export function EnrollmentDashboard() {
   useEffect(() => {
     if (userRole !== 'invitado') {
       if (userRole === 'secretaria_programa' && currentPrograma === 'ALL') {
-        setCurrentPrograma('1');
+        const fallbackId = user?.email === 'secretaria_prog@siga.edu' ? '2' : '1';
+        setCurrentPrograma(user?.programa_id ? String(user.programa_id) : fallbackId);
       } else {
         fetchStudents();
       }
@@ -90,24 +87,33 @@ export function EnrollmentDashboard() {
           </h3>
           <p className="text-slate-500 text-sm mt-1">Control de procesos de matrícula para estudiantes registrados</p>
         </div>
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 transition-all active:scale-95 flex items-center"
+        >
+          <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+          Matrícula Extraordinaria
+        </button>
       </div>
 
       <div className="glass-card p-2 mb-8 flex items-center max-w-3xl gap-2">
-        <select 
-          className="input-field py-3 text-sm bg-slate-50 border-none w-48 font-bold text-primary"
-          value={currentPrograma}
-          onChange={(e) => {
-            setCurrentPrograma(e.target.value);
-          }}
-        >
-          {['superadmin', 'admin'].includes(userRole) && <option value="ALL">Todos los Programas</option>}
-          <option value="1">Arquitectura de Plat.</option>
-          <option value="2">Enfermería Técnica</option>
-          <option value="3">Diseño Gráfico</option>
-          <option value="4">Administración</option>
-          <option value="5">Contabilidad</option>
-          <option value="6">Mecatrónica</option>
-        </select>
+        {['superadmin', 'admin'].includes(userRole) && (
+          <select 
+            className="input-field py-3 text-sm bg-slate-50 border-none w-48 font-bold text-primary"
+            value={currentPrograma}
+            onChange={(e) => {
+              setCurrentPrograma(e.target.value);
+            }}
+          >
+            <option value="ALL">Todos los Programas</option>
+            <option value="1">Arquitectura de Plat.</option>
+            <option value="2">Enfermería Técnica</option>
+            <option value="3">Diseño Gráfico</option>
+            <option value="4">Administración</option>
+            <option value="5">Contabilidad</option>
+            <option value="6">Mecatrónica</option>
+          </select>
+        )}
         <span className="px-4 text-slate-400 text-xl">🔍</span>
         <input 
           type="text" 
@@ -127,12 +133,12 @@ export function EnrollmentDashboard() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200">
-                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Código</th>
-                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Estudiante</th>
-                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">DNI</th>
-                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Email</th>
-                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Estado</th>
-                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Acciones</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-[12%]">Código</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-[35%]">Estudiante</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-[13%]">DNI</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-[15%] max-w-[150px]">Email</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-[10%]">Estado</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right w-[15%]">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -156,7 +162,7 @@ export function EnrollmentDashboard() {
                     <td className="py-3 px-4 font-bold text-slate-700">{student.codigo_estudiante}</td>
                     <td className="py-3 px-4 text-slate-800 font-medium">{student.nombres} {student.apellidos}</td>
                     <td className="py-3 px-4 text-slate-600">{student.dni}</td>
-                    <td className="py-3 px-4 text-slate-500 text-sm">{student.email_personal || '-'}</td>
+                    <td className="py-3 px-4 text-slate-500 text-sm truncate max-w-[150px]" title={student.email_personal}>{student.email_personal || '-'}</td>
                     <td className="py-3 px-4">
                       <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase rounded border border-green-200">
                         {student.estado_academico}
@@ -177,6 +183,16 @@ export function EnrollmentDashboard() {
           </table>
         </div>
       </div>
+      
+      <ExtraordinaryEnrollmentModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        currentPrograma={currentPrograma}
+        userRole={userRole}
+        onSuccess={(student) => {
+          handleEnrollClick(student);
+        }}
+      />
     </div>
   );
 }

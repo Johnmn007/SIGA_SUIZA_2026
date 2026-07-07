@@ -5,6 +5,7 @@ export function StaffManagement() {
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [programs, setPrograms] = useState([]);
   const [formData, setFormData] = useState({
     email: '',
@@ -39,6 +40,23 @@ export function StaffManagement() {
     fetchStaff();
   }, []);
 
+  
+  const openEditModal = (item) => {
+    setEditingId(item.perfil.id);
+    setFormData({
+      email: item.usuario.email,
+      full_name: item.usuario.full_name,
+      password: '', // Leave blank unless changing
+      condicion_laboral: item.perfil.condicion_laboral,
+      numero_resolucion: item.perfil.numero_resolucion || '',
+      fecha_fin_contrato: item.perfil.fecha_fin_contrato ? item.perfil.fecha_fin_contrato.split('T')[0] : '',
+      cargo_funcional: item.perfil.cargo_funcional,
+      profesion_titulo: item.perfil.profesion_titulo || '',
+      programa_estudio_id: item.perfil.programa_estudio_id || ''
+    });
+    setShowModal(true);
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -60,12 +78,22 @@ export function StaffManagement() {
     }
 
     try {
-      await apiClient.request('/api/mod-usuarios/personal', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-      alert('Personal registrado exitosamente');
+      if (editingId) {
+        if (!payload.password) delete payload.password; // Don't send empty password
+        await apiClient.request(`/api/mod-usuarios/personal/${editingId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        alert('Personal actualizado exitosamente');
+      } else {
+        await apiClient.request('/api/mod-usuarios/personal', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        alert('Personal registrado exitosamente');
+      }
       setShowModal(false);
+      setEditingId(null);
       setFormData({
         email: '',
         full_name: '',
@@ -87,7 +115,7 @@ export function StaffManagement() {
   };
 
   const isContracted = ['CONTRATADO_DRE', 'CONTRATADO_INSTITUCIONAL'].includes(formData.condicion_laboral);
-  const requiresProgram = ['SECRETARIA_PROGRAMA', 'DOCENTE_AULA', 'ASISTENTE_LABORATORIO'].includes(formData.cargo_funcional);
+  const requiresProgram = ['SECRETARIA_PROGRAMA', 'DOCENTE_AULA', 'ASISTENTE_LABORATORIO', 'JEFE_AREA'].includes(formData.cargo_funcional);
 
   return (
     <div className="space-y-6">
@@ -98,7 +126,7 @@ export function StaffManagement() {
         </div>
         <button 
           className="btn-primary flex items-center space-x-2 shadow-glow"
-          onClick={() => setShowModal(true)}
+          onClick={() => { setShowModal(true); setEditingId(null); setFormData({ email: '', full_name: '', password: '', condicion_laboral: 'NOMBRADO_ESTADO', numero_resolucion: '', fecha_fin_contrato: '', cargo_funcional: 'DOCENTE_AULA', profesion_titulo: '', programa_estudio_id: '' }); }}
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -181,7 +209,7 @@ export function StaffManagement() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="text-slate-400 hover:text-primary transition-colors p-2">
+                      <button onClick={() => openEditModal(item)} className="text-slate-400 hover:text-primary transition-colors p-2" title="Editar">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                         </svg>
@@ -200,10 +228,10 @@ export function StaffManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center sticky top-0 z-10">
-              <h3 className="text-lg font-bold text-slate-800">Registrar Personal (RRHH)</h3>
+              <h3 className="text-lg font-bold text-slate-800">{editingId ? "Editar Personal (RRHH)" : "Registrar Personal (RRHH)"}</h3>
               <button 
                 className="text-slate-400 hover:text-slate-600 transition-colors"
-                onClick={() => setShowModal(false)}
+                onClick={() => { setShowModal(false); setEditingId(null); }}
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -261,7 +289,7 @@ export function StaffManagement() {
                         name="password"
                         value={formData.password}
                         onChange={handleInputChange}
-                        required
+                        required={!editingId}
                         className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                       />
                     </div>
@@ -369,7 +397,7 @@ export function StaffManagement() {
               <button 
                 type="button" 
                 className="px-5 py-2 font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
-                onClick={() => setShowModal(false)}
+                onClick={() => { setShowModal(false); setEditingId(null); }}
                 disabled={isSubmitting}
               >
                 Cancelar

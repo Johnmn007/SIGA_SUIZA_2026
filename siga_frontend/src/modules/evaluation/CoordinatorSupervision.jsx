@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { useAuth } from '../../core/auth/useAuth';
 
 export function CoordinatorSupervision() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
+  const [personal, setPersonal] = useState([]);
   const [malla, setMalla] = useState([]);
   
   const [selectedProgram, setSelectedProgram] = useState('');
@@ -18,18 +21,33 @@ export function CoordinatorSupervision() {
   useEffect(() => {
     const fetchInitial = async () => {
       try {
-        const [progRes, perRes] = await Promise.all([
-          apiClient.request('/api/mod-programas-estudio/programas'),
-          apiClient.request('/api/mod-programas-estudio/periodos')
+        const [progRes, perRes, personalRes] = await Promise.all([
+          apiClient.request('/api/mod-programas-estudio/programas').catch(() => []),
+          apiClient.request('/api/mod-programas-estudio/periodos').catch(() => []),
+          apiClient.request('/api/mod-usuarios/personal').catch(() => [])
         ]);
+        
         setPrograms(progRes || []);
         setPeriods(perRes || []);
+        setPersonal(personalRes || []);
+        
+        if (personalRes && user) {
+          const myProfile = personalRes.find(p => p.usuario?.id === user.id);
+          if (myProfile?.perfil?.programa_estudio_id) {
+            setSelectedProgram(myProfile.perfil.programa_estudio_id.toString());
+          }
+        }
+        
+        if (perRes && perRes.length > 0) {
+          const active = perRes.find(p => p.estado === 'ACTIVO');
+          setSelectedPeriod(active ? active.id.toString() : perRes[perRes.length - 1].id.toString());
+        }
       } catch (e) {
         console.error('Error fetching initial data', e);
       }
     };
-    fetchInitial();
-  }, []);
+    if (user) fetchInitial();
+  }, [user]);
 
   // Load Malla when program is selected
   useEffect(() => {
@@ -113,32 +131,26 @@ export function CoordinatorSupervision() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="glass-card p-5 border-l-4 border-l-indigo-500">
-          <label className="label uppercase tracking-wider text-[10px] font-extrabold text-slate-400 mb-2">1. Programa de Estudio</label>
-          <select 
-            className="input-field w-full text-sm font-medium"
-            value={selectedProgram}
-            onChange={(e) => setSelectedProgram(e.target.value)}
-          >
-            <option value="">-- Seleccionar Programa a Supervisar --</option>
-            {programs.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </select>
+      {/* Contexto Operativo Informativo */}
+      {selectedProgram && selectedPeriod && (
+        <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-indigo-500 mb-6 bg-gradient-to-r from-white to-slate-50">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-xl">🎓</div>
+            <div>
+              <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
+              <p className="font-bold text-slate-800">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
+            </div>
+          </div>
+          <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-500 text-xl">📅</div>
+            <div>
+              <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
+              <p className="font-bold text-slate-800">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
+            </div>
+          </div>
         </div>
-        
-        <div className="glass-card p-5 border-l-4 border-l-teal-500">
-          <label className="label uppercase tracking-wider text-[10px] font-extrabold text-slate-400 mb-2">2. Periodo Académico</label>
-          <select 
-            className="input-field w-full text-sm font-medium"
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            disabled={!selectedProgram}
-          >
-            <option value="">-- Seleccionar Periodo --</option>
-            {periods.map(p => <option key={p.id} value={p.id}>{p.codigo}</option>)}
-          </select>
-        </div>
-      </div>
+      )}
 
       {loading && (
         <div className="py-12 text-center">

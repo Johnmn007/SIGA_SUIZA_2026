@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { API_BASE } from '../../core/api/client';
+import { EditStudentModal } from './EditStudentModal';
 
 const InputGroup = ({ label, type = "text", value, onChange, options = null }) => (
   <div className="flex flex-col space-y-1">
@@ -31,11 +32,14 @@ const CheckboxGroup = ({ label, checked, onChange }) => (
 
 export function StudentMaster() {
   const { user } = useAuth();
-  const userRole = user?.is_superuser ? 'superadmin' : (user?.role || 'invitado');
+  const userRoles = user?.roles ? user.roles.map(r => typeof r === 'string' ? r : r.nombre || r.name) : [];
+  const primaryRole = user?.is_superuser ? 'superadmin' : (userRoles.length > 0 ? userRoles[0] : (user?.role || 'invitado'));
+  const userRole = primaryRole;
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
   const [wizardStep, setWizardStep] = useState(1);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [currentPrograma, setCurrentPrograma] = useState('ALL');
@@ -57,7 +61,10 @@ export function StudentMaster() {
   useEffect(() => {
     if (userRole !== 'invitado') {
       if (userRole === 'secretaria_programa' && currentPrograma === 'ALL') {
-        setCurrentPrograma('1'); // Force default program for secretaria
+        // En producción tomará el programa del perfil del usuario
+        // Prototype fallback: asignamos a Enfermería (2) a la secretaria de pruebas
+        const fallbackId = user?.email === 'secretaria_prog@siga.edu' ? '2' : '1';
+        setCurrentPrograma(user?.programa_id ? String(user.programa_id) : fallbackId);
       } else {
         handleSearch(searchTerm);
       }
@@ -65,7 +72,6 @@ export function StudentMaster() {
   }, [currentPrograma, userRole]);
 
   const handleSearch = async (val = '') => {
-
     setSearchTerm(val);
     setLoading(true);
     try {
@@ -80,10 +86,19 @@ export function StudentMaster() {
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
+      
+      if (!res.ok) {
+        console.error("API Error:", await res.text());
+        setStudents([]);
+        setLoading(false);
+        return;
+      }
+
       const data = await res.json();
+      const dataArray = Array.isArray(data) ? data : [];
       
       if (val.length >= 3) {
-        const filtered = data.filter(s => 
+        const filtered = dataArray.filter(s => 
           s.dni.includes(val) || 
           s.nombres.toLowerCase().includes(val.toLowerCase()) || 
           s.apellidos.toLowerCase().includes(val.toLowerCase()) || 
@@ -91,9 +106,12 @@ export function StudentMaster() {
         );
         setStudents(filtered);
       } else {
-        setStudents(data);
+        setStudents(dataArray);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error(e); 
+      setStudents([]);
+    }
     setLoading(false);
   };
 
@@ -306,32 +324,32 @@ export function StudentMaster() {
             onClick={() => { setForm({...form, codigo_estudiante: 'EST-'+Date.now().toString().slice(-6)}); setShowModal(true); }}
           >
             <span className="text-xl leading-none">+</span>
-            <span>Registrar Estudiante Maestro</span>
+            <span>Registrar Estudiante</span>
           </button>
         </div>
       </div>
 
       <div className="glass-card p-2 mb-8 flex items-center max-w-3xl gap-2">
-          <select 
-            className="input-field py-3 text-sm bg-slate-50 border-none w-48 font-bold text-primary"
-            value={currentPrograma}
-            onChange={(e) => {
-              setCurrentPrograma(e.target.value);
-            }}
-          >
-            {['superadmin', 'admin'].includes(userRole) && <option value="ALL">Todos los Programas</option>}
-            <option value="1">Arquitectura de Plat.</option>
-            <option value="2">Enfermería Técnica</option>
-            <option value="3">Diseño Gráfico</option>
-            <option value="4">Administración</option>
-            <option value="5">Contabilidad</option>
-            <option value="6">Mecatrónica</option>
-          </select>
+          {['superadmin', 'admin'].includes(userRole) && (
+            <select 
+              className="input-field py-3 text-sm bg-slate-50 border-none w-48 font-bold text-primary"
+              value={currentPrograma}
+              onChange={(e) => setCurrentPrograma(e.target.value)}
+            >
+              <option value="ALL">Todos los Programas</option>
+              <option value="1">Arquitectura de Plat.</option>
+              <option value="2">Enfermería Técnica</option>
+              <option value="3">Diseño Gráfico</option>
+              <option value="4">Administración</option>
+              <option value="5">Contabilidad</option>
+              <option value="6">Mecatrónica</option>
+            </select>
+          )}
         <span className="px-4 text-slate-400 text-xl">🔍</span>
         <input 
           type="text" 
           className="w-full bg-transparent border-none focus:ring-0 py-3 text-slate-700 placeholder-slate-400 outline-none"
-          placeholder="Buscar por DNI, Nombre o Código Maestro..."
+          placeholder="Buscar por DNI, Nombre o Código..."
           value={searchTerm} 
           onChange={(e) => handleSearch(e.target.value)}
         />
@@ -384,12 +402,21 @@ export function StudentMaster() {
                       </span>
                     </td>
                     <td className="py-4 px-6 text-right">
-                      <button 
-                        onClick={() => setSelectedStudent(s)}
-                        className="text-primary hover:text-primary-dark text-sm font-semibold opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        Ver Detalle →
-                      </button>
+                      <div className="flex justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => setEditingStudent(s)}
+                          className="text-amber-600 hover:text-amber-800 text-sm font-semibold flex items-center"
+                          title="Corregir Errores de Tipeo"
+                        >
+                          <span className="mr-1">✏️</span> Editar
+                        </button>
+                        <button 
+                          onClick={() => setSelectedStudent(s)}
+                          className="text-primary hover:text-primary-dark text-sm font-semibold"
+                        >
+                          Ver Detalle →
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -405,7 +432,7 @@ export function StudentMaster() {
           <div className="glass-card w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden bg-white/95 shadow-2xl animate-fade-in-up">
             
             <div className="flex justify-between items-center p-6 border-b border-slate-200">
-              <h5 className="font-bold text-xl text-slate-800 tracking-tight">Nuevo Registro Maestro</h5>
+              <h5 className="font-bold text-xl text-slate-800 tracking-tight">Nuevo Registro de Estudiante</h5>
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
@@ -444,6 +471,17 @@ export function StudentMaster() {
             </div>
           </div>
         </div>
+      )}
+
+      {editingStudent && (
+        <EditStudentModal
+          student={editingStudent}
+          onClose={() => setEditingStudent(null)}
+          onUpdated={() => {
+            setEditingStudent(null);
+            handleSearch(''); // refetch students
+          }}
+        />
       )}
     </div>
   );

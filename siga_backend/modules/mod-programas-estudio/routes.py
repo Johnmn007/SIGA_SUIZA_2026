@@ -80,7 +80,12 @@ async def crear_programa(programa: ProgramaCreate, request: Request, db: AsyncSe
 # Endpoints Periodos Academicos
 @router.post("/periodos", response_model=PeriodoResponse, status_code=status.HTTP_201_CREATED)
 async def crear_periodo(periodo: PeriodoCreate, request: Request, db: AsyncSession = Depends(get_db)):
-    db_periodo = PeriodoAcademico(**periodo.model_dump())
+    data = periodo.model_dump()
+    for key in ['fecha_inicio', 'fecha_fin', 'fecha_fin_matricula_regular', 'fecha_fin_matricula_extemporanea']:
+        if data.get(key) and getattr(data[key], 'tzinfo', None):
+            data[key] = data[key].replace(tzinfo=None)
+            
+    db_periodo = PeriodoAcademico(**data)
     db.add(db_periodo)
     await db.flush()
 

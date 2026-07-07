@@ -28,14 +28,18 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       let url = 'estudiantes/';
       
       const data = await apiClient.callModule('mod-gestion-academica', url);
-      const filtered = data.filter(s => 
+      const dataArray = Array.isArray(data) ? data : [];
+      const filtered = dataArray.filter(s => 
         s.dni.includes(val) || 
         s.nombres.toLowerCase().includes(val.toLowerCase()) || 
         s.apellidos.toLowerCase().includes(val.toLowerCase()) || 
         s.codigo_estudiante.includes(val)
       );
       setStudents(filtered);
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error(e); 
+      setStudents([]);
+    }
   };
 
   // 2. Cargar Datos Académicos
@@ -43,15 +47,36 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
     const fetchAcademic = async () => {
       try {
         const [pRes, peRes] = await Promise.all([
-          apiClient.callModule('mod-programas-estudio', 'programas'),
-          apiClient.callModule('mod-programas-estudio', 'periodos')
+          apiClient.request('/api/mod-programas-estudio/programas').catch(()=>[]),
+          apiClient.request('/api/mod-programas-estudio/periodos').catch(()=>[])
         ]);
-        setPrograms(Array.isArray(pRes) ? pRes : []);
-        setPeriods(Array.isArray(peRes) ? peRes : []);
-      } catch (e) { console.error(e); }
+        const fetchedPrograms = Array.isArray(pRes) ? pRes : [];
+        const fetchedPeriods = Array.isArray(peRes) ? peRes : [];
+        
+        console.log("Academic Data Loaded:", {fetchedPrograms, fetchedPeriods, initialStudent});
+        
+        setPrograms(fetchedPrograms);
+        setPeriods(fetchedPeriods);
+        
+        // Auto-select based on student and active period
+        if (initialStudent) {
+          const studentProgram = fetchedPrograms.find(p => p.id === initialStudent.programa_id || String(p.id) === String(initialStudent.programa_id));
+          const activePeriod = fetchedPeriods.find(p => p.estado === 'ACTIVO') || fetchedPeriods[fetchedPeriods.length - 1];
+          
+          console.log("Auto-selecting:", {studentProgram, activePeriod});
+          
+          setSelection(prev => ({
+            ...prev,
+            program: studentProgram || fetchedPrograms[0] || null, // fallback if missing
+            period: activePeriod || fetchedPeriods[0] || null
+          }));
+        }
+      } catch (e) { 
+        console.error('Error fetching academic data:', e); 
+      }
     };
     fetchAcademic();
-  }, []);
+  }, [initialStudent]);
 
   const loadMallaAndContinue = async () => {
     // 0. Validar Pago Financiero
@@ -163,7 +188,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       setStep(4);
     } catch (e) { 
       console.error(e);
-      alert("Error al confirmar la matrícula. Verifique que cumpla los créditos requeridos.");
+      alert(`❌ Error al matricular: ${e.message || "Verifique que cumpla los créditos requeridos."}`);
     }
     setLoading(false);
   };
@@ -266,38 +291,30 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div>
-                  <label className="label uppercase tracking-wider text-xs font-bold">Carrera Profesional</label>
-                  <select 
-                    className="input-field" 
-                    onChange={(e) => setSelection({...selection, program: programs.find(p => p.id == e.target.value)})}
-                  >
-                    <option value="">Seleccione Carrera...</option>
-                    {programs.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                  </select>
+              {/* Contexto Operativo y Casuística */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="glass-card p-4 border-l-4 border-l-primary bg-gradient-to-r from-white to-slate-50 flex flex-col justify-center">
+                  <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
+                  <p className="font-bold text-slate-800">{selection.program ? selection.program.nombre : 'Buscando...'}</p>
                 </div>
-                <div>
-                  <label className="label uppercase tracking-wider text-xs font-bold">Periodo Académico</label>
-                  <select 
-                    className="input-field" 
-                    onChange={(e) => setSelection({...selection, period: periods.find(p => p.id == e.target.value)})}
-                  >
-                    <option value="">Seleccione Periodo...</option>
-                    {periods.map(p => <option key={p.id} value={p.id}>{p.codigo}</option>)}
-                  </select>
+                
+                <div className="glass-card p-4 border-l-4 border-l-blue-500 bg-gradient-to-r from-white to-slate-50 flex flex-col justify-center">
+                  <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
+                  <p className="font-bold text-slate-800">{selection.period ? selection.period.codigo : 'Buscando...'}</p>
                 </div>
-                <div>
-                  <label className="label uppercase tracking-wider text-xs font-bold">Tipo de Ingreso</label>
+
+                <div className="glass-card p-4 border-l-4 border-l-amber-500 bg-gradient-to-r from-white to-slate-50">
+                  <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider mb-1 block">Casuística de Matrícula</label>
                   <select 
-                    className="input-field" 
+                    className="w-full bg-transparent border-b-2 border-slate-200 focus:border-amber-500 outline-none font-bold text-slate-700 pb-1" 
                     value={selection.tipo}
                     onChange={(e) => setSelection({...selection, tipo: e.target.value})}
                   >
-                    <option value="Ordinario">Ingresante (Primera Vez)</option>
-                    <option value="Regular">Estudiante Regular / Invicto</option>
+                    <option value="Ordinario">Cachimbo (Auto-selección C1)</option>
+                    <option value="Regular">Estudiante Regular (Invicto)</option>
                     <option value="Irregular">Estudiante Irregular</option>
                     <option value="Reingresante">Reingresante</option>
+                    <option value="Traslado">Traslado / Convalidación</option>
                   </select>
                 </div>
               </div>

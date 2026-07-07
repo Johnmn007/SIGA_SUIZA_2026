@@ -27,7 +27,7 @@ async def ingesta_admitidos(request: Request, data: IngestaMasivaRequest, db: As
             
         # Generar código universitario estándar
         year = datetime.now().year
-        codigo = f"{year}-{admitido.dni[-4:]}"
+        codigo = f"{year}-{admitido.dni}"
         
         # 2. Crear Estudiante
         db_estudiante = Estudiante(
@@ -37,7 +37,9 @@ async def ingesta_admitidos(request: Request, data: IngestaMasivaRequest, db: As
             apellidos=admitido.apellidos,
             programa_id=admitido.programa_id,
             celular=admitido.celular,
-            email_personal=admitido.email_personal
+            email_personal=admitido.email_personal,
+            modalidad_admision=admitido.modalidad,
+            metadata_admision=admitido.metadata_completa
         )
         db.add(db_estudiante)
         await db.flush() # para obtener el ID
@@ -174,6 +176,18 @@ async def eliminar_estudiante(estudiante_id: int, request: Request, db: AsyncSes
 
 @router.post("/matriculas/", response_model=MatriculaResponse, status_code=status.HTTP_201_CREATED)
 async def realizar_matricula(request: Request, data: MatriculaCreate, db: AsyncSession = Depends(get_db)):
+    # Validar si ya está matriculado en este periodo
+    from sqlalchemy.future import select
+    existing = await db.execute(
+        select(Matricula).where(
+            Matricula.estudiante_id == data.estudiante_id,
+            Matricula.periodo_id == data.periodo_id,
+            Matricula.estado_matricula != 'anulado'
+        )
+    )
+    if existing.scalars().first():
+        raise HTTPException(status_code=400, detail="El estudiante ya cuenta con una matrícula registrada para este periodo académico.")
+
     # Validar créditos
     total_creditos = sum(d.creditos for d in data.detalles)
     if total_creditos < 1 or total_creditos > 40:

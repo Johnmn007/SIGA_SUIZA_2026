@@ -60,6 +60,7 @@ class AuthService:
         
         # Obtener rol primario
         primary_role = user.roles[0].name if user.roles else "estudiante"
+        role_list = [r.name for r in user.roles] if user.roles else ["estudiante"]
         
         # Generar token
         access_token = token_service.create_user_token(
@@ -77,6 +78,7 @@ class AuthService:
                 "email": user.email,
                 "full_name": user.full_name,
                 "role": primary_role,
+                "roles": role_list,
                 "permissions": permissions
             }
         }
@@ -106,12 +108,27 @@ class AuthService:
         permissions = await self.user_repo.get_user_permissions(user.id)
         
         primary_role = user.roles[0].name if user.roles else "estudiante"
+        role_list = [r.name for r in user.roles] if user.roles else ["estudiante"]
         
         return {
             "id": user.id,
             "email": user.email,
             "full_name": user.full_name,
             "role": primary_role,
+            "roles": role_list,
             "permissions": permissions,
             "is_superuser": user.is_superuser
         }
+
+    async def change_password(self, user_id: int, old_password: str, new_password: str) -> Dict[str, Any]:
+        """Cambia el password del usuario"""
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "error": "Usuario no encontrado"}
+        
+        if not self._verify_password(old_password, user.hashed_password):
+            return {"success": False, "error": "La contraseña actual es incorrecta"}
+        
+        user.hashed_password = self._hash_password(new_password)
+        await self.user_repo.db.commit()
+        return {"success": True}

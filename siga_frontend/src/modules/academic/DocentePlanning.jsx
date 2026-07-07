@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
 
@@ -10,6 +10,8 @@ export function DocentePlanning() {
   
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
+  
+  const [planActual, setPlanActual] = useState(null);
   
   const [cargaLectiva, setCargaLectiva] = useState([]);
   const [mallaFlat, setMallaFlat] = useState([]);
@@ -89,15 +91,28 @@ export function DocentePlanning() {
     fetchData();
   }, [selectedProgram, selectedPeriod, user?.id]);
 
-  const handleUploadSilabo = async (cargaId) => {
-    const url = prompt("Ingrese la URL del Sílabo (Google Drive, OneDrive, etc.):");
-    if (!url) return;
+  const fileInputRefSilabo = useRef(null);
+  const fileInputRefPlan = useRef(null);
+  const [uploadingTarget, setUploadingTarget] = useState(null); // { type: 'silabo' | 'plan', id?: number }
+
+  const triggerUploadSilabo = (cargaId) => {
+    setUploadingTarget({ type: 'silabo', id: cargaId });
+    if (fileInputRefSilabo.current) fileInputRefSilabo.current.click();
+  };
+
+  const handleUploadSilabo = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !uploadingTarget || uploadingTarget.type !== 'silabo') return;
+    
+    // Simular subida (en producción se subiría a S3/GCS y se obtendría la URL)
+    const simulatedUrl = `/docs/silabos/${file.name.replace(/\s+/g, '_')}`;
+    const cargaId = uploadingTarget.id;
     
     try {
       const payload = {
         carga_lectiva_id: cargaId,
         estado: "presentado",
-        archivo_url: url
+        archivo_url: simulatedUrl
       };
       await apiClient.request('/api/mod-programas-estudio/silabos', {
         method: 'POST',
@@ -110,12 +125,23 @@ export function DocentePlanning() {
       setSilabos(silabosRes || []);
     } catch (e) {
       alert("❌ Error al enviar el sílabo");
+    } finally {
+      e.target.value = ''; // reset input
+      setUploadingTarget(null);
     }
   };
 
-  const handleUploadPlan = async () => {
-    const url = prompt("Ingrese la URL del Plan de Trabajo (Excel/PDF):");
-    if (!url) return;
+  const triggerUploadPlan = () => {
+    setUploadingTarget({ type: 'plan' });
+    if (fileInputRefPlan.current) fileInputRefPlan.current.click();
+  };
+
+  const handleUploadPlan = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !uploadingTarget || uploadingTarget.type !== 'plan') return;
+    
+    // Simular subida
+    const simulatedUrl = `/docs/planes/${file.name.replace(/\s+/g, '_')}`;
     
     try {
       const payload = {
@@ -123,7 +149,7 @@ export function DocentePlanning() {
         programa_id: parseInt(selectedProgram),
         docente_id: user.id,
         estado: "presentado",
-        archivo_url: url
+        archivo_url: simulatedUrl
       };
       await apiClient.request('/api/mod-programas-estudio/planes-trabajo', {
         method: 'POST',
@@ -136,6 +162,9 @@ export function DocentePlanning() {
       setPlanes(planesRes || []);
     } catch (e) {
       alert("❌ Error al enviar el Plan de Trabajo");
+    } finally {
+      e.target.value = '';
+      setUploadingTarget(null);
     }
   };
 
@@ -211,7 +240,7 @@ export function DocentePlanning() {
                   )}
                   {planActual.estado !== 'aprobado' && (
                     <button 
-                      onClick={handleUploadPlan}
+                      onClick={triggerUploadPlan}
                       className="w-full mt-4 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                     >
                       Actualizar Documento
@@ -223,7 +252,7 @@ export function DocentePlanning() {
                   <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">📄</div>
                   <p className="text-sm text-slate-500 mb-4">Aún no has presentado tu plan de trabajo para este periodo.</p>
                   <button 
-                    onClick={handleUploadPlan}
+                    onClick={triggerUploadPlan}
                     className="btn-primary w-full py-2 rounded-lg text-sm"
                   >
                     Subir Plan de Trabajo
@@ -231,6 +260,11 @@ export function DocentePlanning() {
                 </div>
               )}
             </div>
+            
+            {/* Hidden File Inputs */}
+            <input type="file" ref={fileInputRefSilabo} onChange={handleUploadSilabo} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx" />
+            <input type="file" ref={fileInputRefPlan} onChange={handleUploadPlan} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx" />
+            
           </div>
 
           {/* Carga Lectiva y Sílabos */}
@@ -292,7 +326,7 @@ export function DocentePlanning() {
                                 <div className="flex space-x-2 items-center">
                                   <a href={silabo.archivo_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Ver Doc</a>
                                   {silabo.estado !== 'aprobado' && (
-                                    <button onClick={() => handleUploadSilabo(carga.id)} className="text-xs text-slate-500 hover:text-slate-700 underline">
+                                    <button onClick={() => triggerUploadSilabo(carga.id)} className="text-xs text-slate-500 hover:text-slate-700 underline">
                                       Actualizar
                                     </button>
                                   )}
@@ -305,9 +339,10 @@ export function DocentePlanning() {
                               </div>
                             ) : (
                               <button 
-                                onClick={() => handleUploadSilabo(carga.id)}
-                                className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-sm font-medium transition-colors"
+                                onClick={() => triggerUploadSilabo(carga.id)}
+                                className="flex items-center text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors border border-indigo-200"
                               >
+                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                                 Subir Sílabo
                               </button>
                             )}

@@ -9,13 +9,14 @@
         estudiantes, matriculas, historial_academico, 
         evaluacion_registros, registros_practicas, 
         resoluciones_convalidacion, solicitudes_tramites, 
-        beneficios_estudiante, outbox_events 
+        beneficios_estudiante, outbox_events, perfiles_personal,
+        admision_postulantes
     CASCADE;
 
-    -- Reiniciar secuencias
-    ALTER SEQUENCE core_users_id_seq RESTART WITH 1;
-    ALTER SEQUENCE core_roles_id_seq RESTART WITH 1;
-    ALTER SEQUENCE core_permissions_id_seq RESTART WITH 1;
+    -- Reiniciar secuencias pero dejarlas por encima de las semillas manuales
+    ALTER SEQUENCE core_users_id_seq RESTART WITH 100;
+    ALTER SEQUENCE core_roles_id_seq RESTART WITH 100;
+    ALTER SEQUENCE core_permissions_id_seq RESTART WITH 100;
 
     -- Insertar Roles
     INSERT INTO core_roles (id, name, description) VALUES

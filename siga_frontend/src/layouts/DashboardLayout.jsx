@@ -1,19 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../core/auth/useAuth';
 import { wsClient } from '../core/api/client';
+import { ChangePasswordModal } from '../core/auth/ChangePasswordModal';
 
 export function DashboardLayout({ children, currentView, onNavigate }) {
   const { user, logout, permissions } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [wsStatus, setWsStatus] = useState('disconnected');
-  const getUserRole = () => {
-    if (user?.is_superuser) return 'superadmin';
-    if (user?.role) return user.role;
-    if (!user?.roles || user.roles.length === 0) return 'invitado';
-    const r = user.roles[0];
-    return typeof r === 'string' ? r : (r.name || r.nombre || 'invitado');
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const getUserRoles = () => {
+    if (user?.is_superuser) return ['superadmin'];
+    let roles = [];
+    if (user?.roles && Array.isArray(user.roles)) {
+      roles = user.roles.map(r => typeof r === 'string' ? r : (r.name || r.nombre));
+    } else if (user?.role) {
+      roles = [user.role];
+    }
+    return roles.length > 0 ? roles : ['invitado'];
   };
-  const userRole = getUserRole();
+  const userRoles = getUserRoles();
+  const primaryDisplayRole = userRoles[0];
 
   useEffect(() => {
     wsClient.connect();
@@ -70,12 +76,22 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                 <div className="text-sm font-bold text-slate-800">{user?.full_name}</div>
                 <div className="text-xs text-slate-500">{user?.email}</div>
               </div>
-              <button 
-                onClick={logout}
-                className="px-4 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-full text-sm font-medium transition-colors"
-              >
-                Cerrar Sesión
-              </button>
+              <div className="flex items-center space-x-3">
+                <button 
+                  onClick={() => setIsPasswordModalOpen(true)}
+                  className="px-4 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 rounded-full text-sm font-medium transition-colors"
+                >
+                  <span className="hidden sm:inline">Cambiar Contraseña</span>
+                  <span className="sm:hidden">🔑</span>
+                </button>
+                <button 
+                  onClick={logout}
+                  className="px-4 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-full text-sm font-medium transition-colors"
+                >
+                  <span className="hidden sm:inline">Cerrar Sesión</span>
+                  <span className="sm:hidden">🚪</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -94,12 +110,12 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                 </div>
                 <h5 className="text-lg font-bold text-slate-800">{user?.full_name}</h5>
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1">
-                  {user?.is_superuser ? 'Superadmin' : userRole}
+                  {user?.is_superuser ? 'Superadmin' : (userRoles.join(' / '))}
                 </p>
               </div>
               
               <div className="flex flex-col space-y-2 mb-8">
-                {['superadmin', 'admin'].includes(userRole) && (
+                {['superadmin', 'admin'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'dashboard'} 
                     onClick={() => onNavigate('dashboard')} 
@@ -107,7 +123,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                     label="Dashboard General" 
                   />
                 )}
-                {['superadmin', 'admin', 'secretaria_academica', 'director'].includes(userRole) && (
+                {['superadmin', 'admin', 'secretaria_academica', 'director'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'academic'} 
                     onClick={() => onNavigate('academic')} 
@@ -116,7 +132,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   />
                 )}
                 
-                {['superadmin', 'admin', 'secretaria_programa', 'admin_admision'].includes(userRole) && (
+                {['superadmin', 'admin', 'secretaria_programa', 'admin_admision'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'students'} 
                     onClick={() => onNavigate('students')} 
@@ -125,7 +141,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   />
                 )}
                 
-                {['superadmin', 'admin', 'secretaria_programa'].includes(userRole) && (
+                {['superadmin', 'admin', 'secretaria_programa'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'enrollment'} 
                     onClick={() => onNavigate('enrollment')} 
@@ -134,7 +150,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   />
                 )}
 
-                {['superadmin', 'admin', 'coordinador_programa'].includes(userRole) && (
+                {['superadmin', 'admin', 'coordinador_programa'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'coordinator_academic'} 
                     onClick={() => onNavigate('coordinator_academic')} 
@@ -143,7 +159,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   />
                 )}
 
-                {['superadmin', 'admin', 'docente'].includes(userRole) && (
+                {['superadmin', 'admin', 'docente'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'evaluation'} 
                     onClick={() => onNavigate('evaluation')} 
@@ -152,7 +168,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   />
                 )}
 
-                {['superadmin', 'admin', 'coordinador_programa', 'director'].includes(userRole) && (
+                {['superadmin', 'admin', 'coordinador_programa', 'director'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'coordinator_eval'} 
                     onClick={() => onNavigate('coordinator_eval')} 
@@ -161,7 +177,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   />
                 )}
 
-                {['superadmin', 'admin', 'secretaria_academica', 'secretaria_programa', 'director'].includes(userRole) && (
+                {['superadmin', 'admin', 'secretaria_academica', 'secretaria_programa', 'director'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'tramites'} 
                     onClick={() => onNavigate('tramites')} 
@@ -170,7 +186,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   />
                 )}
 
-                {['superadmin', 'admin', 'estudiante'].includes(userRole) && (
+                {['superadmin', 'admin', 'estudiante'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'report_card'} 
                     onClick={() => onNavigate('report_card')} 
@@ -179,7 +195,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   />
                 )}
 
-                {['caja_tesoreria', 'superadmin', 'admin'].includes(userRole) && (
+                {['caja_tesoreria', 'superadmin', 'admin'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'finanzas'} 
                     onClick={() => onNavigate('finanzas')} 
@@ -188,7 +204,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                   />
                 )}
 
-                {['superadmin', 'admin'].includes(userRole) && (
+                {['superadmin', 'admin'].some(r => userRoles.includes(r)) && (
                   <NavItem 
                     active={currentView === 'admin'} 
                     onClick={() => onNavigate('admin')} 
@@ -220,6 +236,11 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
           </div>
         </div>
       </div>
+      
+      <ChangePasswordModal 
+        isOpen={isPasswordModalOpen} 
+        onClose={() => setIsPasswordModalOpen(false)} 
+      />
     </div>
   );
 }

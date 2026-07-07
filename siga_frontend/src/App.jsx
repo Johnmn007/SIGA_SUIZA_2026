@@ -21,24 +21,27 @@ function AppContent() {
 
   useEffect(() => {
     if (user) {
-      const getUserRole = () => {
-        if (user?.is_superuser) return 'superadmin';
-        if (user?.role) return user.role;
-        if (!user?.roles || user.roles.length === 0) return 'invitado';
-        const r = user.roles[0];
-        return typeof r === 'string' ? r : (r.name || r.nombre || 'invitado');
+      const getUserRoles = () => {
+        if (user?.is_superuser) return ['superadmin'];
+        let roles = [];
+        if (user?.roles && Array.isArray(user.roles)) {
+          roles = user.roles.map(r => typeof r === 'string' ? r : (r.name || r.nombre));
+        } else if (user?.role) {
+          roles = [user.role];
+        }
+        return roles.length > 0 ? roles : ['invitado'];
       };
-      const userRole = getUserRole();
+      const userRoles = getUserRoles();
       let defaultView = 'dashboard';
       
-      if (!['superadmin', 'admin'].includes(userRole)) {
-        if (userRole === 'coordinador_programa') defaultView = 'coordinator_academic';
-        else if (userRole === 'docente') defaultView = 'evaluation';
-        else if (userRole === 'estudiante') defaultView = 'report_card';
-        else if (userRole === 'secretaria_academica') defaultView = 'students';
-        else if (userRole === 'secretaria_programa') defaultView = 'enrollment';
-        else if (userRole === 'caja_tesoreria') defaultView = 'finanzas';
-        else if (userRole === 'director') defaultView = 'academic';
+      if (!userRoles.includes('superadmin') && !userRoles.includes('admin')) {
+        if (userRoles.includes('coordinador_programa')) defaultView = 'coordinator_academic';
+        else if (userRoles.includes('docente')) defaultView = 'evaluation';
+        else if (userRoles.includes('estudiante')) defaultView = 'report_card';
+        else if (userRoles.includes('secretaria_academica')) defaultView = 'students';
+        else if (userRoles.includes('secretaria_programa')) defaultView = 'enrollment';
+        else if (userRoles.includes('caja_tesoreria')) defaultView = 'finanzas';
+        else if (userRoles.includes('director')) defaultView = 'academic';
       }
       
       setCurrentView(defaultView);

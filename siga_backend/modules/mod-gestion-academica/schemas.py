@@ -16,6 +16,8 @@ class EstudianteBase(BaseModel):
     pago_matricula: Optional[bool] = False
     documentos_completos: Optional[bool] = True
     fecha_limite_documentos: Optional[datetime] = None
+    modalidad_admision: Optional[str] = "ORDINARIO"
+    metadata_admision: Optional[dict] = {}
 
 class EstudianteCreate(EstudianteBase):
     pass
@@ -36,6 +38,8 @@ class EstudianteUpdate(BaseModel):
     pago_matricula: Optional[bool] = None
     documentos_completos: Optional[bool] = None
     fecha_limite_documentos: Optional[datetime] = None
+    modalidad_admision: Optional[str] = "ORDINARIO"
+    metadata_admision: Optional[dict] = {}
 
 class EstudianteResponse(EstudianteBase):
     id: int
@@ -45,6 +49,8 @@ class EstudianteResponse(EstudianteBase):
     pago_matricula: bool
     documentos_completos: bool
     fecha_limite_documentos: Optional[datetime] = None
+    modalidad_admision: Optional[str] = "ORDINARIO"
+    metadata_admision: Optional[dict] = {}
     model_config = ConfigDict(from_attributes=True)
 
 class MatriculaDetalleBase(BaseModel):
@@ -79,15 +85,16 @@ class IngestaAdmitido(BaseModel):
     dni: str
     nombres: str
     apellidos: str
-    puntaje: float
-    puesto: int
     programa_id: int
-    periodo_id: int
+    periodo_id: Optional[int] = 1
     celular: Optional[str] = None
-    email_personal: Optional[EmailStr] = None
+    email_personal: Optional[str] = None
+    fecha_nacimiento: Optional[str] = None
+    modalidad: Optional[str] = "ORDINARIO"
+    metadata_completa: Optional[dict] = {}
 
 class IngestaMasivaRequest(BaseModel):
-    proceso_admision_id: str
+    proceso_admision_id: Optional[str] = "ADM-2026-I"
     admitidos: List[IngestaAdmitido]
 
 # ================================

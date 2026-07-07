@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE } from '../../core/api/client';
 
 export function FinancesDashboard() {
@@ -6,10 +6,13 @@ export function FinancesDashboard() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    handleSearch('');
+  }, []);
+
   const handleSearch = async (val) => {
     setSearchTerm(val);
-    if (val.length < 3) {
-      if (val.length === 0) setStudents([]);
+    if (val.length > 0 && val.length < 3) {
       return;
     }
     setLoading(true);
@@ -18,13 +21,22 @@ export function FinancesDashboard() {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await res.json();
+      if (!Array.isArray(data)) {
+        console.error("Data is not an array:", data);
+        setStudents([]);
+        return;
+      }
       
-      const filtered = data.filter(s => 
-        s.dni.includes(val) || 
-        s.nombres.toLowerCase().includes(val.toLowerCase()) || 
-        s.apellidos.toLowerCase().includes(val.toLowerCase()) || 
-        s.codigo_estudiante.includes(val)
-      );
+      const filtered = data.filter(s => {
+        const d = s.dni || '';
+        const n = s.nombres || '';
+        const a = s.apellidos || '';
+        const c = s.codigo_estudiante || '';
+        return d.includes(val) || 
+               n.toLowerCase().includes(val.toLowerCase()) || 
+               a.toLowerCase().includes(val.toLowerCase()) || 
+               c.includes(val);
+      });
       setStudents(filtered);
     } catch (e) {
       console.error(e);

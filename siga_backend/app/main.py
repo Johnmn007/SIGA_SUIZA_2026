@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+from pydantic import BaseModel
 import logging
 import uuid
 
@@ -142,6 +143,38 @@ async def get_current_user_info(authorization: Optional[str] = Header(None),
         raise HTTPException(status_code=401, detail="Token inválido")
     
     return user
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+@app.put("/auth/change-password")
+async def change_password(request: ChangePasswordRequest, 
+                         authorization: Optional[str] = Header(None),
+                         db: AsyncSession = Depends(get_identity_db)):
+    """Endpoint para cambiar contraseña"""
+    auth_service = AuthService(db)
+    
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Token requerido")
+    
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Esquema de autenticación inválido")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Formato de autorización inválido")
+    
+    user = await auth_service.get_current_user(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Token inválido")
+    
+    result = await auth_service.change_password(user["id"], request.old_password, request.new_password)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+        
+    return {"message": "Contraseña cambiada exitosamente"}
 
 # === GATEWAY HTTP - ROUTING DINÁMICO A MÓDULOS ===
 @app.api_route("/api/{module_name}/{path:path}", 

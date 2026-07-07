@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Date, Boolean, Text, Float, ForeignKey, TIMESTAMP, func
+from sqlalchemy import Column, JSON, String, Integer, Date, Boolean, Text, Float, ForeignKey, TIMESTAMP, func
 from sqlalchemy.orm import relationship
 from database import BaseModel
 
@@ -21,6 +21,8 @@ class Estudiante(BaseModel):
     pago_matricula = Column(Boolean, default=False)
     documentos_completos = Column(Boolean, default=True)
     fecha_limite_documentos = Column(TIMESTAMP)
+    modalidad_admision = Column(String(100), default="ORDINARIO")
+    metadata_admision = Column(JSON, default={})
 
 class Matricula(BaseModel):
     __tablename__ = "matriculas"

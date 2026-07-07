@@ -218,6 +218,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | 2026-06-27 | 2.1 | Implementación completa de CRUDs en `mod-gestion-academica` para Estudiantes y Matrículas. Actualización de las vistas frontend `StudentMaster.jsx` y `EnrollmentProcess.jsx` para integrar correctamente el backend unificado. |
 | 2026-06-27 | 3.0 | Implementación de Fase 3 (Evaluación - MVP). Creación de `EvaluationDashboard.jsx` para docentes y `CoordinatorSupervision.jsx` para supervisión de actas, con integración al `mod-evaluacion` y cálculo de la Regla del 70%. |
 | 2026-06-27 | 4.0 | Implementación de Fase 4 (Trámites y Casuísticas). Creación de documento arquitectónico maestro (`13-PLAN-CASUISTICAS-ACADEMICAS.md`). Adición de 6 entidades a `mod-gestion-academica` (HistorialAcademico, Beneficios, Convalidaciones) y desarrollo del UI `TramitesDashboard.jsx` (Glassmorphism) para Secretaría Académica. Próximo paso prioritario definido: Parser Excel MINEDU. |
+| 2026-07-01 | 4.1 | Simplificación UI/UX (Decisión MVP): Se refactorizó el ingreso de notas (`EvaluationDashboard.jsx` y `mod-evaluacion/schemas.py`) a usar un único campo de `nota_final`. Se redujo la fricción de adopción para los docentes que ya manejan sus notas parciales en Excel. Implementación de edición rápida de alumnos (typos) en Secretaría. |
 
 ---
 

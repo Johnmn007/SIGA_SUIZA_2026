@@ -76,6 +76,17 @@ class PersonalCreate(BaseModel):
     profesion_titulo: Optional[str] = None
     programa_estudio_id: Optional[int] = None
 
+class PersonalUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    password: Optional[str] = None
+    condicion_laboral: Optional[str] = None
+    numero_resolucion: Optional[str] = None
+    fecha_fin_contrato: Optional[datetime] = None
+    cargo_funcional: Optional[str] = None
+    profesion_titulo: Optional[str] = None
+    programa_estudio_id: Optional[int] = None
+
 class PersonalResponse(BaseModel):
     usuario: UsuarioResponse
     perfil: PerfilPersonalResponse
@@ -246,24 +257,28 @@ async def registrar_personal(personal: PersonalCreate, request: Request, db: Asy
     )
     
     # Asignar rol según cargo
-    rol_name = "docente"
+    rol_names = ["docente"]
     if personal.cargo_funcional == "SECRETARIA_PROGRAMA":
-        rol_name = "secretaria_programa"
+        rol_names = ["secretaria_programa"]
+    elif personal.cargo_funcional == "JEFE_AREA":
+        rol_names = ["docente", "coordinador_programa"]
         
-    rol_result = await db.execute(select(Rol).where(Rol.name == rol_name))
-    db_rol = rol_result.scalar_one_or_none()
-    if db_rol:
-        db_user.roles = [db_rol]
+    roles_result = await db.execute(select(Rol).where(Rol.name.in_(rol_names)))
+    db_user.roles = roles_result.scalars().all()
         
     db.add(db_user)
     await db.flush() # Para obtener db_user.id
 
     # 2. Crear Perfil Personal
+    fecha_fin = personal.fecha_fin_contrato
+    if fecha_fin and getattr(fecha_fin, 'tzinfo', None):
+        fecha_fin = fecha_fin.replace(tzinfo=None)
+        
     db_perfil = PerfilPersonal(
         user_id=db_user.id,
         condicion_laboral=personal.condicion_laboral,
         numero_resolucion=personal.numero_resolucion,
-        fecha_fin_contrato=personal.fecha_fin_contrato,
+        fecha_fin_contrato=fecha_fin,
         cargo_funcional=personal.cargo_funcional,
         profesion_titulo=personal.profesion_titulo,
         programa_estudio_id=personal.programa_estudio_id
@@ -291,6 +306,70 @@ async def registrar_personal(personal: PersonalCreate, request: Request, db: Asy
     final_user = user_result.scalar_one()
     
     return {"usuario": final_user, "perfil": db_perfil}
+
+
+@router.put("/personal/{perfil_id}", response_model=PersonalResponse)
+async def actualizar_personal(perfil_id: int, personal: PersonalUpdate, request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(PerfilPersonal).options(selectinload(PerfilPersonal.usuario)).where(PerfilPersonal.id == perfil_id)
+    )
+    db_perfil = result.scalar_one_or_none()
+    if not db_perfil:
+        raise HTTPException(status_code=404, detail="Perfil de personal no encontrado")
+
+    db_user = db_perfil.usuario
+    update_data = personal.model_dump(exclude_unset=True)
+
+    # Actualizar campos de Usuario
+    if "email" in update_data and update_data["email"] != db_user.email:
+        email_check = await db.execute(select(Usuario).where(Usuario.email == update_data["email"]))
+        if email_check.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="El email ya está en uso")
+        db_user.email = update_data["email"]
+    
+    if "full_name" in update_data:
+        db_user.full_name = update_data["full_name"]
+    
+    if "password" in update_data and update_data["password"]:
+        db_user.hashed_password = pwd_context.hash(update_data["password"])
+
+    # Si cambió el cargo, actualizar los roles
+    if "cargo_funcional" in update_data and update_data["cargo_funcional"] != db_perfil.cargo_funcional:
+        rol_names = ["docente"]
+        if update_data["cargo_funcional"] == "SECRETARIA_PROGRAMA":
+            rol_names = ["secretaria_programa"]
+        elif update_data["cargo_funcional"] == "JEFE_AREA":
+            rol_names = ["docente", "coordinador_programa"]
+            
+        roles_result = await db.execute(select(Rol).where(Rol.name.in_(rol_names)))
+        db_user.roles = roles_result.scalars().all()
+
+    # Actualizar campos de Perfil
+    for key in ["condicion_laboral", "numero_resolucion", "fecha_fin_contrato", "cargo_funcional", "profesion_titulo", "programa_estudio_id"]:
+        if key in update_data:
+            if key == "fecha_fin_contrato" and update_data[key] and getattr(update_data[key], 'tzinfo', None):
+                update_data[key] = update_data[key].replace(tzinfo=None)
+            setattr(db_perfil, key, update_data[key])
+
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    event = OutboxEvent(
+        event_type="personal.actualizado",
+        payload={
+            "user_id": db_user.id,
+            "cargo": db_perfil.cargo_funcional,
+            "metadata": {"request_id": request_id}
+        }
+    )
+    db.add(event)
+    await db.commit()
+    
+    # Recargar para la respuesta
+    final_result = await db.execute(
+        select(Usuario).options(selectinload(Usuario.roles)).where(Usuario.id == db_user.id)
+    )
+    final_user = final_result.scalar_one()
+    return {"usuario": final_user, "perfil": db_perfil}
+
 
 @router.get("/personal", response_model=List[PersonalResponse])
 async def obtener_personal(db: AsyncSession = Depends(get_db)):

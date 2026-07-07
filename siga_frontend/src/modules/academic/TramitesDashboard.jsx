@@ -8,13 +8,6 @@ export function TramitesDashboard() {
   // States for Solicitudes (TUPA)
   const [solicitudes, setSolicitudes] = useState([]);
   
-  // Mock data fetching since we don't have full data seeding for tramites yet
-  useEffect(() => {
-    if (activeTab === 'solicitudes') {
-      fetchSolicitudes();
-    }
-  }, [activeTab]);
-
   const fetchSolicitudes = async () => {
     setLoading(true);
     try {
@@ -30,10 +23,18 @@ export function TramitesDashboard() {
         setSolicitudes(res);
       }
     } catch (error) {
-      console.error("Error fetching tramites:", error);
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
+  // Mock data fetching since we don't have full data seeding for tramites yet
+  useEffect(() => {
+    if (activeTab === 'solicitudes') {
+      fetchSolicitudes();
+    }
+  }, [activeTab]);
 
   const handleEstadoChange = async (id, newEstado) => {
     // In a real scenario, this would call PUT /api/mod-gestion-academica/tramites/{id}/estado
