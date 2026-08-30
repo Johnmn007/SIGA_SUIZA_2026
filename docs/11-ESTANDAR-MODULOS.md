@@ -1,6 +1,6 @@
-# Estándar de Módulos - MODULE-STD-2.0
+# Estándar de Módulos - MODULE-STD-2.1
 
-> **Versión:** 2.0 | **Última actualización:** Junio 2026 | **Estado:** Aprobado
+> **Versión:** 2.1 | **Última actualización:** 2026-08-29 | **Estado:** Aprobado
 
 ---
 
@@ -42,7 +42,7 @@ mod-{nombre}/
 │   ├── __init__.py
 │   ├── test_routes.py
 │   ├── test_services.py
-│   └── test_contracts.py      # OBLIGATORIO - Consumer-Driven Contracts (ej. Pact)
+│   └── test_contracts.py      # Pospulido - Consumer-Driven Contracts (ej. Pact)
 │
 ├── requirements.txt           # RECOMENDADO - Dependencias Python
 ├── .env.example               # RECOMENDADO - Variables de entorno
@@ -67,20 +67,38 @@ mod-{nombre}/
 
 ```
 Regex: ^mod-[a-z0-9]+(-[a-z0-9]+)*$
+```
 
-Ejemplos válidos:
-  - mod-planes-estudio
-  - mod-programas-estudio
-  - mod-estudiantes
-  - mod-matricula
-  - mod-evaluacion
-  - mod-convalidaciones
-  - mod-traslados
-  - mod-reingresos
-  - mod-reportes
-  - mod-usuarios
+**Módulos MVP (v1.1):** los únicos nombres admitidos hoy en el ecosistema SIGA.
 
-Nombres RESERVADOS (no usar):
+| Módulo | Funcionalidad central |
+|--------|----------------------|
+| `mod-gestion-academica` | Estudiantes + Matrícula + Trámites (incorpora HistorialAcademico, Beneficios y Convalidaciones) |
+| `mod-programas-estudio` | Programas/carreras |
+| `mod-planes-estudio` | Planes de estudio, parser Excel MINEDU |
+| `mod-evaluacion` | Notas, promedios, actas, regla del 70% |
+| `mod-usuarios` | Usuarios, roles, permisos |
+| `mod-auditoria` | Auditoría y trazabilidad |
+| `mod-admision` | Dominio externo (ADR-011): ingesta Excel MINEDU de admitidos (ver §3.2.1) |
+
+> **Nota:** `mod-estudiantes` y `mod-matricula` **no existen** como módulos separados (se fusionaron en `mod-gestion-academica` por su extrema cohesión).
+
+**Reservados / Post-MVP (no usar en el MVP):** nombres demás módulos, planificados en post-MVP o para dominios futuros (reportes, docencia/requisitos, egresados/bienestar, traslados, convalidaciones independientes, reingresos):
+
+```
+  mod-reportes
+  mod-docencia
+  mod-requisitos
+  mod-egresados
+  mod-bienestar
+  mod-traslados
+  mod-convalidaciones
+  mod-reingresos
+```
+
+**Reservados del sistema (no usar):**
+
+```
   core, system, admin, api, ws, health, docs, auth, user, config, test, internal
 ```
 
@@ -94,7 +112,7 @@ Nombres RESERVADOS (no usar):
 # manifest.yaml
 name: "mod-planes-estudio"
 version: "1.2.0"
-api_version: "v1"
+api_version: "v1"                # Canon: patrón ^v\d+$ (valor estándar: "v1")
 description: "Gestión de planes de estudio, módulos formativos, unidades didácticas, capacidades e indicadores de logro"
 author: "Equipo SIGA - Desarrollo"
 
@@ -102,7 +120,7 @@ repository: "https://github.com/siga/mod-planes-estudio"
 license: "MIT"
 
 endpoints:
-  http: "http://localhost:8001"
+  http: "http://localhost:8002"  # Puertos asignados: ver tabla §3.1.1
   health: "/health"
   ready: "/ready"
   manifest: "/manifest"
@@ -124,21 +142,18 @@ events:
     - "core.started"
     - "programas.programa.eliminado"
 
-permissions:
-  requires:
-    - "mod-planes-estudio:read"
-    - "mod-planes-estudio:write"
-  grants:
-    - "mod-planes-estudio:admin"
-    - "mod-planes-estudio:import"
-    - "mod-planes-estudio:export"
+permissions:                     # Canon: LISTA de strings con formato {mod}:{accion}
+  - "mod-planes-estudio:read"
+  - "mod-planes-estudio:write"
+  - "mod-planes-estudio:import"
+  - "mod-planes-estudio:export"
 
 config:
   database:
-    db_name: "mod_planes_estudio"
+    db_name: "mod_planes_estudio"   # MVP: informativo (ver nota pragmática)
     pool_size: 5
     max_overflow: 10
-  port: 8001
+  port: 8002
   timeout: 30
   cache_ttl: 300
 
@@ -148,17 +163,48 @@ tags:
   - core-module
 ```
 
-### 3.2 Validaciones del Manifiesto
+#### 3.1.1 Puertos Asignados (Canon)
+
+| Servicio | Puerto |
+|----------|--------|
+| core | 8000 |
+| mod-usuarios | 8001 |
+| mod-planes-estudio | 8002 |
+| mod-programas-estudio | 8005 |
+| mod-gestion-academica | 8006 |
+| mod-auditoria | 8007 |
+| mod-evaluacion | 8008 |
+| mod-admision | 8009 |
+
+#### 3.1.2 Nota: BD Pragmática en MVP
+
+En el MVP (v1.1) **todos** los servicios apuntan a la base de datos `siga_core` (así lo define `docker-compose`). El campo `config.database.db_name` del manifest es **informativo/meta**: cada módulo se ejecuta y persiste sobre `siga_core`. La separación de base de datos por módulo es una decisión de **post-MVP**.
+
+### 3.2 Validaciones del Manifiesto (Canon)
 
 | Campo | Regla de Validación | Error si |
 |-------|-------------------|----------|
 | `name` | `^mod-[a-z0-9]+(-[a-z0-9]+)*$` | No cumple el patrón o es nombre reservado |
 | `version` | `^\d+\.\d+\.\d+$` (semver) | Formato inválido |
-| `api_version` | `^v\d+$` | No comienza con `v` |
+| `api_version` | `^v\d+$` (valor estándar: `"v1"`) | No cumple el patrón |
 | `endpoints.http` | URL válida con protocolo | Falta `http://` o `https://` |
 | `endpoints.health` | Comienza con `/` | No es ruta absoluta |
 | `dependencies.requires` | Lista de strings | No es array o contiene duplicados |
-| `permissions.requires` | Lista de strings con formato `{mod}:{accion}` | No cumple el patrón |
+| `permissions` | Lista de strings con formato `{mod}:{accion}` | No es array o no cumple el patrón |
+| `config.database` | Objeto con `db_name` (p. ej. `{db_name: "mod_planes_estudio", ...}`) | No es objeto o falta `db_name` |
+
+> **Canon del manifest (v1.1):** `api_version` sigue el patrón `^v\d+$` con valor estándar `"v1"`; `permissions` es una **lista de strings** (`- mod-planes-estudio:read`); `config.database` es un **objeto** `{db_name, ...}`. Este es el formato real que valida el Core.
+
+#### 3.2.1 EXCEPCIÓN DOCUMENTADA: `mod-admision` (dominio externo, ADR-011)
+
+`mod-admision` es un dominio externo (integración con el sistema de Admisión / ingesta Excel MINEDU) y **no sigue el canon**:
+
+- `api_version: "2.0"` (no `"v1"`)
+- Usa `grants` en lugar de `permissions`
+- `endpoints.http` es un **objeto** `{port: 8009, health_check: "/health", base_path: "/api/v1/admision"}`
+- Deploy interno en el puerto `:8009` (integrado en el compose del MVP)
+
+> **Tarea post-pulido:** normalizar el manifest de `mod-admision` al canon (alinear `api_version`, migrar `grants` a `permissions`, y `endpoints.http` a formato estándar). Hasta entonces, su validación queda exceptuada del canon.
 
 ### 3.3 Esquema de Validación (JSON Schema)
 
@@ -166,7 +212,7 @@ tags:
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["name", "version", "api_version", "endpoints"],
+  "required": ["name", "version", "api_version", "endpoints", "permissions"],
   "properties": {
     "name": {
       "type": "string",
@@ -182,10 +228,27 @@ tags:
         "http": {"type": "string", "format": "uri", "pattern": "^https?://"},
         "health": {"type": "string", "pattern": "^/"}
       }
+    },
+    "permissions": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[a-z0-9-]+:[a-z0-9]+$"},
+      "minItems": 1
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "database": {
+          "type": "object",
+          "required": ["db_name"],
+          "properties": {"db_name": {"type": "string"}}
+        }
+      }
     }
   }
 }
 ```
+
+> *Nota:* `mod-admision` es la excepción documentada (ver §3.2.1): `api_version: "2.0"`, `grants` y `endpoints.http` como objeto `{port, health_check, base_path}`. Su normalización queda como tarea post-pulido.
 
 ---
 
@@ -729,7 +792,7 @@ async def shutdown():
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8001))
+    port = int(os.getenv("PORT", 8002))
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
@@ -881,19 +944,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 8001
+EXPOSE 8002
 
-ENV PORT=8001
+ENV PORT=8002
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
 ```
 
 ### 9.5 .env.example
 
 ```ini
 # Configuración del módulo
-PORT=8001
+PORT=8002
 ENV=development
 LOG_LEVEL=info
 
@@ -955,6 +1018,8 @@ REDIS_URL=redis://localhost:6379/0
 ---
 
 ## 11. Pruebas
+
+> **Alcance MVP (v1.1):** la carpeta `tests/` es **recomendada**. En el MVP los módulos reales se verifican con **smoke tests** + **E2E matrícula-admisión** (flujo admisión → ingesta → matrícula). La **suite de contratos** (Consumer-Driven Contracts, ej. Pact) es **obligatoria en la fase post-pulido**, cuando exista CI/CD que la ejecute.
 
 ### 11.1 tests/test_routes.py
 
@@ -1049,6 +1114,7 @@ async def module_exception_handler(request: Request, exc: ModuleException):
 |---------|---------|-------|
 | 1.0 | Versión inicial del estándar | 2025-11 |
 | 2.0 | Nuevos campos: dependencies, tags, author, permissions.grants; eventos NATS; Dockerfile; pruebas | 2026-06 |
+| 2.1 | Canon del manifest (v1.1): `api_version` `^v\d+$` (`v1`), `permissions` como lista de strings, `config.database` como objeto `{db_name, ...}`; notación BD pragmática (MVP sobre `siga_core`); lista de los 7 módulos MVP y reservados post-MVP; tabla de puertos oficiales; excepción documentada `mod-admision` (ADR-011); pruebas: `tests/` recomendado, suite de contratos en post-pulido | 2026-08-29 |
 
 ---
 
@@ -1057,5 +1123,6 @@ async def module_exception_handler(request: Request, exc: ModuleException):
 | Fecha | Versión | Autor | Cambios |
 |-------|---------|-------|---------|
 | 2026-06-26 | 2.0 | Arquitecto SIGA | Versión completa del estándar de módulos |
+| 2026-08-29 | 2.1 | Mesa de trabajo (planificación) | Realineación al manifiesto real: canon del manifest, catálogo real de 7 módulos MVP y reservados post-MVP, notación BD pragmática, tabla de puertos, excepción `mod-admision` y ajuste del alcance de pruebas |
 
 ---

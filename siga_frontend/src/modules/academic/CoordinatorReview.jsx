@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { FileText, BookOpen, ExternalLink } from 'lucide-react';
 
 export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva, unidadesFlat }) {
   const [silabos, setSilabos] = useState([]);
@@ -37,7 +38,7 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
         
       await apiClient.request(url, { method: 'PUT' });
       fetchData();
-    } catch (e) {
+    } catch {
       alert(`Error al actualizar estado del ${type}`);
     }
   };
@@ -60,15 +61,15 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
   };
 
   if (!programId || !periodId) return <div className="text-center text-slate-500 py-10">Seleccione programa y periodo.</div>;
-  if (loading) return <div className="text-center py-10"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div></div>;
+  if (loading) return <div className="text-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div></div>;
 
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Planes de Trabajo */}
       <div>
-        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center">
-          <span className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center mr-2">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+        <h3 className="text-lg font-bold text-slate-text mb-4 flex items-center">
+          <span className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center mr-2">
+            <FileText size={16} />
           </span>
           Revisión de Planes de Trabajo Globales
         </h3>
@@ -80,17 +81,16 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {planes.map(plan => (
               <div key={plan.id} className="bg-white border border-slate-200 p-5 rounded-xl hover:shadow-md transition-all">
-                <div className="font-bold text-slate-800 mb-1">{getDocenteName(plan.docente_id)}</div>
+                <div className="font-bold text-slate-text mb-1">{getDocenteName(plan.docente_id)}</div>
                 <div className="flex justify-between items-center mb-4">
-                  <span className={`text-xs px-2 py-1 rounded-full font-bold uppercase tracking-wider ${
-                    plan.estado === 'aprobado' ? 'bg-green-100 text-green-700' :
-                    plan.estado === 'observado' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                  <span className={`badge ${
+                    plan.estado === 'aprobado' ? 'badge-green' :
+                    plan.estado === 'observado' ? 'badge-red' : 'badge-blue'
                   }`}>
                     {plan.estado}
                   </span>
-                  <a href={plan.archivo_url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center">
-                    <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                    Ver Doc
+                  <a href={plan.archivo_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary-dark text-sm font-medium flex items-center">
+                    <ExternalLink size={14} className="mr-1" /> Ver Doc
                   </a>
                 </div>
                 {plan.observaciones && <p className="text-xs text-red-600 mb-3 bg-red-50 p-2 rounded">Obs: {plan.observaciones}</p>}
@@ -111,9 +111,9 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
 
       {/* Sílabos */}
       <div>
-        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center">
-          <span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mr-2">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+        <h3 className="text-lg font-bold text-slate-text mb-4 flex items-center">
+          <span className="w-8 h-8 rounded-lg bg-primary-soft text-primary flex items-center justify-center mr-2">
+            <BookOpen size={16} />
           </span>
           Revisión de Sílabos por Unidad Didáctica
         </h3>
@@ -125,19 +125,18 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {silabos.map(silabo => (
               <div key={silabo.id} className="bg-white border border-slate-200 p-5 rounded-xl hover:shadow-md transition-all">
-                <div className="font-bold text-slate-800 leading-tight mb-1">{getUnidadName(silabo.carga_lectiva_id)}</div>
+                <div className="font-bold text-slate-text leading-tight mb-1">{getUnidadName(silabo.carga_lectiva_id)}</div>
                 <div className="text-xs text-slate-500 mb-3 font-medium">Docente: {getDocenteByCarga(silabo.carga_lectiva_id)}</div>
                 
                 <div className="flex justify-between items-center mb-4">
-                  <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wider ${
-                    silabo.estado === 'aprobado' ? 'bg-green-100 text-green-700' :
-                    silabo.estado === 'observado' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                  <span className={`badge ${
+                    silabo.estado === 'aprobado' ? 'badge-green' :
+                    silabo.estado === 'observado' ? 'badge-red' : 'badge-blue'
                   }`}>
                     {silabo.estado}
                   </span>
-                  <a href={silabo.archivo_url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center">
-                    <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                    Ver Doc
+                  <a href={silabo.archivo_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary-dark text-sm font-medium flex items-center">
+                    <ExternalLink size={14} className="mr-1" /> Ver Doc
                   </a>
                 </div>
                 

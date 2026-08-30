@@ -13,47 +13,51 @@ import { AdminDashboard } from './modules/admin/AdminDashboard';
 import { TramitesDashboard } from './modules/academic/TramitesDashboard';
 import { FinancesDashboard } from './modules/finances/FinancesDashboard';
 import { CoordinatorAcademic } from './modules/academic/CoordinatorAcademic';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 function AppContent() {
   const { isAuthenticated, loading, user } = useAuth();
-  const [currentView, setCurrentView] = useState('dashboard');
+  const [currentView, setCurrentView] = useState(null);
+  const [prevUser, setPrevUser] = useState(user);
 
-  useEffect(() => {
-    if (user) {
-      const getUserRoles = () => {
-        if (user?.is_superuser) return ['superadmin'];
-        let roles = [];
-        if (user?.roles && Array.isArray(user.roles)) {
-          roles = user.roles.map(r => typeof r === 'string' ? r : (r.name || r.nombre));
-        } else if (user?.role) {
-          roles = [user.role];
-        }
-        return roles.length > 0 ? roles : ['invitado'];
-      };
-      const userRoles = getUserRoles();
-      let defaultView = 'dashboard';
-      
-      if (!userRoles.includes('superadmin') && !userRoles.includes('admin')) {
-        if (userRoles.includes('coordinador_programa')) defaultView = 'coordinator_academic';
-        else if (userRoles.includes('docente')) defaultView = 'evaluation';
-        else if (userRoles.includes('estudiante')) defaultView = 'report_card';
-        else if (userRoles.includes('secretaria_academica')) defaultView = 'students';
-        else if (userRoles.includes('secretaria_programa')) defaultView = 'enrollment';
-        else if (userRoles.includes('caja_tesoreria')) defaultView = 'finanzas';
-        else if (userRoles.includes('director')) defaultView = 'academic';
-      }
-      
-      setCurrentView(defaultView);
+  const getUserRoles = () => {
+    if (user?.is_superuser) return ['superadmin'];
+    let roles = [];
+    if (user?.roles && Array.isArray(user.roles)) {
+      roles = user.roles.map(r => typeof r === 'string' ? r : (r.name || r.nombre));
+    } else if (user?.role) {
+      roles = [user.role];
     }
-  }, [user]);
+    return roles.length > 0 ? roles : ['invitado'];
+  };
+
+  const getDefaultView = () => {
+    if (!user) return 'dashboard';
+    const userRoles = getUserRoles();
+    if (userRoles.includes('superadmin') || userRoles.includes('admin')) return 'dashboard';
+    if (userRoles.includes('coordinador_programa')) return 'coordinator_academic';
+    if (userRoles.includes('docente')) return 'evaluation';
+    if (userRoles.includes('estudiante')) return 'report_card';
+    if (userRoles.includes('secretaria_academica')) return 'students';
+    if (userRoles.includes('secretaria_programa')) return 'enrollment';
+    if (userRoles.includes('caja_tesoreria')) return 'finanzas';
+    if (userRoles.includes('director')) return 'academic';
+    return 'dashboard';
+  };
+
+  if (user !== prevUser) {
+    setPrevUser(user);
+    setCurrentView(null);
+  }
+
+  const activeView = currentView ?? getDefaultView();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-slate-500 font-bold tracking-widest text-sm">SIGA PLATFORM</p>
+          <p className="mt-4 text-navy font-bold tracking-widest text-sm">IESTP SUIZA · SIGA</p>
         </div>
       </div>
     );
@@ -64,7 +68,7 @@ function AppContent() {
   }
 
   const renderView = () => {
-    switch(currentView) {
+    switch(activeView) {
       case 'academic': return <AcademicDashboard />;
       case 'students': return <StudentMaster />;
       case 'enrollment': return <EnrollmentDashboard />;
@@ -80,7 +84,7 @@ function AppContent() {
   };
 
   return (
-    <DashboardLayout currentView={currentView} onNavigate={setCurrentView}>
+    <DashboardLayout currentView={activeView} onNavigate={setCurrentView}>
       {renderView()}
     </DashboardLayout>
   );

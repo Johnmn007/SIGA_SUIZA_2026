@@ -1,7 +1,7 @@
 # Arquitectura del Frontend
 
-> **Versión:** 1.0.0  
-> **Última actualización:** 2026-06-26  
+> **Versión:** 1.1.0  
+> **Última actualización:** 2026-08-29  
 > **Responsable:** Arquitectura de Software SIGA
 
 ---
@@ -10,6 +10,8 @@
 
 El frontend de SIGA es una **Single Page Application (SPA)** construida con **React 19 + Vite 7**. Se comunica **exclusivamente** con el Core Gateway mediante HTTP REST (JSON) y WebSocket para eventos en tiempo real. El frontend **no tiene conocimiento directo** de los módulos individuales; toda la comunicación con módulos ocurre a través del Core, que actúa como proxy.
 
+> **Excepción temporal (MVP v1.1):** el módulo de **Admisión** es un módulo **externo** con dominio propio (ADR-011), desplegado internamente en `localhost:8009`. Como excepción documentada del “paso exclusivo por el gateway”, los componentes `AdmissionModule` y `StudentMaster` del frontend hacen **fetch directo** a `localhost:8009` mientras no exista un endpoint de proxy en el Core. Este bypass es temporal y debe documentarse y migrarse a través del gateway cuando el Core exponga el ruteo correspondiente.
+
 ### Principios de Diseño
 
 | Principio | Descripción |
@@ -17,9 +19,11 @@ El frontend de SIGA es una **Single Page Application (SPA)** construida con **Re
 | **Single Source of Truth** | El estado de autenticación y permisos se gestiona globalmente via Context API |
 | **Lazy Loading** | Cada módulo funcional se carga bajo demanda (code splitting) |
 | **Separation of Concerns** | UI pura: el frontend no contiene lógica de negocio, solo la presenta |
-| **Responsive Design** | Mobile-first con Bootstrap 5 |
+| **Responsive Design** | Mobile-first con Tailwind CSS (utilidades puras) |
 | **Resilience** | Manejo de errores en todos los niveles: ErrorBoundary, try/catch, fallbacks |
 | **Security** | El frontend solo oculta UI basado en permisos; las decisiones de autorización son del backend |
+
+> **Nota (MVP v1.1):** WebSocket está disponible en la infraestructura, pero **no hay casos de uso en el alcance MVP**. Las **notificaciones** en tiempo real son **opcionales y quedan fuera del MVP**; la comunicación MVP es HTTP REST (JSON) sobre el Core Gateway.
 
 ---
 
@@ -29,7 +33,7 @@ El frontend de SIGA es una **Single Page Application (SPA)** construida con **Re
 |-----------|---------|-----------|---------------|
 | React | 19.x | UI Framework | Ecosistema maduro, hooks, concurrent features |
 | Vite | 7.x | Build tool / Dev server | Extremadamente rápido (esbuild), HMR instantáneo |
-|  | 5.3.x | CSS Framework | Componentes accesibles, grid responsive, personalizable |
+| Utilidades CSS | — (tipo Tailwind) | Estilos | Clases utilitarias en el código real del frontend; sin framework CSS declarado como estándar |
 | React Router | 7.x (futuro) | Routing SPA | Navegación del lado del cliente, lazy routes |
 | React Query / TanStack Query | 5.x (futuro) | Data fetching / Caché | Caché automático, stale-while-revalidate, devtools |
 | ESLint + Prettier | — | Linting / Formato | Consistencia de código |
@@ -174,7 +178,7 @@ siga-frontend/
                   │
                   ├── <Header>                             ← Barra superior
                   │   ├── <Breadcrumbs />                  ← Ubicación actual
-                  │   ├── <Notifications />                ← Campanita de notificaciones
+                  │   ├── <Notifications />                ← Campanita de notificaciones (*)
                   │   └── <UserMenu />                     ← Menú de usuario (perfil, logout)
                   │
                   ├── <Content>                            ← Área de contenido principal
@@ -193,6 +197,8 @@ siga-frontend/
   </ErrorBoundary>
 </App>
 ```
+
+> (*) `<Notifications />` depende de WebSocket. Para el **MVP v1.1** esta funcionalidad es **opcional y fuera de alcance** (WebSocket disponible, sin casos de uso MVP). Puede dejarse como placeholder visual sin conexión en tiempo real.
 
 ### 4.2 Descripción de Componentes Core
 
@@ -260,6 +266,11 @@ siga-frontend/
      │   │            │ 12. Dashboard  │                │
      │   │            │    Layout      │                │
 ```
+
+> **Notas de autenticación (MVP v1.1):**
+> - El login se realiza mediante `POST /auth/login` con las **credenciales en el BODY JSON** (`{ "email": ..., "password": ... }`). **Nunca** en query string.
+> - El token JWT HS256 único (access 30 min) se guarda en `localStorage` con la key con prefijo `siga_`: **`siga_access_token`**. El refresh token es **POST-MVP** (MVP = un solo access token HS256).
+> - **Drift a corregir:** el `client.jsx` real actualmente usa query string para el login y la key `'token'`. Esto es una divergencia con el contrato objetivo documentado aquí; el frontend **debe** migrar a `POST /auth/login` con body JSON y a la key `siga_access_token`.
 
 ### 5.2 Implementación del AuthProvider
 
@@ -427,9 +438,9 @@ export function ProtectedRoute({ children, requiredPermission, requiredRole }) {
 class SIGAApiClient {
     baseURL: string
     token: string | null
-    refreshToken: string | null
-    isRefreshing: boolean
-    refreshSubscribers: Function[]
+    refreshToken: string | null   // POST-MVP: MVP = solo access token HS256
+    isRefreshing: boolean          // POST-MVP
+    refreshSubscribers: Function[] // POST-MVP
 
     // Constructor
     constructor()
@@ -441,7 +452,7 @@ class SIGAApiClient {
     // Request base (con manejo automático de refresh)
     async request(endpoint: string, options: RequestOptions): Promise<any>
 
-    // Refresh automático
+    // Refresh automático — POST-MVP. En el MVP no se usa (un solo access token HS256).
     async _attemptRefresh(): Promise<boolean>
 
     // === Auth ===
@@ -450,6 +461,8 @@ class SIGAApiClient {
     async logout(): Promise<void>
 
     // === Módulos (via Core proxy) ===
+    // callModule(moduleName, endpoint) construye: `/api/v1/${moduleName}/${endpoint}`
+    // El endpoint NO debe llevar prefijo 'api/v1/...' (produciría doble ruta).
     async callModule(moduleName: string, endpoint: string, method?: string, data?: any): Promise<any>
 
     // === Core ===
@@ -461,7 +474,13 @@ class SIGAApiClient {
 export const apiClient = new SIGAApiClient();
 ```
 
+> **Contrato API y transición (MVP v1.1):** el contrato uniforme es `/api/v1/{module}/{path}`. El frontend actual del proyecto construye hoy típicamente `/api/mod-{module}/...`; está **planificada la transición** a `/api/v1/...`. El frontend **debe** apuntar a `/api/v1/...` y `callModule(moduleName, endpoint)` construye `/api/v1/${moduleName}/${endpoint}` — **nunca** concatenar `"api/v1/..."` dentro de `endpoint` (produciría una ruta duplicada). Módulos reales del MVP: `mod-gestion-academica`, `mod-programas-estudio`, `mod-planes-estudio`, `mod-evaluacion`, `mod-usuarios`, `mod-auditoria` y el módulo externo de admisión (`mod-admision`). **No existe** un módulo `mod-estudiantes` como tal en esta versión contractual.
+>
+> **Observabilidad (MVP v1.1):** el `apiClient` **genera y propaga la cabecera `X-Request-ID`** en cada petición para correlacionar logs extremo a extremo (logs + `X-Request-ID` + `/health` + `/core/status`). Prometheus/Grafana/web-vitals/analytics son **post-pulido**.
+
 ### 6.2 WebSocket Client
+
+> **MVP v1.1:** WebSocket está disponible en la infraestructura, pero **no hay casos de uso en el MVP**. Las **notificaciones en tiempo real son opcionales y quedan fuera de alcance**. Este cliente se documenta para referencia futura; el MVP se comunica por HTTP REST.
 
 ```javascript
 // src/core/api/websocket.jsx
@@ -605,10 +624,13 @@ export function StudentMaster() {
     const [showForm, setShowForm] = useState(false);
     const [editingStudent, setEditingStudent] = useState(null);
 
-    // useApi hook maneja loading, error, data automáticamente
+    // useApi hook maneja loading, error, data automáticamente.
+    // Contrato uniforme: `useApi` consume `/api/v1/{module}/{path}`.
+    // El módulo se pasa con su nombre real ("mod-gestion-academica") y el
+    // endpoint SIN prefijo "api/v1/..." (callModule lo antepone).
     const { data: students, loading, error, execute: refresh } = useApi(
-        'mod-estudiantes',
-        'api/v1/estudiantes',
+        'mod-gestion-academica',
+        'estudiantes',
         { params: { limit: 50, offset: 0 } }
     );
 
@@ -630,8 +652,8 @@ export function StudentMaster() {
         if (!confirm(`¿Estás seguro de eliminar a ${student.nombres} ${student.apellidos}?`)) return;
         try {
             await apiClient.callModule(
-                'mod-estudiantes',
-                `api/v1/estudiantes/${student.id}`,
+                'mod-gestion-academica',
+                `estudiantes/${student.id}`,
                 'DELETE'
             );
             refresh(); // Recargar datos
@@ -674,7 +696,7 @@ export function StudentMaster() {
                     <button className="btn btn-sm btn-info" onClick={() => handleView(row)}>
                         Ver
                     </button>
-                    {hasPermission('mod-estudiantes:write') && (
+                    {hasPermission('mod-gestion-academica:write') && (
                         <>
                             <button className="btn btn-sm btn-warning" onClick={() => handleEdit(row)}>
                                 Editar
@@ -696,7 +718,7 @@ export function StudentMaster() {
         <div>
             <div className="d-flex justify-content-between align-items-center mb-3">
                 <h2>Maestro de Estudiantes</h2>
-                {hasPermission('mod-estudiantes:write') && (
+                {hasPermission('mod-gestion-academica:write') && (
                     <button className="btn btn-primary" onClick={handleCreate}>
                         + Nuevo Estudiante
                     </button>
@@ -1088,7 +1110,7 @@ export const router = createBrowserRouter([
 ### 12.2 Responsive Breakpoints
 
 ```scss
-// Puntos de quiebra (coinciden con Bootstrap)
+// Puntos de quiebra (se alinean a los breakpoints por defecto de Tailwind)
 $breakpoint-sm: 576px;   // Móvil landscape
 $breakpoint-md: 768px;   // Tablet
 $breakpoint-lg: 992px;   // Desktop
@@ -1204,7 +1226,6 @@ export default defineConfig({
             output: {
                 manualChunks: {
                     vendor: ['react', 'react-dom'],
-                    bootstrap: ['bootstrap'],
                 },
             },
         },
@@ -1277,9 +1298,7 @@ VITE_DEBUG=false
     },
     "dependencies": {
         "react": "^19.0.0",
-        "react-dom": "^19.0.0",
-        "bootstrap": "^5.3.3",
-        "@popperjs/core": "^2.11.8"
+        "react-dom": "^19.0.0"
     },
     "devDependencies": {
         "@vitejs/plugin-react": "^4.3.0",
@@ -1302,6 +1321,8 @@ VITE_DEBUG=false
 ## 16. Testing
 
 ### 16.1 Estrategia
+
+> **MVP v1.1 (prioridad invertida):** la estrategia de pruebas del **MVP** es (1) **smoke de arranque** y (2) **E2E del flujo crítico matrícula → admisión**. **Playwright es el motor de E2E** (ya no figura como “(futuro)”). La suite de tests unitarios / de componentes y los **umbrales de cobertura (%) son **post-pulido** y no bloquean el MVP.
 
 ```javascript
 // vitest.config.js
@@ -1329,6 +1350,8 @@ export default defineConfig({
                 functions: 80,
                 lines: 80,
             },
+            // POST-PULIDO: estos umbrales (%) no bloquean el MVP.
+            // El MVP se valida con smoke de arranque + E2E (matrícula → admisión).
         },
     },
 });
@@ -1336,12 +1359,13 @@ export default defineConfig({
 
 ### 16.2 Tipos de Tests
 
-| Tipo | Herramienta | Cobertura Objetivo | Ejemplos |
-|------|-----------|-------------------|----------|
-| Unitarios | Vitest + Testing Library | 80%+ | Hooks, utilidades, validadores |
-| Componentes | Vitest + Testing Library | 80%+ | DataTable, Modal, LoginForm |
-| Integración | Vitest + MSW | 70%+ | Flujo de login, CRUD estudiantes |
-| E2E (futuro) | Playwright | Flujos críticos | Login → matrícula → notas |
+| Tipo | Herramienta | Alcance MVP | Ejemplos |
+|------|-----------|-------------|----------|
+| **Smoke (MVP)** | Vitest | **En alcance MVP** | Arranque de la app, login carga, módulos cargan |
+| **E2E (MVP)** | Playwright | **En alcance MVP** | Flujo crítico **matrícula → admisión** |
+| Unitarios (post-pulido) | Vitest + Testing Library | Post-pulido | Hooks, utilidades, validadores |
+| Componentes (post-pulido) | Vitest + Testing Library | Post-pulido | DataTable, Modal, LoginForm |
+| Integración (post-pulido) | Vitest + MSW | Post-pulido | Flujo de login, CRUD estudiantes |
 
 ### 16.3 Ejemplo de Test
 
@@ -1411,7 +1435,6 @@ npm run build
 #   ├── assets/
 #   │   ├── index-abc123.js       (entry point)
 #   │   ├── vendor-xyz789.js      (React, ReactDOM)
-#   │   ├── bootstrap-def456.js    (Bootstrap)
 #   │   ├── module-academic-xxx.js (lazy loaded)
 #   │   ├── module-student-yyy.js  (lazy loaded)
 #   │   └── styles-ghi789.css
@@ -1496,6 +1519,7 @@ server {
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
 | 1.0.0 | 2026-06-26 | Arquitectura SIGA | Versión inicial del frontend |
+| 1.1.0 | 2026-08-29 | Arquitectura SIGA | Alineación MVP v1.1: contrato `/api/v1`, login con body JSON y key `siga_access_token`, exclusión de refresh/WebSocket/notificaciones del MVP, prioridad de pruebas smoke+E2E, excepción temporal de admisión (:8009), cabecera `X-Request-ID`, stack CSS con utilidades tipo Tailwind |
 
 ---
 

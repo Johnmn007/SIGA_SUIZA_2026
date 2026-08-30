@@ -3,6 +3,7 @@ import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
 import { CoordinatorReview } from './CoordinatorReview';
 import { CoordinatorTutorias } from './CoordinatorTutorias';
+import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink } from 'lucide-react';
 
 export function CoordinatorAcademic() {
   const { user } = useAuth();
@@ -156,10 +157,10 @@ export function CoordinatorAcademic() {
       setCargaForm({ ...cargaForm, unidades_didacticas_ids: [] });
       setIsModalOpen(false);
       fetchCargaYHorarios();
-      alert("✅ Docente asignado correctamente a los cursos seleccionados.");
+      alert("Docente asignado correctamente a los cursos seleccionados.");
     } catch (error) {
       console.error("Error saving carga", error);
-      alert("❌ Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
+      alert("Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
     } finally {
       setSaving(false);
     }
@@ -241,29 +242,31 @@ export function CoordinatorAcademic() {
               <h3 className="text-xl font-bold text-slate-800">Asignar Cursos - {getDocenteName(parseInt(cargaForm.docente_id))}</h3>
               <p className="text-sm text-slate-500">Periodo: {periodoObj?.codigo} (Filtrado automáticamente)</p>
             </div>
-            <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            <button onClick={() => setIsModalOpen(false)} className="btn-icon text-slate-400 hover:text-slate-600" aria-label="Cerrar">
+              <X size={20} />
+            </button>
           </div>
           
           <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
             {Object.keys(grouped).sort().map(ciclo => (
               <div key={ciclo} className="mb-6">
                 <h4 className="font-bold text-slate-700 border-b pb-2 mb-3 text-sm uppercase tracking-wider flex items-center">
-                  <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center mr-2 text-xs">{ciclo}</span>
+                  <span className="w-6 h-6 rounded-full bg-primary-soft text-primary-dark flex items-center justify-center mr-2 text-xs font-bold">{ciclo}</span>
                   Ciclo {ciclo}
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {grouped[ciclo].map(u => (
-                    <label key={u.id} className={`flex items-start p-3 rounded-xl border cursor-pointer transition-all ${cargaForm.unidades_didacticas_ids.includes(String(u.id)) ? 'border-indigo-500 bg-indigo-50/50 shadow-sm' : 'border-slate-200 bg-white hover:border-indigo-300'}`}>
+                    <label key={u.id} className={`flex items-start p-3 rounded-xl border cursor-pointer transition-all ${cargaForm.unidades_didacticas_ids.includes(String(u.id)) ? 'border-primary bg-primary-soft/50 shadow-sm' : 'border-slate-200 bg-white hover:border-primary-light'}`}>
                       <div className="flex-shrink-0 mt-0.5">
                         <input 
                           type="checkbox" 
-                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                          className="w-4 h-4 text-primary rounded border-slate-300 focus:ring-primary"
                           checked={cargaForm.unidades_didacticas_ids.includes(String(u.id))}
                           onChange={() => toggleCurso(u.id)}
                         />
                       </div>
                       <div className="ml-3">
-                        <span className="block text-sm font-semibold text-slate-800 leading-tight">{u.nombre}</span>
+                        <span className="block text-sm font-semibold text-slate-text leading-tight">{u.nombre}</span>
                         <span className="block text-xs text-slate-500 mt-1">{u.creditos} Créditos</span>
                       </div>
                     </label>
@@ -281,13 +284,13 @@ export function CoordinatorAcademic() {
           
           <div className="p-4 border-t border-slate-100 bg-white flex justify-between items-center">
             <div className="text-sm text-slate-600 font-medium">
-              <span className="text-indigo-600 font-bold">{cargaForm.unidades_didacticas_ids.length}</span> cursos seleccionados
+              <span className="text-primary-dark font-bold">{cargaForm.unidades_didacticas_ids.length}</span> cursos seleccionados
             </div>
             
             <div className="flex space-x-3 items-center">
               <div className="flex space-x-2 mr-4">
                 <select 
-                  className="rounded-lg border-slate-200 text-sm"
+                  className="input-field text-sm"
                   value={cargaForm.turno}
                   onChange={e => setCargaForm({...cargaForm, turno: e.target.value})}
                 >
@@ -296,7 +299,7 @@ export function CoordinatorAcademic() {
                   <option value="Noche">Noche</option>
                 </select>
                 <select 
-                  className="rounded-lg border-slate-200 text-sm"
+                  className="input-field text-sm"
                   value={cargaForm.seccion}
                   onChange={e => setCargaForm({...cargaForm, seccion: e.target.value})}
                 >
@@ -309,7 +312,7 @@ export function CoordinatorAcademic() {
               <button 
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 text-sm font-medium"
+                className="btn-ghost"
               >
                 Cancelar
               </button>
@@ -317,7 +320,7 @@ export function CoordinatorAcademic() {
                 type="button"
                 onClick={handleCreateCarga}
                 disabled={saving || cargaForm.unidades_didacticas_ids.length === 0}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-50"
+                className="btn-primary disabled:opacity-50"
               >
                 {saving ? 'Guardando...' : 'Guardar Asignación'}
               </button>
@@ -331,9 +334,9 @@ export function CoordinatorAcademic() {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {renderModal()}
-      <div className="glass-panel p-6 mb-8 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
+      <div className="glass-panel p-6 mb-8 flex justify-between items-center bg-gradient-to-r from-primary-soft to-primary-soft/40">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-800">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-text">
             Coordinación Académica
           </h2>
           <p className="text-slate-500 text-sm mt-1">
@@ -346,7 +349,9 @@ export function CoordinatorAcademic() {
       {selectedProgram && selectedPeriod && (
         <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-primary mb-8 bg-gradient-to-r from-white to-slate-50">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xl">🎓</div>
+            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              <GraduationCap size={20} />
+            </div>
             <div>
               <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
               <p className="font-bold text-slate-800">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
@@ -354,7 +359,9 @@ export function CoordinatorAcademic() {
           </div>
           <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 text-xl">📅</div>
+            <div className="w-10 h-10 rounded-full bg-primary-soft text-primary flex items-center justify-center">
+              <Calendar size={20} />
+            </div>
             <div>
               <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
               <p className="font-bold text-slate-800">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
@@ -368,34 +375,34 @@ export function CoordinatorAcademic() {
           {/* Tabs */}
           <div className="flex space-x-2 border-b border-slate-200 mb-6 overflow-x-auto pb-1">
             <button
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'carga' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'carga' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
               onClick={() => setActiveTab('carga')}
             >
-              📚 Carga Lectiva (Asignación)
+              <BookOpen size={16} /> Carga Lectiva (Asignación)
             </button>
             <button
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'revision' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'revision' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
               onClick={() => setActiveTab('revision')}
             >
-              📝 Revisión (Sílabos y Planes)
+              <ClipboardCheck size={16} /> Revisión (Sílabos y Planes)
             </button>
             <button
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'tutorias' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'tutorias' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
               onClick={() => setActiveTab('tutorias')}
             >
-              🧑‍🏫 Asignar Tutorías
+              <UserCog size={16} /> Asignar Tutorías
             </button>
             <button
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'horarios' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'horarios' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
               onClick={() => setActiveTab('horarios')}
             >
-              📅 Horarios del Periodo
+              <Clock size={16} /> Horarios del Periodo
             </button>
           </div>
 
           {loading ? (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mx-auto"></div>
               <p className="mt-4 text-slate-500 text-sm">Cargando datos del periodo...</p>
             </div>
           ) : (
@@ -406,14 +413,14 @@ export function CoordinatorAcademic() {
                 <>
                   <div className="lg:col-span-1">
                     <form className="glass-card p-6 sticky top-6">
-                      <h3 className="text-lg font-semibold text-slate-800 mb-4">Nueva Asignación</h3>
+                      <h3 className="text-lg font-semibold text-slate-text mb-4">Nueva Asignación</h3>
                       
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Docente</label>
+                          <label className="label">Docente</label>
                           <select 
                             required
-                            className="w-full rounded-xl border-slate-200"
+                            className="input-field w-full"
                             value={cargaForm.docente_id}
                             onChange={e => setCargaForm({...cargaForm, docente_id: e.target.value})}
                           >
@@ -428,9 +435,9 @@ export function CoordinatorAcademic() {
                           <button 
                             type="button" 
                             onClick={() => setIsModalOpen(true)}
-                            className="w-full py-2 px-4 border border-indigo-200 rounded-xl shadow-sm text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                            className="w-full py-2 px-4 border border-primary-light rounded-xl shadow-sm text-sm font-bold text-primary bg-primary-soft hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
                           >
-                            📝 Seleccionar Cursos ({cargaForm.unidades_didacticas_ids.length} seleccionados)
+                            <ClipboardList size={16} /> Seleccionar Cursos ({cargaForm.unidades_didacticas_ids.length} seleccionados)
                           </button>
                         )}
                       </div>
@@ -439,7 +446,7 @@ export function CoordinatorAcademic() {
 
                   <div className="lg:col-span-2">
                     <div className="glass-card p-6 overflow-hidden">
-                      <h3 className="text-lg font-semibold text-slate-800 mb-4">Carga Lectiva Actual</h3>
+                      <h3 className="text-lg font-semibold text-slate-text mb-4">Carga Lectiva Actual</h3>
                       {cargaLectiva.length === 0 ? (
                         <div className="text-center py-10 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
                           No hay asignaciones para este periodo.
@@ -458,22 +465,22 @@ export function CoordinatorAcademic() {
                             <tbody className="bg-white divide-y divide-slate-100">
                               {cargaLectiva.map((carga) => (
                                 <tr key={carga.id} className="hover:bg-slate-50">
-                                  <td className="px-4 py-3 text-sm text-slate-900 font-medium">
+                                  <td className="px-4 py-3 text-sm text-slate-text font-medium">
                                     {getUDName(carga.unidad_didactica_id)}
                                   </td>
                                   <td className="px-4 py-3 text-sm text-slate-600">
                                     {getDocenteName(carga.docente_id)}
                                   </td>
                                   <td className="px-4 py-3 text-sm text-slate-500">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mr-2">
+                                    <span className="badge-blue mr-2">
                                       {carga.turno}
                                     </span>
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                    <span className="badge-slate">
                                       Sec {carga.seccion}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-sm">
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${carga.estado === 'publicado' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                  <td className="py-3 px-4 text-sm">
+                                    <span className={`badge ${carga.estado === 'publicado' ? 'badge-green' : 'badge-amber'}`}>
                                       {carga.estado}
                                     </span>
                                   </td>
@@ -518,7 +525,7 @@ export function CoordinatorAcademic() {
                         <button 
                           type="submit" 
                           disabled={saving}
-                          className={`w-full py-2.5 rounded-xl font-medium text-white transition-all ${saving ? 'bg-slate-400' : 'bg-indigo-600 hover:bg-indigo-700 shadow-md'}`}
+                          className={`w-full py-2.5 rounded-xl font-medium text-white transition-all ${saving ? 'bg-slate-400 cursor-not-allowed' : 'btn-primary justify-center'}`}
                         >
                           {saving ? 'Guardando...' : 'Publicar Horario'}
                         </button>
@@ -536,11 +543,11 @@ export function CoordinatorAcademic() {
                           {horarios.map((h) => (
                             <div key={h.id} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-shadow">
                               <div className="flex items-center space-x-4">
-                                <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 text-xl">
-                                  📊
+                                <div className="h-10 w-10 bg-primary-soft rounded-full flex items-center justify-center text-primary">
+                                  <BarChart3 size={20} />
                                 </div>
                                 <div>
-                                  <h4 className="text-sm font-medium text-slate-900">Horario Consolidado</h4>
+                                  <h4 className="text-sm font-medium text-slate-text">Horario Consolidado</h4>
                                   <p className="text-xs text-slate-500">{new Date(h.created_at).toLocaleString()}</p>
                                   {h.observaciones && (
                                     <p className="text-sm text-slate-600 mt-1 italic">"{h.observaciones}"</p>
@@ -552,9 +559,9 @@ export function CoordinatorAcademic() {
                                   href={h.archivo_excel_url} 
                                   target="_blank" 
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center px-4 py-2 border border-slate-300 shadow-sm text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                  className="inline-flex items-center px-4 py-2 border border-slate-300 shadow-sm text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
                                 >
-                                  🔗 Abrir Archivo
+                                  <ExternalLink size={16} className="mr-2" /> Abrir Archivo
                                 </a>
                               </div>
                             </div>

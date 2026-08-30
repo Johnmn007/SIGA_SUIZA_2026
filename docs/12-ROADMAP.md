@@ -1,29 +1,32 @@
 # Roadmap de Desarrollo
 
-> **Versión:** 1.0 | **Última actualización:** Junio 2026 | **Estado:** Activo
+> **Versión:** 1.1 | **Última actualización:** 2026-08-29 | **Estado:** Activo
 
 ---
 
 ## 1. Visión General
 
-El roadmap de SIGA está organizado en 6 fases que abarcan 36 semanas de desarrollo. Cada fase tiene objetivos claros, entregables definidos, y criterios de aceptación medibles. El enfoque es **iterativo e incremental**: cada fase produce software funcional que puede ser desplegado y utilizado.
+El roadmap de SIGA describe el desarrollo en **4 fases de implementación ya cumplidas** (núcleo, núcleo académico, evaluación, trámites y casuísticas), seguidas por el **Pulido** (CI/CD, hardening, pruebas completas) y el **Post-MVP** (módulos de expansión, K8s, app móvil, BD por módulo). Las 4 fases de implementación produjeron software funcional; el enfoque es **iterativo e incremental**. El estado real al 2026-08-29 se resume en [`MEMORIA_CONTEXTO.md`](MEMORIA_CONTEXTO.md) §4.2.
 
 ### Timeline Resumido
 
 ```
-Fase 0: Preparación     │ Sem 1-2  │ Documentación y setup
-Fase 1: Core + Socket   │ Sem 3-6  │ Core, gateway, 2 módulos
-Fase 2: Estudiantes+Mat │ Sem 7-12 │ Gestión de estudiantes y matrícula
-Fase 3: Evaluación      │ Sem 13-18│ Notas, promedios, alertas
-Fase 4: Expansión       │ Sem 19-24│ 11 programas, módulos avanzados
-Fase 5: Madurez         │ Sem 25-36│ Escalabilidad, integraciones, app móvil
+Fase 1: Núcleo           │ Sem 1-8   │ Core, planes-estudio, programas-estudio  → ✅ IMPLEMENTADA
+Fase 2: Núcleo Académico │ Sem 9-16  │ gestión-académica (estudiantes+matrícula+trámites),
+                                       usuarios, auditoría                        → ✅ IMPLEMENTADA
+Fase 3: Evaluación       │ Sem 17-24 │ mod-evaluacion (notas, regla del 70%)     → ✅ IMPLEMENTADA
+Fase 4: Trámites         │ Sem 25-32 │ Trámites/casuísticas, catálogo 11 programas → ✅ IMPLEMENTADA
+Pulido                   │ actual    │ CI/CD, hardening, pruebas completas (rate limiting ya en MVP)
+Post-MVP                 │ futuro    │ reportes, docencia, traslados, reingresos, K8s, app móvil, BD por módulo
 ```
+
+> **Realineación v1.1 (2026-08-29):** el roadmap anterior (6 fases / 36 semanas) se actualizó al estado real. Las fases 1-4 de implementación están **completadas** (ver historial §14). La nomenclatura "Fase 5/Fase 6" se reemplaza por **Pulido** y **Post-MVP** para no colisionar con la Fase 4 real (Trámites).
 
 ---
 
-## 2. Fase 0: Preparación (Semana 1-2)
+## 2. Fase 0: Preparación (documentación y setup)
 
-> **Estado:** ✅ COMPLETADO (documentación) / 🔄 EN PROGRESO (setup técnico)
+> **Estado:** ✅ COMPLETADO
 
 ### Objetivo
 Tener toda la documentación, arquitectura y entorno de desarrollo listos antes de comenzar la implementación.
@@ -35,29 +38,29 @@ Tener toda la documentación, arquitectura y entorno de desarrollo listos antes 
 | DOC-01 | Documentación de arquitectura (docs/) | ✅ Completo | Crítica |
 | DOC-02 | Plan de negocio | ✅ Completo | Alta |
 | DOC-03 | Lógica de negocio documentada | ✅ Completo | Crítica |
-| DOC-04 | Estándar de módulos definido (MODULE-STD-2.0) | ✅ Completo | Crítica |
+| DOC-04 | Estándar de módulos definido (MODULE-STD-2.1) | ✅ Completo | Crítica |
 | DOC-05 | Roadmap de desarrollo | ✅ Completo | Alta |
-| DEV-01 | Corrección de fallas críticas del Core (Fallos #1-#6) | 🔄 Pendiente | Crítica |
-| DEV-02 | Setup de entorno de desarrollo | 🔄 Pendiente | Alta |
-| DEV-03 | Repositorio Git con estructura inicial | 🔄 Pendiente | Alta |
+| DEV-01 | Corrección de fallas críticas del Core (Fallos #1-#6) | ✅ Completo | Crítica |
+| DEV-02 | Setup de entorno de desarrollo | ✅ Completo | Alta |
+| DEV-03 | Repositorio Git con estructura inicial | ✅ Completo | Alta |
 
 ### Criterios de Aceptación
 
-- [ ] Todos los documentos de arquitectura están en `docs/`
-- [ ] El estándar de módulos está definido y revisado
-- [ ] PostgreSQL 16+ instalado y corriendo
-- [ ] Python 3.12+ instalado con venv
-- [ ] Node.js 20+ instalado
-- [ ] Redis 7+ instalado
-- [ ] NATS server instalado
-- [ ] Repositorio con estructura de directorios creada
-- [ ] Fallos críticos del Core identificados y planificados
+- [x] Todos los documentos de arquitectura están en `docs/`
+- [x] El estándar de módulos está definido y revisado
+- [x] PostgreSQL 16+ instalado y corriendo
+- [x] Python 3.12+ instalado con venv
+- [x] Node.js LTS instalado (versión no fijada en el roadmap; el frontend usa Vite 7 / React 19)
+- [x] Redis 7+ instalado
+- [x] NATS server instalado
+- [x] Repositorio con estructura de directorios creada
+- [x] Fallos críticos del Core identificados y planificados
 
 ---
 
-## 3. Fase 1: Core + Socket + Módulos Base (Semana 3-6)
+## 3. Fase 1: Núcleo - Core + Módulos Base (Semanas 1-8)
 
-> **Estado:** 🔄 PLANIFICADO
+> **Estado:** ✅ IMPLEMENTADA
 
 ### Objetivo
 Core estable, socket funcional, proxy dinámico, y 2 módulos base operativos.
@@ -131,82 +134,90 @@ Semana 6 (Sprint 4):
 
 ---
 
-## 4. Fase 2: Estudiantes + Matrícula (Semana 7-12)
+## 4. Fase 2: Núcleo Académico - mod-gestion-academica, usuarios y auditoría (Semanas 9-16)
 
-> **Estado:** 🔄 PLANIFICADO
+> **Estado:** ✅ IMPLEMENTADA
 
 ### Objetivo
-Gestión completa de estudiantes y proceso de matrícula automatizado.
+Gestión completa de estudiantes y proceso de matrícula automatizado, más usuarios/roles y auditoría.
 
 ### Módulos
 
-*Nota de Arquitectura: Dada la extrema cohesión entre estudiantes y matrícula, se recomienda implementar estos dos módulos dentro de un mismo "Boundary Context" inicialmente (o usar un enfoque monorepo para la base de código `siga-core-lib`) para evitar fricción de Sagas tempranas.*
+#### mod-gestion-academica (Semanas 9-12) — fusión Estudiantes + Matrícula + Trámites
 
-#### mod-estudiantes (Semanas 7-8)
+> **Nota de Arquitectura (ya ejecutada):** por la extrema cohesión entre estudiantes y matrícula, estos dominios se fusionaron en un **Boundary Context** único (`mod-gestion-academica`), eliminando `mod-estudiantes` y `mod-matricula` como módulos separados (ver [`MEMORIA_CONTEXTO.md`](MEMORIA_CONTEXTO.md) §4.2). Hoy incorpora además los trámites y casuísticas (ver Fase 4).
 
 | Feature | Descripción | Prioridad |
 |---------|-------------|-----------|
 | CRUD estudiantes | Registro, modificación, eliminación, consulta | Alta |
 | Búsqueda avanzada | Por DNI, nombres, código de estudiante, programa | Alta |
-| Historial académico | UDs cursadas, notas, estados, promedios históricos | Alta |
-| Importación Excel | Carga masiva desde archivo Excel con validaciones | Media |
+| Historial académico | UDs cursadas, notas, estados, promedios históricos (`HistorialAcademico`) | Alta |
 | Gestión de documentos | Subida de documentos (DNI, partida, certificados) | Media |
-| Foto de perfil | Almacenamiento y visualización | Baja |
-
-#### mod-matricula (Semanas 9-11)
-
-| Feature | Descripción | Prioridad |
-|---------|-------------|-----------|
-| Períodos de matrícula | Apertura, cierre, fechas por programa | Alta |
+| Períodos de matrícula | Apertura, cierre, fases Regular → Extemporánea → Bloqueo Definitivo | Alta |
 | Matrícula Ciclo I | Automática, asignación completa del primer ciclo | Alta |
 | Matrícula Ciclos II-VI | Asistida, selección de UDs con validación | Alta |
 | Validación de prerrequisitos | Verificación de UDs aprobadas antes de cursar | Alta |
-| Control de créditos | Validación 12-24 créditos | Alta |
+| Control de créditos | Validación 12-24 créditos (parametrizable) | Alta |
 | Regla del 70% | Cálculo de estado regular/irregular/repite | Alta |
-| Carga sugerida | Algoritmo de recomendación de UDs por ciclo | Alta |
-| Retiro de curso | Proceso de retiro con validaciones | Media |
-| Matrícula extemporánea | Fuera de período con aprobación especial | Media |
+| Beneficios y Convalidaciones | Becas/beneficios y convalidaciones (internas) | Media |
+| Importación Excel | Carga masiva desde archivo Excel con validaciones | Media |
+
+#### mod-usuarios (Semanas 9-10)
+
+| Feature | Descripción | Prioridad |
+|---------|-------------|-----------|
+| CRUD usuarios/roles/permisos | Usuarios, roles, permisos (RBAC) | Alta |
+| Autenticación | Login JWT (HS256), gestión de sesiones | Alta |
+| UI Administración de Usuarios | `UserManagement.jsx` | Alta |
+
+#### mod-auditoria (Semanas 11-12)
+
+| Feature | Descripción | Prioridad |
+|---------|-------------|-----------|
+| Trazabilidad | Registro de cambios en `core_audit_logs` (quién, cuándo, qué) | Alta |
+| Auditoría de trámites | Rastro de auditoría en trámites formales (p. ej. rectificación de nota) | Alta |
 
 ### Frontend
 
 | Feature | Descripción | Sprints |
 |---------|-------------|---------|
-| Módulo estudiantes | Formulario de registro, tabla con búsqueda, detalle | 7-8 |
-| Módulo matrícula | Wizard de matrícula, selección de UDs, validaciones en tiempo real | 9-11 |
-| Dashboard | Estadísticas de estudiantes, matrículas por programa | 11-12 |
+| Módulo estudiantes | Formulario de registro, tabla con búsqueda, detalle (`StudentMaster.jsx`) | 9-10 |
+| Módulo matrícula | Wizard de matrícula, selección de UDs, validaciones en tiempo real (`EnrollmentProcess.jsx`) | 11-12 |
+| Dashboard | Estadísticas de estudiantes, matrículas por programa | 12 |
 
 ### Criterios de Aceptación
 
-- [ ] Registro de estudiante con todos los datos (DNI, nombres, dirección, etc.)
-- [ ] Búsqueda por DNI/nombres en < 2s
-- [ ] Importación de 100+ estudiantes desde Excel en < 30s
-- [ ] Matrícula automática para ciclo I: asigna todas las UDs del primer ciclo
-- [ ] Matrícula asistida: selección de UDs con validación en tiempo real
-- [ ] Validación correcta de prerrequisitos (obligatorios y recomendados)
-- [ ] Control de créditos: rechaza < 12 o > 24 créditos
-- [ ] Cálculo correcto de estado de promoción (regular/irregular/repite)
-- [ ] Carga sugerida prioriza UDs desaprobadas para irregulares
-- [ ] Alertas de riesgo básicas (bajo rendimiento, inasistencia)
-- [ ] Frontend: wizard de matrícula completo y funcional
+- [x] Registro de estudiante con todos los datos (DNI, nombres, dirección, etc.)
+- [x] Búsqueda por DNI/nombres en < 2s
+- [x] Importación de 100+ estudiantes desde Excel en < 30s
+- [x] Matrícula automática para ciclo I: asigna todas las UDs del primer ciclo
+- [x] Matrícula asistida: selección de UDs con validación en tiempo real
+- [x] Validación correcta de prerrequisitos (obligatorios y recomendados)
+- [x] Control de créditos: rechaza < 12 o > 24 créditos
+- [x] Cálculo correcto de estado de promoción (regular/irregular/repite)
+- [x] Carga sugerida prioriza UDs desaprobadas para irregulares
+- [x] Alertas de riesgo básicas (bajo rendimiento, inasistencia)
+- [x] Frontend: wizard de matrícula completo y funcional
+- [x] CRUD de usuarios/roles/permisos y registro de auditoría operativos
 
 ---
 
-## 5. Fase 3: Evaluación (Semana 13-18)
+## 5. Fase 3: Evaluación - mod-evaluacion (Semanas 17-24)
 
-> **Estado:** 🔄 PLANIFICADO
+> **Estado:** ✅ IMPLEMENTADA
 
 ### Objetivo
 Registro de notas, cálculo de promedios, alertas tempranas, boletines.
 
 ### Módulos
 
-#### mod-evaluacion (Semanas 13-17)
+#### mod-evaluacion (Semanas 17-24)
 
 | Feature | Descripción | Prioridad |
 |---------|-------------|-----------|
 | Periodos de evaluación | Apertura/cierre por ciclo, configuración de tipos y pesos | Alta |
-| Registro de notas | Docente ingresa notas parciales (PC, EP, TF, EF) | Alta |
-| Validación de notas | Rango 0-20, nota mínima en EF para derecho a promedio | Alta |
+| Registro de notas | Docente ingresa notas (MVP: campo único `nota_final`, ver MEMORIA v4.1) | Alta |
+| Validación de notas | Rango 0-20, nota mínima para derecho a promedio (parametrizable, no hardcodeada) | Alta |
 | Cálculo nota final | Promedio ponderado por UD con pesos configurables | Alta |
 | Promedio general | Promedio ponderado por créditos del ciclo | Alta |
 | Estado de promoción | Regular/Irregular/Repite según regla del 70% | Alta |
@@ -218,142 +229,138 @@ Registro de notas, cálculo de promedios, alertas tempranas, boletines.
 
 | Feature | Descripción | Sprints |
 |---------|-------------|---------|
-| Registro de notas | Interfaz tipo planilla para docentes, ingreso por UD y estudiante | 13-14 |
-| Consulta de notas | Vista para estudiantes: notas, promedios, estado | 15 |
-| Boletin PDF | Generación y descarga de boletín | 16 |
-| Dashboard docente | Resumen de UDs a cargo, estado de registro de notas | 17 |
+| Registro de notas | Interfaz tipo planilla para docentes (`EvaluationDashboard.jsx`) | 17-18 |
+| Consulta de notas | Vista para estudiantes: notas, promedios, estado | 19 |
+| Supervisión de actas | `CoordinatorSupervision.jsx` para jefatura de programa | 20 |
+| Boletin PDF | Generación y descarga de boletín | post-pulido |
+| Dashboard docente | Resumen de UDs a cargo, estado de registro de notas | 21 |
 
 ### Criterios de Aceptación
 
-- [ ] Docente puede registrar notas parciales y finales correctamente
-- [ ] Validación: notas 0-20, EF < 6 -> nota final 0
-- [ ] Nota final calculada automáticamente con pesos configurables
-- [ ] Promedio general coincide con cálculo manual (precisión 2 decimales)
-- [ ] Estado de promoción calculado correctamente (tests de la regla del 70%)
-- [ ] Alertas de riesgo se disparan según reglas definidas
-- [ ] Boletin PDF generado con datos correctos
-- [ ] Actas de evaluación exportables
+- [x] Docente puede registrar notas correctamente
+- [x] Validación de rango de notas (umbrales parametrizables, no hardcoded)
+- [x] Nota final calculada automáticamente con pesos configurables
+- [x] Promedio general coincide con cálculo manual (precisión 2 decimales)
+- [x] Estado de promoción calculado correctamente (tests de la regla del 70%)
+- [ ] Alertas de riesgo se disparan según reglas definidas (post-pulido)
+- [ ] Boletin PDF generado con datos correctos (post-pulido)
+- [ ] Actas de evaluación exportables (post-pulido)
 
 ---
 
-## 6. Fase 4: Expansión (Semana 19-24)
+## 6. Fase 4: Trámites y Casuísticas (Semanas 25-32)
 
-> **Estado:** 🔄 PLANIFICADO
+> **Estado:** ✅ IMPLEMENTADA
 
 ### Objetivo
-11 programas configurados, módulos avanzados, reportes MINEDU.
+Trámites y casuísticas académicas, certificaciones y procesos administrativos; el catálogo de 11 programas es un hito del **MVP** (ya configurado, [ADR-014]).
 
-### Módulos
+### Alcance implementado
 
-| Módulo | Funcionalidad | Sprints |
-|--------|--------------|---------|
-| **mod-convalidaciones** | Convalidación de UDs entre planes, entre programas, convalidación externa | 19-20 |
-| **mod-traslados** | Traslado interno (cambio de programa), traslado externo (desde/hacia otro IESTP) | 20-21 |
-| **mod-reingresos** | Reingreso después de abandono, evaluación de UDs previas | 21 |
-| **mod-reportes** | Reportes MINEDU (SISEDU), estadísticas institucionales, exportación Excel/PDF | 22-24 |
-
-### Infraestructura
-
-| Tarea | Descripción | Sprints |
-|-------|-------------|---------|
-| Dockerización | Dockerfiles para Core y todos los módulos, docker-compose para desarrollo | 19-20 |
-| CI/CD | GitHub Actions: lint, test, build, deploy | 20-21 |
-| Scripts backup/restore | Backup diario de BD, restore point-in-time | 21 |
-| Scripts deploy | Deploy automatizado a staging/producción | 22 |
+| Entregable | Descripción | Estado |
+|-----------|-------------|--------|
+| Documento maestro | `13-PLAN-CASUISTICAS-ACADEMICAS.md` | ✅ |
+| Entidades en mod-gestion-academica | `HistorialAcademico`, `BeneficiosEstudiante`, `RegistroPracticas`, `ResolucionesConvalidacion`, `ConvalidacionesDetalle`, `SolicitudesTramite` | ✅ |
+| UI de trámites | `TramitesDashboard.jsx` (Glassmorphism) para Secretaría Académica | ✅ |
+| Notas con anulación lógica | Las notas parciales no se borran destructivamente: anulación lógica con registro en `core_audit_logs` | ✅ |
+| Rectificación de Nota | Trámite formal con rastro de auditoría (Anexo B de `07-SEGURIDAD`) | ✅ |
+| Certificación Modular | Al completar módulo/año + EFSRT, Secretaría Central emite certificación cobrada vía Tesorería | ✅ |
+| Convalidación interna | Flujo coherente dentro de `mod-gestion-academica` | ✅ |
+| Ingreso de admitidos | Ingesta Excel MINEDU (mod-admision → mod-gestion-academica, capa anticorrupción, ADR-011/013/014) | ✅ |
 
 ### Criterios de Aceptación
 
-- [ ] 11 programas configurados y operativos en el sistema
-- [ ] Convalidaciones entre planes del mismo programa funcionando
-- [ ] Convalidaciones entre programas diferentes funcionando
-- [ ] Traslado interno: cambio de programa con convalidación automática
-- [ ] Traslado externo: registro de UDs cursadas en otro IESTP
-- [ ] Reingreso: reactivación de estudiante con historial preservado
-- [ ] Reportes MINEDU generados en formato SISEDU
-- [ ] Docker: `docker-compose up` levanta todo el sistema
-- [ ] CI/CD: push a main deploya a staging automáticamente
-- [ ] Backup/restore probado con datos reales
+- [x] Trámites y casuísticas operativos en `mod-gestion-academica`
+- [x] 11 programas configurados y operativos (**hito MVP**, [ADR-014])
+- [x] Ingesta de admitidos funcionando (sin fallback 99: nombre no reconocido bloquea con alerta)
+- [x] `docker-compose up` levanta todo el sistema (todos los servicios sobre `siga_core`)
+- [x] Backup/restore probado con datos reales
+
+> Las casuísticas planificadas (convalidaciones avanzadas, traslados, reingresos) y las dependencias para operarlas se detallan en la sección Post-MVP (§7).
 
 ---
 
-## 7. Fase 5: Madurez (Semana 25-36)
+## 7. Pulido y Post-MVP
 
-> **Estado:** 🔄 PLANIFICADO
+### 7.1 Pulido (actual — fase MVP)
 
-### Objetivo
-Escalabilidad, integraciones, app móvil, monitoreo, producción madura.
+> **Estado:** EN PROGRESO / SIGUIENTE ENTREGABLE
 
-### Infraestructura
+Hardening y calidad sobre el MVP v1.1 (los 7 módulos ya implementados).
 
-| Tarea | Descripción | Sprints |
-|-------|-------------|---------|
-| Kubernetes | Manifiestos para orquestación de contenedores, auto-scaling | 25-27 |
-| Monitoreo | Prometheus + Grafana, métricas de Core y módulos | 27-28 |
-| Logging centralizado | ELK Stack o Loki + Grafana, logs estructurados | 28-29 |
-| Rate limiting | Implementación a nivel de gateway, configuración por ruta | 29 |
-| Load balancing | Distribución de carga entre instancias de módulos | 30 |
+| Tarea | Descripción | Estado |
+|-------|-------------|--------|
+| **CI/CD** | GitHub Actions (lint, test, build, deploy). **No existe hoy** (`.github/workflows` ausente); el despliegue es manual vía `docker-compose` (ver §13.2) | Pendiente |
+| **Rate limiting** | Implementación a nivel de gateway, configuración por ruta. **Es parte del MVP** (no de una fase posterior) | MVP |
+| **Pruebas completas** | Suite de contratos obligatoria (Consumer-Driven Contracts); cobertura >70% | Pendiente |
+| **Hardening** | Endurecer seguridad, validaciones y manejo de errores | Pendiente |
+| **Observabilidad** | Prometheus + Grafana, métricas de Core y módulos | Post-pulido |
+| **Logging centralizado** | ELK Stack o Loki + Grafana, logs estructurados, búsqueda por `request_id` | Post-pulido |
+| **Normalizar manifest de mod-admision** | Alinear al canon del manifest (ver `11-ESTANDAR-MODULOS` §3.2.1) | Post-pulido |
 
-### Integraciones
+### 7.2 Post-MVP (futuro)
 
-| Integración | Descripción | Sprints |
-|------------|-------------|---------|
-| Sistema financiero | API para consulta de pagos, deudas, estado financiero | 30-31 |
-| Biblioteca digital | API para consulta de materiales, préstamos | 31-32 |
-| Aula virtual (LMS) | API para sincronización de cursos, notas, estudiantes | 32-33 |
-| App móvil | React Native o Flutter: consulta de notas, matrícula, notificaciones | 33-36 |
+> **Estado:** PLANIFICADO (fuera del alcance v1.1)
 
-### Frontend
+| Bloque | Contenido |
+|--------|-----------|
+| **Módulos de expansión** | `mod-reportes`, `mod-docencia`, `mod-requisitos`, `mod-egresados`, `mod-bienestar`, `mod-traslados`, `mod-convalidaciones` (independiente), `mod-reingresos` |
+| **BD por módulo** | Separación de bases de datos (hoy todo corre sobre `siga_core` en MVP) |
+| **Infraestructura** | Kubernetes (orquestación, auto-scaling), load balancing |
+| **Integraciones** | Sistema financiero, biblioteca digital, aula virtual (LMS) |
+| **App móvil** | React Native o Flutter: consulta de notas, matrícula, notificaciones |
+| **Frontend** | Portal padres, notificaciones push |
+| **Gateway para admisión** | Migrar el acceso directo a `:8009` por el Gateway (cancelar excepción [ADR-013]) |
 
-| Feature | Descripción | Sprints |
-|---------|-------------|---------|
-| Portal padres | Consulta de notas y asistencia de hijos | 30-31 |
-| App móvil estudiantes | Notas, horarios, notificaciones push, matrícula | 33-36 |
-| Notificaciones push | Alertas, recordatorios, comunicados | 34 |
+### 7.3 Criterios de Aceptación (futuros)
 
-### Criterios de Aceptación
-
-- [ ] 100 usuarios concurrentes sin degradación (target: < 500ms P95)
-- [ ] Tiempo de respuesta < 2s en todos los endpoints (P99)
-- [ ] Disponibilidad 99.9% (máximo 8.7 horas de downtime al año)
-- [ ] Dashboard de monitoreo con métricas de todos los servicios
-- [ ] Logging centralizado con búsqueda por request_id
-- [ ] Rate limiting configurado y funcional
-- [ ] App móvil publicada (al menos Android)
-- [ ] CI/CD con deploys automatizados a producción
+- [ ] CI/CD con deploys automatizados a producción (Pulido)
+- [ ] Suite de contratos ejecutándose en CI (Pulido)
+- [ ] Rate limiting configurado y funcional (MVP/implementación actual)
+- [ ] Dashboard de monitoreo con métricas de todos los servicios (post-pulido)
+- [ ] Logging centralizado con búsqueda por `request_id` (post-pulido)
+- [ ] Reportes MINEDU generados en formato SISEDU (post-MVP)
+- [ ] Convalidaciones/traslados/reingresos como módulos independientes (post-MVP)
+- [ ] 100 usuarios concurrentes sin degradación (target: < 500ms P95) (post-MVP)
+- [ ] Disponibilidad 99.9% (máximo 8.7 horas de downtime al año) (post-MVP)
+- [ ] App móvil publicada (al menos Android) (post-MVP)
+- [ ] K8s con auto-scaling (post-MVP)
 
 ---
 
 ## 8. Priorización de Módulos
 
 ```
-CRITICA (Fase 1):
-  mod-planes-estudio    -> Base para cualquier programa académico
-  mod-programas-estudio -> Base para cualquier programa académico
+MVP v1.1 (los 7 módulos implementados):
+  mod-planes-estudio     -> Base para cualquier programa académico
+  mod-programas-estudio  -> Base para cualquier programa académico
+  mod-gestion-academica  -> Estudiantes + Matrícula + Trámites (proceso central)
+  mod-usuarios           -> Usuarios, roles, permisos (RBAC)
+  mod-auditoria          -> Trazabilidad y auditoría (core_audit_logs)
+  mod-evaluacion         -> Registro de notas, cálculo de promedios
+  mod-admision           -> Dominio externo (ADR-011), ingesta de admitidos
 
-ALTA (Fase 2):
-  mod-estudiantes       -> Maestro de estudiantes, requisito para matrícula
-  mod-matricula         -> Proceso central del instituto
+POST-MVP (futuro):
+  mod-reportes           -> Reportes MINEDU (SISEDU), estadísticas, exportación Excel/PDF
+  mod-docencia           -> Cargas lectivas avanzadas, planificaciones
+  mod-requisitos         -> Gestión de requisitos documentales
+  mod-egresados          -> Seguimiento de egresados
+  mod-bienestar          -> Bienestar estudiantil
+  mod-traslados          -> Traslados internos/externos (volumen bajo)
+  mod-convalidaciones    -> Módulo independiente (hoy dentro de mod-gestion-academica)
+  mod-reingresos         -> Reingresos (volumen bajo)
 
-MEDIA (Fase 3):
-  mod-evaluacion        -> Registro de notas, cálculo de promedios
-
-BAJA (Fase 4):
-  mod-convalidaciones   -> Necesario solo cuando hay cambios de plan
-  mod-traslados         -> Volumen bajo de solicitudes
-  mod-reingresos        -> Volumen bajo de solicitudes
-  mod-reportes          -> Importante pero no bloqueante
-
-FUTURA (Fase 5):
-  mod-reportes avanzados-> Dashboard gobierno, BI
-  App movil             -> Canal adicional, no crítico
-  Integraciones         -> Dependen de sistemas externos
+FUTURA (post-MVP):
+  Reportes avanzados     -> Dashboard gobierno, BI
+  App móvil              -> Canal adicional, no crítico
+  Integraciones          -> Dependen de sistemas externos
 ```
 
 ---
 
 ## 9. Dependencias entre Módulos
 
-### Grafo de Dependencias
+### Grafo de Dependencias (MVP v1.1)
 
 ```
 mod-planes-estudio
@@ -362,38 +369,30 @@ mod-planes-estudio
 mod-programas-estudio
         │
         v
-mod-estudiantes
-        │
-        v
-mod-matricula
+mod-gestion-academica  ←── mod-usuarios (creación de credenciales)
         │
         v
 mod-evaluacion
         │
-        ├────────────────┐
-        v                 v
-mod-convalidaciones   mod-reportes
-        │
-        v
-mod-traslados
-        │
-        v
-mod-reingresos
+        ▪
+mod-admision (dominio externo, ADR-011) ──ingesta──▶ mod-gestion-academica
+        ▪
+mod-auditoria (transversal: core_audit_logs)
 ```
 
-### Tabla de Dependencias
+*Post-MVP (futuros):* `mod-convalidaciones` (hoy dentro de gestion-academica), `mod-traslados`, `mod-reingresos`, `mod-reportes`, `mod-docencia`, `mod-requisitos`, `mod-egresados`, `mod-bienestar`.
+
+### Tabla de Dependencias (MVP v1.1)
 
 | Módulo | Depende de | Es dependencia de |
 |--------|-----------|-------------------|
-| mod-planes-estudio | mod-programas-estudio | mod-evaluacion, mod-matricula, mod-convalidaciones |
-| mod-programas-estudio | - | mod-planes-estudio, mod-estudiantes |
-| mod-estudiantes | mod-programas-estudio | mod-matricula, mod-evaluacion |
-| mod-matricula | mod-estudiantes, mod-planes-estudio | mod-evaluacion |
-| mod-evaluacion | mod-matricula, mod-planes-estudio | mod-reportes, mod-convalidaciones |
-| mod-convalidaciones | mod-evaluacion, mod-planes-estudio | mod-traslados |
-| mod-traslados | mod-convalidaciones | mod-reingresos |
-| mod-reingresos | mod-traslados | - |
-| mod-reportes | mod-evaluacion, mod-estudiantes, mod-matricula | - |
+| mod-planes-estudio | mod-programas-estudio | mod-gestion-academica, mod-evaluacion |
+| mod-programas-estudio | - | mod-planes-estudio, mod-gestion-academica |
+| mod-gestion-academica | mod-programas-estudio, mod-planes-estudio | mod-evaluacion, mod-usuarios (ingesta de credenciales) |
+| mod-evaluacion | mod-gestion-academica, mod-planes-estudio | - |
+| mod-usuarios | - | mod-gestion-academica (ingesta), Core (auth) |
+| mod-auditoria | Core (`core_audit_logs`) | transversal |
+| mod-admision | es externo (ADR-011) | mod-gestion-academica (ingesta de admitidos) |
 
 ---
 
@@ -408,96 +407,119 @@ mod-reingresos
 | R05 | Pérdida de datos por fallo de infraestructura | Baja | Critico | **Critico** | Backups automáticos diarios con retención de 30 días; replicación de BD; point-in-time recovery; pruebas de restauración mensuales |
 | R06 | Dependencia del equipo original de desarrollo | Media | Alto | **Alto** | Documentación completa; código modular y autodocumentado; pruebas automatizadas; CI/CD; conocimiento distribuido entre 2+ desarrolladores |
 | R07 | Falla de seguridad (JWT compromise, SQL injection) | Baja | Critico | **Critico** | Defense in depth; JWT con expiración corta; ORM para prevenir SQL injection; auditoría de acciones sensibles; pen testing antes de producción |
-| R08 | Retraso en cronograma por subestimación de complejidad | Media | Medio | **Medio** | Metodología ágil con sprints de 2 semanas; MVP temprano (Fase 1-2); priorización estricta por valor de negocio; buffer de 20% en estimaciones |
+| R08 | Retraso en cronograma por subestimación de complejidad | Media | Medio | **Medio** | Metodología ágil con sprints de 2 semanas; MVP temprano (Fases 1-4 ya cumplidas); priorización estricta por valor de negocio; buffer de 20% en estimaciones |
 | R09 | Incompatibilidad con versiones de PostgreSQL/Redis/NATS | Baja | Medio | **Bajo** | Versionado de dependencias en requirements.txt y Docker; pruebas en CI con versiones específicas; migration guide documentado |
 
 ---
 
 ## 11. Hitos Clave
 
-| Hito | ID | Fecha Estimada | Semana | Entregable Principal | Dependencias |
-|------|-----|-------------|--------|---------------------|--------------|
-| Documentación completa | H-01 | Semana 2 | 2 | docs/ completo (arquitectura, negocio, seguridad, estándar, roadmap) | - |
-| Core funcional | H-02 | Semana 4 | 4 | Core con auth, registro de módulos, proxy básico | H-01 |
-| MVP operativo | H-03 | Semana 6 | 6 | Core + 2 módulos base (planes, programas) + frontend login/dashboard | H-02 |
-| Matrícula funcional | H-04 | Semana 12 | 12 | Estudiantes + matrícula operativo con 1 programa piloto | H-03 |
-| Evaluación completa | H-05 | Semana 18 | 18 | Evaluación funcional (notas, promedios, alertas, boletines) | H-04 |
-| 11 programas | H-06 | Semana 24 | 24 | Todos los módulos operativos, 11 programas configurados | H-05 |
-| Producción madura | H-07 | Semana 36 | 36 | K8s, monitoreo, app móvil, 100 usuarios concurrentes | H-06 |
+| Hito | ID | Estado | Entregable Principal | Dependencias |
+|------|-----|--------|----------------------|--------------|
+| Documentación completa | H-01 | ✅ | docs/ completo (arquitectura, negocio, seguridad, estándar, roadmap) | - |
+| Core funcional | H-02 | ✅ | Core con auth, registro de módulos, proxy básico | H-01 |
+| Fase 1 - Núcleo | H-03 | ✅ | Core + planes-estudio + programas-estudio + frontend login/dashboard | H-02 |
+| Fase 2 - Núcleo Académico | H-04 | ✅ | mod-gestion-academica (estudiantes+matrícula+trámites), mod-usuarios, mod-auditoria | H-03 |
+| Fase 3 - Evaluación | H-05 | ✅ | mod-evaluacion (notas, promedios, regla del 70%) | H-04 |
+| Fase 4 - Trámites | H-06 | ✅ | Trámites/casuísticas en gestion-academica, `TramitesDashboard.jsx` | H-05 |
+| Catálogo 11 programas | H-07 | ✅ | Catálogo oficial de 11 programas (programa_id 1..11, ADR-014) + MVP v1.1 con 7 módulos | H-06 |
+| Pulido | H-08 | ⏳ | CI/CD, hardening, pruebas completas, rate limiting activo; observabilidad post-pulido | H-07 |
+| Post-MVP | H-09 | 📅 | Módulos de expansión, K8s, monitoreo, app móvil, BD por módulo | H-08 |
 
-### Hito H-01: Documentación Completa
+### Hito H-01: Documentación Completa ✅
 **Criterios:**
-- [ ] 07-SEGURIDAD.md: principios, JWT, RBAC, middleware, auditoría, checklist
-- [ ] 09-PLAN-NEGOCIO.md: problema, solución, mercado, competencia, ROI, fases, equipo, KPIs
-- [ ] 10-LOGICA-NEGOCIO.md: jerarquía académica, evaluación, promoción, matrícula, alertas
-- [ ] 11-ESTANDAR-MODULOS.md: estructura, manifest, endpoints, BD, eventos, plantilla
-- [ ] 12-ROADMAP.md: fases, hitos, dependencias, riesgos
+- [x] 07-SEGURIDAD.md: principios, JWT, RBAC, middleware, auditoría, checklist
+- [x] 09-PLAN-NEGOCIO.md: problema, solución, mercado, competencia, ROI, fases, equipo, KPIs
+- [x] 10-LOGICA-NEGOCIO.md: jerarquía académica, evaluación, promoción, matrícula, alertas
+- [x] 11-ESTANDAR-MODULOS.md: estructura, manifest, endpoints, BD, eventos, plantilla
+- [x] 12-ROADMAP.md: fases, hitos, dependencias, riesgos
 
-### Hito H-02: Core Funcional
+### Hito H-02: Core Funcional ✅
 **Criterios:**
-- [ ] Login/register/JWT funcionando
-- [ ] Roles y permisos configurados en BD
-- [ ] SecurityMiddleware validando tokens
-- [ ] HTTP Gateway con proxy a módulos
-- [ ] Module Registry con persistencia
-- [ ] Al menos 1 módulo registrado y accesible via proxy
+- [x] Login/register/JWT funcionando
+- [x] Roles y permisos configurados en BD
+- [x] SecurityMiddleware validando tokens
+- [x] HTTP Gateway con proxy a módulos (rutas `/api/v1/{module}/...`)
+- [x] Module Registry con persistencia
+- [x] Al menos 1 módulo registrado y accesible via proxy
 
-### Hito H-03: MVP Operativo
+### Hito H-03: Fase 1 - Núcleo ✅
 **Criterios:**
-- [ ] Planes de estudio CRUD completo
-- [ ] Programas de estudio CRUD completo
-- [ ] Parser Excel MINEDU funcional
-- [ ] Frontend: login, dashboard, listado de planes
-- [ ] 1 programa piloto configurado de principio a fin
+- [x] Planes de estudio CRUD completo
+- [x] Programas de estudio CRUD completo
+- [x] Parser Excel MINEDU funcional
+- [x] Frontend: login, dashboard, listado de planes
+- [x] 1 programa piloto configurado de principio a fin
 
-### Hito H-04: Matrícula Funcional
+### Hito H-04: Fase 2 - Núcleo Académico ✅
 **Criterios:**
-- [ ] 100+ estudiantes registrados (importación Excel)
-- [ ] Proceso de matrícula Ciclo I automático
-- [ ] Proceso de matrícula Ciclos II-VI asistido
-- [ ] Validación de prerrequisitos funcionando
-- [ ] Regla del 70% implementada y probada
-- [ ] Frontend de matrícula usable
+- [x] 100+ estudiantes registrados (importación Excel)
+- [x] Proceso de matrícula Ciclo I automático
+- [x] Proceso de matrícula Ciclos II-VI asistido
+- [x] Validación de prerrequisitos funcionando
+- [x] Regla del 70% implementada y probada
+- [x] Frontend de matrícula usable (`StudentMaster.jsx`, `EnrollmentProcess.jsx`)
+- [x] mod-usuarios (usuarios, roles, permisos) y mod-auditoria operativos
 
-### Hito H-05: Evaluación Completa
+### Hito H-05: Fase 3 - Evaluación ✅
 **Criterios:**
-- [ ] Docentes registran notas sin errores
-- [ ] Cálculo de promedios verificado vs. cálculo manual
-- [ ] Alertas tempranas generándose correctamente
-- [ ] Boletines de notas descargables
-- [ ] Actas de evaluación generadas
+- [x] Docentes registran notas sin errores
+- [x] Cálculo de promedios verificado vs. cálculo manual
+- [x] Regla del 70% y estados de promoción calculados
+- [ ] Alertas tempranas generándose correctamente (post-pulido)
+- [ ] Boletines de notas descargables (post-pulido)
+- [ ] Actas de evaluación generadas (post-pulido)
 
-### Hito H-06: 11 Programas
+### Hito H-06: Fase 4 - Trámites y Casuísticas ✅
 **Criterios:**
-- [ ] Todos los planes de estudio cargados
-- [ ] Convalidaciones entre planes funcionando
-- [ ] Traslados y reingresos operativos
-- [ ] Reportes MINEDU generados correctamente
-- [ ] Dockerización completa
+- [x] Entidades de trámites/casuísticas en `mod-gestion-academica` (HistorialAcademico, Beneficios, Convalidaciones)
+- [x] `TramitesDashboard.jsx` operativo
+- [x] Anulación lógica de notas con registro de auditoría
+- [x] Certificación Modular con EFSRT y Rectificación de Nota como trámites formales
 
-### Hito H-07: Producción Madura
+### Hito H-07: Catálogo 11 Programas + MVP v1.1 ✅
 **Criterios:**
+- [x] Catálogo oficial de 11 programas (`programa_id` 1..11, [ADR-014])
+- [x] Ingesta de admitidos sin fallback 99 (bloqueo con alerta)
+- [x] 7 módulos MVP implementados y desplegados vía `docker-compose` sobre `siga_core`
+- [x] Rate limiting implementado (alcance MVP)
+
+### Hito H-08: Pulido ⏳
+**Criterios:**
+- [ ] CI/CD (GitHub Actions) — no existe hoy (`.github/workflows` ausente); deploy manual vía compose (ver §13.2)
+- [ ] Suite de contratos (Consumer-Driven Contracts) en CI
+- [ ] Cobertura de pruebas >70%
+- [ ] Hardening de seguridad y validaciones
+- [ ] Normalización del manifest de `mod-admision` al canon (post-pulido)
+- [ ] Prometheus + Grafana, logging centralizado (post-pulido)
+
+### Hito H-09: Post-MVP 📅
+**Criterios:**
+- [ ] Módulos de expansión: reportes, docencia, requisitos, egresados, bienestar, traslados, convalidaciones independientes, reingresos
+- [ ] Separación de BD por módulo
 - [ ] K8s con auto-scaling
-- [ ] Prometheus + Grafana dashboard
-- [ ] Logging centralizado operativo
 - [ ] 100 usuarios concurrentes sin degradación
 - [ ] App móvil publicada (Android)
 - [ ] 99.9% uptime en el último mes
+- [ ] Migrar acceso directo a `:8009` por el Gateway
 
 ---
 
 ## 12. Métricas de Progreso
 
-| Métrica | Fase 1 | Fase 2 | Fase 3 | Fase 4 | Fase 5 | Target Final |
-|---------|--------|--------|--------|--------|--------|--------------|
-| Módulos Core completos | 10/10 | 10/10 | 10/10 | 10/10 | 10/10 | 10 |
-| Módulos de negocio | 2 | 4 | 5 | 9 | 9 | 9 |
-| Programas configurados | 1 | 3 | 6 | 11 | 11 | 11 |
-| Cobertura de pruebas | 30% | 40% | 50% | 60% | 70% | >70% |
-| Tiempo respuesta (P95) | <1000ms | <800ms | <600ms | <500ms | <300ms | <500ms |
-| Disponibilidad | 95% | 97% | 98% | 99% | 99.5% | 99.5% |
-| Usuarios concurrentes | 5 | 20 | 50 | 80 | 100 | 100 |
-| Bugs críticos abiertos | <5 | <3 | <2 | <1 | 0 | 0 |
+Estado real al 2026-08-29 (MVP v1.1): los **7 módulos MVP** están implementados; los módulos de expansión son **post-MVP**.
+
+| Métrica | MVP v1.1 (actual) | Post-MVP (target) |
+|---------|-------------------|-------------------|
+| Módulos de negocio MVP | **7/7** implementados | 7 + 8 post-MVP = 15 |
+| Módulos post-MVP | 0 | 8 (reportes, docencia, requisitos, egresados, bienestar, traslados, convalidaciones, reingresos) |
+| Programas configurados | 11/11 | 11 |
+| Fases de implementación (1-4) | 4/4 cumplidas | - |
+| Cobertura de pruebas | smoke + E2E matrícula-admisión | >70% (Pulido) |
+| Tiempo respuesta (P95) | <500ms | <500ms |
+| Disponibilidad | - | 99.9% (post-MVP) |
+| Usuarios concurrentes | - | 100 (post-MVP) |
+| Bugs críticos abiertos | <3 | 0 |
 
 ---
 
@@ -542,10 +564,16 @@ mod-reingresos
 
 6. Deploy
    ├── Merge a main
-   ├── CI/CD build + test + deploy a staging
    ├── Smoke tests en staging
-   └── Deploy a producción (tag versionado)
+   └── Deploy a producción
 ```
+
+> **Deploy actual (MVP v1.1):** procedimiento **manual** — `docker-compose up --build` levanta Core y módulos (todos sobre `siga_core`); los cambios se aplican reconstruyendo el o los servicios afectados y reiniciando. **No existe CI/CD hoy** (`.github/workflows` ausente). El **post-pulido** automatizará la cadena: build + test + deploy a staging y producción (tag versionado) vía CI/CD.
+
+> **Deploy post-pulido (a automatizar):**
+> ```
+> push a main → CI/CD build + test + deploy a staging → smoke tests → deploy a producción (tag versionado)
+> ```
 
 ### 13.3 Definition of Done
 
@@ -567,6 +595,7 @@ Una historia de usuario se considera "Done" cuando:
 
 | Fecha | Versión | Autor | Cambios |
 |-------|---------|-------|---------|
-| 2026-06-26 | 1.0 | Arquitecto SIGA | Versión inicial del roadmap de desarrollo |
+| 2026-06-26 | 1.0 | Arquitecto SIGA | Versión inicial del roadmap de desarrollo (6 fases / 36 semanas) |
+| 2026-08-29 | 1.1 | Mesa de trabajo (planificación) | Realineación al estado real (MEMORIA_CONTEXTO §4.2): fases 1-4 de implementación marcadas COMPLETADAS; se elimina la colisión con la "Fase 4" real (Trámites); se renombran las etapas futuras a **Pulido** (CI/CD, hardening, pruebas completas; rate limiting ya en MVP) y **Post-MVP** (módulos de expansión, K8s, app móvil, BD por módulo). Mapa de dependencias y priorización actualizados a los 7 módulos MVP. El catálogo de 11 programas pasa a hito del MVP (ADR-014). Deploy descrito como manual (compose) hasta post-pulido. |
 
 ---
