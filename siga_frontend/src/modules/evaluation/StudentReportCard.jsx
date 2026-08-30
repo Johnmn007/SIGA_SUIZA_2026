@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE } from '../../core/api/client';
+import { GraduationCap, BarChart3, FileText } from 'lucide-react';
 
 export function StudentReportCard() {
   const [loading, setLoading] = useState(false);
@@ -84,43 +85,41 @@ export function StudentReportCard() {
   return (
     <div className="animate-fade-in max-w-4xl mx-auto">
       <div className="mb-8 text-center">
-        <h3 className="text-4xl font-extrabold tracking-tight text-slate-800 mb-2">
-          Boletín de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">Notas</span>
+        <h3 className="text-4xl font-extrabold tracking-tight text-slate-text mb-2">
+          Boletín de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Notas</span>
         </h3>
         <p className="text-slate-500 font-medium">Periodo Académico {period}</p>
       </div>
 
       {studentInfo && (
         <div className="glass-card p-6 mb-8 border-l-4 border-l-primary flex flex-col md:flex-row items-center gap-6">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center text-4xl shadow-inner border-2 border-white">
-            🎓
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary-soft to-slate-light flex items-center justify-center border-2 border-white">
+            <GraduationCap className="w-12 h-12 text-primary" />
           </div>
           <div className="flex-1">
-            <h2 className="text-2xl font-bold text-slate-800">{studentInfo.apellidos}, {studentInfo.nombres}</h2>
+            <h2 className="text-2xl font-bold text-slate-text">{studentInfo.apellidos}, {studentInfo.nombres}</h2>
             <div className="grid grid-cols-2 gap-4 mt-4">
               <div>
                 <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Código</p>
-                <p className="font-semibold text-slate-700">{studentInfo.codigo_estudiante}</p>
+                <p className="font-semibold text-slate-text">{studentInfo.codigo_estudiante}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">DNI</p>
-                <p className="font-semibold text-slate-700">{studentInfo.dni}</p>
+                <p className="font-semibold text-slate-text">{studentInfo.dni}</p>
               </div>
             </div>
           </div>
-          <div className="bg-slate-50 p-4 rounded-xl text-center min-w-[120px] shadow-sm border border-slate-100">
+          <div className="bg-slate-light p-4 rounded-xl text-center min-w-[120px] shadow-sm border border-slate-100">
             <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Estado</p>
-            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm">
-              Regular
-            </span>
+            <span className="badge badge-green">Regular</span>
           </div>
         </div>
       )}
 
       <div className="glass-card overflow-hidden">
-        <div className="bg-slate-800 text-white p-4 flex justify-between items-center">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white p-4 flex justify-between items-center">
           <h4 className="font-bold flex items-center text-lg">
-            <span className="mr-2">📊</span> Resumen Académico
+            <BarChart3 className="w-6 h-6 mr-2" /> Resumen Académico
           </h4>
         </div>
         
@@ -131,11 +130,11 @@ export function StudentReportCard() {
           </div>
         ) : grades.length === 0 ? (
           <div className="py-16 text-center">
-            <div className="text-5xl opacity-40 mb-4">📄</div>
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-primary-soft flex items-center justify-center text-primary"><FileText className="w-10 h-10" /></div>
             <p className="text-slate-500 font-medium text-lg">No se encontraron calificaciones para este periodo.</p>
           </div>
         ) : (
-          <table className="w-full text-left">
+          <table className="data-table w-full text-left">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200">
                 <th className="py-4 px-6 font-bold text-slate-500 uppercase text-xs tracking-wider">Unidad Didáctica</th>
@@ -143,15 +142,15 @@ export function StudentReportCard() {
                 <th className="py-4 px-4 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Cap. 1</th>
                 <th className="py-4 px-4 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Cap. 2</th>
                 <th className="py-4 px-4 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Cap. 3</th>
-                <th className="py-4 px-6 font-extrabold text-slate-800 uppercase text-xs tracking-wider text-center bg-slate-100/50">Promedio</th>
+                <th className="py-4 px-6 font-extrabold text-slate-text uppercase text-xs tracking-wider text-center bg-slate-100/50">Promedio</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {grades.map((g, idx) => {
                 const avg = calculateAverage(g);
                 return (
-                  <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="py-4 px-6 font-semibold text-slate-700">{g.nombre}</td>
+                  <tr key={idx} className="hover:bg-primary-soft/40 transition-colors">
+                    <td className="py-4 px-6 font-semibold text-slate-text">{g.nombre}</td>
                     <td className="py-4 px-4 text-center font-medium text-slate-500">{g.creditos}</td>
                     <td className={`py-4 px-4 text-center text-lg ${getGradeColor(g.c1)}`}>{g.c1}</td>
                     <td className={`py-4 px-4 text-center text-lg ${getGradeColor(g.c2)}`}>{g.c2}</td>

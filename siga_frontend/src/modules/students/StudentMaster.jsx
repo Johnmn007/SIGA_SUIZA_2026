@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { API_BASE } from '../../core/api/client';
 import { EditStudentModal } from './EditStudentModal';
+import { Search, CloudDownload, Plus, Users, Pencil, ChevronRight, Info, X } from 'lucide-react';
 
 const InputGroup = ({ label, type = "text", value, onChange, options = null }) => (
   <div className="flex flex-col space-y-1">
@@ -290,8 +291,8 @@ export function StudentMaster() {
               <span className="text-slate-700">{form.trabaja ? 'Trabajador' : 'No trabaja'} | {form.tipo_vivienda}</span>
             </div>
           </div>
-          <div className="mt-6 bg-blue-50 text-blue-700 p-4 rounded-xl text-sm border border-blue-100 flex space-x-3 w-full max-w-md">
-            <span className="text-xl">ℹ️</span>
+          <div className="mt-6 bg-primary-soft text-primary-dark p-4 rounded-xl text-sm border border-primary/20 flex space-x-3 w-full max-w-md">
+            <Info size={20} className="flex-shrink-0 mt-0.5" />
             <p>Al guardar, se creará el perfil único e inmutable en el Maestro de Datos.</p>
           </div>
         </div>
@@ -304,7 +305,7 @@ export function StudentMaster() {
     <div className="animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h3 className="text-3xl font-bold tracking-tight text-slate-800">
+          <h3 className="text-3xl font-bold tracking-tight text-slate-text">
             Registro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Estudiantes</span>
           </h3>
           <p className="text-slate-500 text-sm mt-1">Censo Institucional y Registro Maestro de Identidad</p>
@@ -312,18 +313,18 @@ export function StudentMaster() {
         <div className="flex gap-3">
           {['superadmin', 'admin'].includes(userRole) && (
             <button 
-              className="btn-secondary flex items-center space-x-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+              className="btn-secondary"
               onClick={handleSincronizar}
             >
-              <span className="text-xl leading-none">📥</span>
+              <CloudDownload size={18} />
               <span>Sincronizar desde Admisión</span>
             </button>
           )}
           <button 
-            className="btn-primary flex items-center space-x-2"
+            className="btn-primary"
             onClick={() => { setForm({...form, codigo_estudiante: 'EST-'+Date.now().toString().slice(-6)}); setShowModal(true); }}
           >
-            <span className="text-xl leading-none">+</span>
+            <Plus size={18} />
             <span>Registrar Estudiante</span>
           </button>
         </div>
@@ -345,7 +346,7 @@ export function StudentMaster() {
               <option value="6">Mecatrónica</option>
             </select>
           )}
-        <span className="px-4 text-slate-400 text-xl">🔍</span>
+        <Search size={20} className="text-slate-400 ml-4" />
         <input 
           type="text" 
           className="w-full bg-transparent border-none focus:ring-0 py-3 text-slate-700 placeholder-slate-400 outline-none"
@@ -358,21 +359,23 @@ export function StudentMaster() {
 
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="data-table">
             <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider">
-                <th className="py-4 px-6 font-semibold">Estudiante</th>
-                <th className="py-4 px-6 font-semibold">Código</th>
-                <th className="py-4 px-6 font-semibold">DNI</th>
-                <th className="py-4 px-6 font-semibold">Estado</th>
-                <th className="py-4 px-6 font-semibold text-right">Acciones</th>
+              <tr>
+                <th>Estudiante</th>
+                <th>Código</th>
+                <th>DNI</th>
+                <th>Estado</th>
+                <th className="text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {students.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="py-16 text-center opacity-60">
-                    <div className="text-4xl mb-3">👥</div>
+                  <td colSpan="5" className="py-16 text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-soft text-primary flex items-center justify-center">
+                      <Users size={30} />
+                    </div>
                     <p className="text-slate-500 font-medium">No se encontraron estudiantes registrados</p>
                   </td>
                 </tr>
@@ -381,11 +384,11 @@ export function StudentMaster() {
                   <tr key={s.id} className="hover:bg-primary/5 transition-colors group">
                     <td className="py-4 px-6">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs mr-3 border border-primary/20">
+                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs mr-3 border border-primary/20">
                           {s.nombres[0]}{s.apellidos[0]}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-800 text-sm">{s.nombres} {s.apellidos}</p>
+                          <p className="font-bold text-slate-text text-sm">{s.nombres} {s.apellidos}</p>
                           <p className="text-xs text-slate-500">{s.email_personal || s.email_institucional || 'Sin correo'}</p>
                         </div>
                       </div>
@@ -397,24 +400,24 @@ export function StudentMaster() {
                       <span className="text-sm text-slate-600">{s.dni}</span>
                     </td>
                     <td className="py-4 px-6">
-                      <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border ${s.estado_academico === 'postulante' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                      <span className={`badge ${s.estado_academico === 'postulante' ? 'badge-amber' : 'badge-green'}`}>
                         {s.estado_academico}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-right">
                       <div className="flex justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
+                        <button
                           onClick={() => setEditingStudent(s)}
-                          className="text-amber-600 hover:text-amber-800 text-sm font-semibold flex items-center"
+                          className="text-amber-600 hover:text-amber-800 text-sm font-semibold flex items-center gap-1"
                           title="Corregir Errores de Tipeo"
                         >
-                          <span className="mr-1">✏️</span> Editar
+                          <Pencil size={14} /> Editar
                         </button>
-                        <button 
+                        <button
                           onClick={() => setSelectedStudent(s)}
-                          className="text-primary hover:text-primary-dark text-sm font-semibold"
+                          className="text-primary hover:text-primary-dark text-sm font-semibold flex items-center gap-1"
                         >
-                          Ver Detalle →
+                          Ver Detalle <ChevronRight size={14} />
                         </button>
                       </div>
                     </td>
@@ -432,9 +435,9 @@ export function StudentMaster() {
           <div className="glass-card w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden bg-white/95 shadow-2xl animate-fade-in-up">
             
             <div className="flex justify-between items-center p-6 border-b border-slate-200">
-              <h5 className="font-bold text-xl text-slate-800 tracking-tight">Nuevo Registro de Estudiante</h5>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              <h5 className="font-bold text-xl text-slate-text tracking-tight">Nuevo Registro de Estudiante</h5>
+              <button onClick={() => setShowModal(false)} className="btn-icon text-slate-400 hover:text-slate-700" aria-label="Cerrar">
+                <X size={20} />
               </button>
             </div>
             
@@ -452,9 +455,9 @@ export function StudentMaster() {
               {renderWizardStep()}
             </div>
 
-            <div className="p-6 border-t border-slate-200 flex justify-between bg-slate-50">
+            <div className="p-6 border-t border-slate-200 flex justify-between bg-slate-light">
               {wizardStep > 1 ? (
-                <button className="px-6 py-2 bg-white border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors" onClick={() => setWizardStep(wizardStep - 1)}>
+                <button className="btn-ghost px-6" onClick={() => setWizardStep(wizardStep - 1)}>
                   Anterior
                 </button>
               ) : <div></div>}
@@ -464,7 +467,7 @@ export function StudentMaster() {
                   Siguiente
                 </button>
               ) : (
-                <button className="btn-primary px-8 bg-green-600 hover:bg-green-700 hover:shadow-green-500/30" onClick={handleCreate}>
+                <button className="btn-primary px-8" onClick={handleCreate}>
                   Guardar Registro Completo
                 </button>
               )}

@@ -1,7 +1,7 @@
 # Modelo de Datos Global
 
-> **Versión:** 1.0.0  
-> **Última actualización:** 2026-06-26  
+> **Versión:** 1.1.0  
+> **Última actualización:** 2026-08-29  
 > **Responsable:** Arquitectura de Software SIGA
 
 ---
@@ -23,17 +23,21 @@ Ningún módulo accede directamente a la base de datos de otro módulo. Toda com
 
 | Componente | Motor | Driver | Conexión | Propósito |
 |-----------|-------|--------|----------|-----------|
-| Core Database | PostgreSQL 16 | asyncpg | Pool asíncrono | Identidad, registry, auditoría |
-| Módulo Database | PostgreSQL 16 | psycopg2 / asyncpg | Pool por módulo | Datos funcionales del módulo |
+| `siga_core` (MVP) | PostgreSQL 16 | asyncpg / psycopg2 | Pool asíncrono | Toda la persistencia MVP: identidad, registry, auditoría y datos funcionales de los 7 módulos |
 | Redis | Redis 7.x | redis-py | Pool síncrono | Caché, sesiones, rate limiting |
 
-### 2.1 Core Database (`siga_core`)
+### 2.1 Estrategia pragmática MVP: una sola BD (`siga_core`)
 
-Base de datos central que contiene únicamente tablas de identidad, registry de módulos, y auditoría. Conexión asíncrona via `asyncpg` para máximo rendimiento en operaciones de autenticación.
+En el MVP (v1.1), **todos los servicios** (Core y los 7 módulos MVP) apuntan a una única base de datos `siga_core`, configurada a nivel del `docker-compose`. Las tablas se organizan **lógicamente por módulo** dentro de la misma BD:
 
-### 2.2 Module Databases (`mod_{nombre}`)
+- Tablas de plataforma con prefijo `core_*` (identidad, registry de módulos, auditoría)
+- Tablas funcionales de cada módulo en el mismo esquema, con los nombres definidos en la sección 5
 
-Cada módulo tiene su propia base de datos PostgreSQL independiente. Esto garantiza:
+Esto reduce la complejidad operativa del MVP (una sola instancia PostgreSQL 16, una sola fuente de backups, sin conectividad cruzada entre BDs) para un volumen real de 500–3000 estudiantes y 11 programas.
+
+### 2.2 Migración a BD propia por módulo (`mod_{nombre}`) — POST-MVP
+
+La separación física de bases de datos (**una BD `mod_{nombre}` por módulo**, con conexiones y pools independientes vía `psycopg2`/`asyncpg`, y prefijo `mod_`) es la **estrategia post-migración**; **no aplica en el MVP**. Cuando se adopte, garantizará:
 
 - **Aislamiento:** Un módulo caído no afecta la BD de otros módulos
 - **Escalabilidad:** Cada módulo puede escalar su BD independientemente
@@ -58,7 +62,7 @@ Redis se utiliza para:
 | Tipo | Formato | Ejemplo |
 |------|---------|---------|
 | Core | `siga_core` | `siga_core` |
-| Módulo | `mod_{nombre}` | `mod_planes_estudio`, `mod_estudiantes` |
+| Módulo (post-migración) | `mod_{nombre}` | `mod_planes_estudio`, `mod_gestion_academica` |
 
 ### 3.2 Tablas
 
@@ -225,7 +229,7 @@ CREATE INDEX idx_core_modules_active ON core_modules(is_active) WHERE is_active 
 CREATE TABLE core_module_endpoints (
     id SERIAL PRIMARY KEY,
     module_id INTEGER REFERENCES core_modules(id) ON DELETE CASCADE,
-    path VARCHAR(255) NOT NULL,                -- /api/v1/estudiantes
+    path VARCHAR(255) NOT NULL,                -- /api/v1/gestion-academica/estudiantes
     methods TEXT[] NOT NULL,                    -- {GET, POST, PUT, DELETE}
     description TEXT,
     auth_required BOOLEAN DEFAULT true,
@@ -329,7 +333,7 @@ CREATE TABLE core_rate_limits (
 
 ## 5. Esquema de Módulos
 
-### 5.1 Módulo: mod-planes-estudio (BD: `mod_planes_estudio`)
+### 5.1 Módulo: mod-planes-estudio (MVP: `siga_core` · post-migración: `mod_planes_estudio`)
 
 ```sql
 -- ============================================================
@@ -345,7 +349,7 @@ CREATE TABLE planes_estudio (
     horas_totales INTEGER,
     fecha_aprobacion DATE,
     resolucion_aprobacion VARCHAR(100),
-    estado VARCHAR(20) DEFAULT 'activo',         -- activo, inactivo, reemplazado, borrador
+    estado VARCHAR(20) DEFAULT 'vigente',         -- vigente, en_baja, reemplazado, borrador
     programa_id INTEGER NOT NULL,                -- FK lógica a mod-programas-estudio
     version VARCHAR(20),                         -- ej: "2024-01", "2027-01"
     vigencia_desde DATE,
@@ -462,7 +466,13 @@ CREATE TABLE competencias_unidades (
 CREATE INDEX idx_comp_unidades_unidad ON competencias_unidades(unidad_id);
 ```
 
-### 5.2 Módulo: mod-programas-estudio (BD: `mod_programas_estudio`)
+> **Nota §5.1 (coexistencia de mallas — DOC-15 §2.4/§4.3):** 
+> - La **carrera es única** (`programa_id`) y sus planes de estudio son **versiones** (relación 1:N en `planes_estudio`: mismo `programa_id`, `version` nueva, ej. `2024-01` → `2027-01`).
+> - Estados por plan: **`vigente`** (recibe nuevos ingresos — exactamente 1 por programa), **`en_baja`** (dejó de recibir; sus alumnos terminan con él), **`reemplazado`** (sin alumnos activos), **`borrador`** (subido pero aún no publicado). Flujo: **Subir → borrador → "Publicar plan" → `vigente`** y el anterior pasa **automáticamente a `en_baja`**.
+> - Regla de bloqueo: un plan solo pasa a **`reemplazado`** cuando su **conteo de alumnos anclados (`estudiantes.plan_anclado_id`) llega a 0**.
+> - El plan vigente gobierna la malla de los nuevos ingresantes; los históricos se resuelven contra su plan anclado hasta la Adecuación de Malla (DOC-13 §3).
+
+### 5.2 Módulo: mod-programas-estudio (MVP: `siga_core` · post-migración: `mod_programas_estudio`)
 
 ```sql
 -- ============================================================
@@ -554,7 +564,15 @@ CREATE TABLE programa_jerarquia (
 CREATE UNIQUE INDEX idx_programa_jerarquia ON programa_jerarquia(programa_id);
 ```
 
-### 5.3 Módulo: mod-estudiantes (BD: `mod_estudiantes`)
+#### 5.2.1 Catálogo oficial de programas (ingesta y mapeo `programa_id`)
+
+El sistema reconoce **11 programas oficiales**, con `programa_id` mapeado **1..11** según el catálogo institucional/MINEDU (código CNOF + licenciamiento). La ingesta (Excel MINEDU y plan de estudios) escribe estos identificadores, nunca valores inventados.
+
+> **Política de ingesta — BLOQUEO sin fallback 99 (ADR-014):** si la ingesta encuentra un programa **no reconocido** (fuera del catálogo 1..11), la operación se **BLOQUEA** y se **alerta** al administrador. **No existe** el fallback a un `programa_id` genérico `99`. Esto evita datos huérfanos y mantiene la integridad del catálogo oficial.
+
+### 5.3 Módulo: mod-gestion-academica (MVP: `siga_core` · post-migración: `mod_gestion_academica`)
+
+> El módulo mod-gestion-academica absorbe en el MVP los dominios de **estudiantes**, **matrículas** y **trámites** (historial académico, beneficios, convalidaciones y solicitudes de trámite). Las tablas de los antiguos `mod-estudiantes` y `mod-matricula` viven ahora en este bloque.
 
 ```sql
 -- ============================================================
@@ -608,6 +626,7 @@ CREATE TABLE estudiantes (
     anio_egreso_colegio INTEGER,
     modalidad_ingreso VARCHAR(50),                -- ordinario, primera_opcion, traslado_externo, titulado
     vacante_id INTEGER,                           -- FK lógica a modulo de admisión
+    plan_anclado_id INTEGER,                      -- Malla del estudiante, fijada en la ingesta al Ciclo I (= plan Vigente de ese momento); TODO el recorrido académico se resuelve contra SU plan (coexistencia de mallas, DOC-15 §4.3, DOC-05 §5.1)
 
     -- Estado académico
     estado_academico VARCHAR(30) DEFAULT 'postulante',
@@ -683,7 +702,47 @@ CREATE TABLE estudiante_observaciones (
 CREATE INDEX idx_est_obs_estudiante ON estudiante_observaciones(estudiante_id);
 ```
 
-### 5.4 Módulo: mod-matricula (BD: `mod_matricula`)
+#### 5.3.1 Beneficios y trámites
+
+```sql
+-- ============================================================
+-- beneficios_estudiante: Beneficios y becas del estudiante
+-- ============================================================
+CREATE TABLE beneficios_estudiante (
+    id SERIAL PRIMARY KEY,
+    estudiante_id INTEGER REFERENCES estudiantes(id) ON DELETE CASCADE,
+    tipo_beneficio VARCHAR(100) NOT NULL,            -- Beca 18, Convenio FF.AA., Excelencia, etc.
+    porcentaje_descuento NUMERIC(5,2) NOT NULL,      -- 100.00, 20.00, etc.
+    condicion_mantenimiento VARCHAR(255),            -- "Promedio >= 14"
+    periodo_validez_inicio_id INTEGER NOT NULL,      -- FK lógica a periodos_academicos
+    periodo_validez_fin_id INTEGER,                  -- NULL = beneficio permanente
+    activo BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_beneficios_estudiante ON beneficios_estudiante(estudiante_id);
+CREATE INDEX idx_beneficios_activo ON beneficios_estudiante(activo) WHERE activo = true;
+
+-- ============================================================
+-- solicitudes_tramites: Trámites académicos del estudiante
+-- ============================================================
+CREATE TABLE solicitudes_tramites (
+    id SERIAL PRIMARY KEY,
+    estudiante_id INTEGER REFERENCES estudiantes(id) ON DELETE CASCADE,
+    tipo_tramite VARCHAR(100) NOT NULL,              -- Constancia Estudios, Certificado, Reserva, etc.
+    estado VARCHAR(50) DEFAULT 'pendiente',          -- pendiente, en_proceso, emitido, rechazado
+    fecha_solicitud DATE DEFAULT CURRENT_DATE,
+    fecha_resolucion DATE,
+    documento_url VARCHAR(255),                      -- Digital si aplica
+    observaciones TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_solicitudes_estudiante ON solicitudes_tramites(estudiante_id);
+CREATE INDEX idx_solicitudes_estado ON solicitudes_tramites(estado);
+```
+
+#### 5.3.2 Matrículas y convalidaciones
 
 ```sql
 -- ============================================================
@@ -691,7 +750,7 @@ CREATE INDEX idx_est_obs_estudiante ON estudiante_observaciones(estudiante_id);
 -- ============================================================
 CREATE TABLE matriculas (
     id SERIAL PRIMARY KEY,
-    estudiante_id INTEGER NOT NULL,              -- FK lógica a mod-estudiantes
+    estudiante_id INTEGER NOT NULL,              -- FK lógica a mod-gestion-academica
     programa_id INTEGER NOT NULL,                -- FK lógica a mod-programas-estudio
     periodo_id INTEGER NOT NULL,                 -- FK lógica a periodos_academicos
     tipo_ingreso VARCHAR(50) DEFAULT 'ordinario', -- ordinario, traslado, reingreso, beca, extemporanea
@@ -751,7 +810,7 @@ CREATE INDEX idx_mat_hist_matricula ON matricula_historial_cambios(matricula_id)
 -- ============================================================
 CREATE TABLE convalidaciones (
     id SERIAL PRIMARY KEY,
-    estudiante_id INTEGER NOT NULL,              -- FK lógica a mod-estudiantes
+    estudiante_id INTEGER NOT NULL,              -- FK lógica a mod-gestion-academica
     unidad_origen_id INTEGER NOT NULL,           -- UD de origen (de donde viene)
     programa_origen VARCHAR(255),                -- Institución/programa de origen
     unidad_destino_id INTEGER NOT NULL,          -- UD destino (la que se convalida)
@@ -765,7 +824,7 @@ CREATE TABLE convalidaciones (
 CREATE INDEX idx_convalidaciones_estudiante ON convalidaciones(estudiante_id);
 ```
 
-### 5.5 Módulo: mod-evaluacion (BD: `mod_evaluacion`) — FUTURO
+### 5.4 Módulo: mod-evaluacion (MVP: `siga_core` · post-migración: `mod_evaluacion`)
 
 ```sql
 -- ============================================================
@@ -773,7 +832,7 @@ CREATE INDEX idx_convalidaciones_estudiante ON convalidaciones(estudiante_id);
 -- ============================================================
 CREATE TABLE evaluaciones (
     id SERIAL PRIMARY KEY,
-    matricula_detalle_id INTEGER NOT NULL,       -- FK lógica a mod-matricula
+    matricula_detalle_id INTEGER NOT NULL,       -- FK lógica a mod-gestion-academica
     unidad_id INTEGER NOT NULL,                  -- FK lógica a mod-planes-estudio
     periodo_id INTEGER NOT NULL,                 -- FK lógica a mod-programas-estudio
     nota_final NUMERIC(4,2),                     -- Escala 0-20 (redondeado a 2 decimales)
@@ -850,7 +909,56 @@ CREATE INDEX idx_riesgo_estudiante ON riesgo_academico(estudiante_id);
 CREATE INDEX idx_riesgo_activo ON riesgo_academico(activo) WHERE activo = true;
 ```
 
-### 5.6 Módulo: mod-gobierno (BD: `mod_gobierno`) — FUTURO
+---
+
+### 5.5 Módulo: mod-admision (dominio externo · MVP: `siga_core`)
+
+> **Dominio externo (ADR-011)** desplegado internamente en `:8009`. La ingesta de postulantes se realiza vía **Excel MINEDU** (módulo `admin_admision`, opción "Ingesta Masiva"). El dominio consolida postulantes en mod-gestion-academica al momento de la matrícula; el esquema operativo del dominio externo no se modela aquí (pertenece al entorno MINEDU).
+
+API: `/api/v1/admision/...` (el acceso directo a `:8009` es una **excepción temporal** que se elimina post-MVP).
+
+```sql
+-- ============================================================
+-- admin_admision: Postulantes ingestados desde Excel MINEDU
+-- (dominio externo; esquema de staging alineado al Excel de ingesta)
+-- ============================================================
+CREATE TABLE admin_admision (
+    id SERIAL PRIMARY KEY,
+    dni VARCHAR(15) NOT NULL,
+    nombres VARCHAR(100) NOT NULL,
+    apellidos VARCHAR(100) NOT NULL,
+    programa_id INTEGER NOT NULL,                  -- Debe estar en el catálogo 1..11 (ADR-014)
+    estado VARCHAR(30) DEFAULT 'ingresado',        -- ingresado, postulado, admitido, matriculado
+    creado_por INTEGER,                            -- FK lógica a core_users
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_admin_admision_dni ON admin_admision(dni);
+CREATE INDEX idx_admin_admision_programa ON admin_admision(programa_id);
+```
+
+### 5.6 Módulo: mod-usuarios (vive en `siga_core`)
+
+El módulo mod-usuarios vive en `siga_core`. Sus tablas se modelan como `core_*` y coinciden con el esquema de identidad del Core (ver §4.1):
+
+- `core_users` — cuentas de acceso
+- `core_roles`, `core_user_roles`, `core_permissions` — roles, asignaciones y permisos
+- `core_sessions` — sesiones activas (MVP: token único HS256; refresh = post-MVP)
+
+API: `/api/v1/usuarios/...`
+
+### 5.7 Módulo: mod-auditoria (vive en `siga_core`)
+
+El módulo mod-auditoria vive en `siga_core`. Sus tablas se modelan como `core_*` y coinciden con el esquema de auditoría del Core (ver §4.3):
+
+- `core_audit_log` — bitácora centralizada (particionada por mes)
+- `core_audit_retention` — política de retención y archivado
+
+API: `/api/v1/auditoria/...`
+
+### 5.8 Módulos post-MVP (fuera del alcance v1.1)
+
+> Los dominios mod-gobierno, mod-reportes, mod-notificaciones, mod-traslados, mod-convalidaciones, mod-reingresos y las BD históricas `mod-estudiantes`/`mod-matricula` son **post-MVP**. Sus esquemas se documentan aquí como referencia y no forman parte del modelo v1.1.
 
 ```sql
 -- ============================================================
@@ -892,21 +1000,27 @@ CREATE TABLE reportes (
 
 | Entidad | Dueño (Módulo) | BD Propietaria | APIs CRUD | Leído por | Eventos que publica |
 |---------|---------------|----------------|-----------|-----------|---------------------|
-| Usuario | Core | `siga_core` | Core Auth | Core, todos los módulos | `user.created`, `user.updated` |
-| Rol/Permiso | Core | `siga_core` | Core Admin | Core, todos los módulos | `role.assigned`, `role.revoked` |
-| Programa Estudio | mod-programas-estudio | `mod_programas_estudio` | mod-programas | Core, mod-matricula, mod-planes | `program.created`, `program.updated` |
-| Periodo Académico | mod-programas-estudio | `mod_programas_estudio` | mod-programas | mod-matricula, mod-evaluacion | `period.opened`, `period.closed` |
-| Plan Estudio | mod-planes-estudio | `mod_planes_estudio` | mod-planes | mod-programas, mod-matricula, mod-evaluacion | `plan.published`, `plan.archived` |
-| Módulo Formativo | mod-planes-estudio | `mod_planes_estudio` | mod-planes | mod-matricula | — |
-| Unidad Didáctica | mod-planes-estudio | `mod_planes_estudio` | mod-planes | mod-matricula, mod-evaluacion | `ud.created`, `ud.updated` |
-| Estudiante | mod-estudiantes | `mod_estudiantes` | mod-estudiantes | mod-matricula, mod-evaluacion, mod-reportes | `student.created`, `student.updated` |
-| Matrícula | mod-matricula | `mod_matricula` | mod-matricula | mod-evaluacion, mod-reportes | `enrollment.confirmed`, `enrollment.cancelled` |
-| Detalle Matrícula | mod-matricula | `mod_matricula` | mod-matricula | mod-evaluacion | `enrollment.detail.added` |
-| Evaluación/Nota | mod-evaluacion | `mod_evaluacion` | mod-evaluacion | mod-reportes, mod-gobierno | `grade.published`, `grade.updated` |
-| Promedio | mod-evaluacion | `mod_evaluacion` | mod-evaluacion | mod-reportes, mod-gobierno | `average.calculated` |
-| Riesgo Académico | mod-evaluacion | `mod_evaluacion` | mod-evaluacion | mod-notificaciones | `risk.alert` |
-| Reporte | mod-gobierno | `mod_gobierno` | mod-gobierno | Core, usuarios autorizados | — |
-| Log Auditoría | Core | `siga_core` | Solo escritura | Core Admin | `audit.log.created` |
+| Usuario | Core (mod-usuarios) | `siga_core` | Core Auth + `/api/v1/usuarios` | Core, todos los módulos | `user.created`, `user.updated` |
+| Rol/Permiso | Core (mod-usuarios) | `siga_core` | `/api/v1/usuarios` | Core, todos los módulos | `role.assigned`, `role.revoked` |
+| Programa Estudio | mod-programas-estudio | `siga_core` | `/api/v1/programas-estudio` | mod-planes-estudio, mod-gestion-academica, mod-admision | `program.created`, `program.updated` |
+| Periodo Académico | mod-programas-estudio | `siga_core` | `/api/v1/programas-estudio` | mod-gestion-academica, mod-evaluacion | `period.opened`, `period.closed` |
+| Plan Estudio | mod-planes-estudio | `siga_core` | `/api/v1/planes-estudio` | mod-programas-estudio, mod-gestion-academica, mod-evaluacion | `plan.published`, `plan.archived` |
+| Módulo Formativo | mod-planes-estudio | `siga_core` | `/api/v1/planes-estudio` | mod-gestion-academica | — |
+| Unidad Didáctica | mod-planes-estudio | `siga_core` | `/api/v1/planes-estudio` | mod-gestion-academica, mod-evaluacion | `ud.created`, `ud.updated` |
+| Estudiante | mod-gestion-academica | `siga_core` | `/api/v1/gestion-academica` | mod-admision, mod-evaluacion | `student.created`, `student.updated` |
+| Historial Académico | mod-gestion-academica | `siga_core` | `/api/v1/gestion-academica` | mod-evaluacion | `history.state.changed` |
+| Beneficio Estudiante | mod-gestion-academica | `siga_core` | `/api/v1/gestion-academica` | Core Admin | `benefit.assigned` |
+| Convalidación | mod-gestion-academica | `siga_core` | `/api/v1/gestion-academica` | mod-evaluacion | `convalidation.approved` |
+| Trámite | mod-gestion-academica | `siga_core` | `/api/v1/gestion-academica` | Core Admin | `tramite.state.changed` |
+| Matrícula | mod-gestion-academica | `siga_core` | `/api/v1/gestion-academica` | mod-evaluacion, mod-admision | `enrollment.confirmed`, `enrollment.cancelled` |
+| Detalle Matrícula | mod-gestion-academica | `siga_core` | `/api/v1/gestion-academica` | mod-evaluacion | `enrollment.detail.added` |
+| Evaluación/Nota | mod-evaluacion | `siga_core` | `/api/v1/evaluacion` | mod-gestion-academica | `grade.published`, `grade.updated` |
+| Promedio | mod-evaluacion | `siga_core` | `/api/v1/evaluacion` | mod-gestion-academica | `average.calculated` |
+| Riesgo Académico | mod-evaluacion | `siga_core` | `/api/v1/evaluacion` | post-MVP (mod-notificaciones) | `risk.alert` |
+| Postulante/Admisión | mod-admision (dominio externo) | `siga_core` | `/api/v1/admision` + ingesta Excel MINEDU | mod-gestion-academica | `admission.ingested` |
+| Log Auditoría | Core (mod-auditoria) | `siga_core` | `/api/v1/auditoria` | Core Admin | `audit.log.created` |
+
+> **Post-MVP:** reportes, indicadores de gestión (mod-gobierno), notificaciones (mod-notificaciones) y dominios de egresados/titulados quedan **fuera del alcance v1.1**; sus eventos y consumos se documentan como post-MVP.
 
 ---
 
@@ -915,10 +1029,10 @@ CREATE TABLE reportes (
 ### 7.1 Diagrama Textual de Alto Nivel
 
 ```
-Programa Estudio (mod-programas)
+Programa Estudio (mod-programas-estudio)
   │
   ├── Tiene muchos → Periodos Académicos
-  ├── Tiene muchos → Planes de Estudio (mod-planes)
+  ├── Tiene muchos → Planes de Estudio (mod-planes-estudio)
   │     │
   │     └── Tiene muchos → Módulos Formativos
   │           │
@@ -931,17 +1045,23 @@ Programa Estudio (mod-programas)
   │
   └── Configuración (1:1)
 
-Estudiante (mod-estudiantes)
+Estudiante (mod-gestion-academica)
   │
   ├── Tiene muchos → Historial Académico (1:N)
   ├── Tiene muchos → Documentos (1:N)
-  └── Tiene muchas → Matrículas (mod-matricula) (1:N)
+  ├── Tiene muchos → Beneficios (1:N)
+  ├── Tiene muchas → Solicitudes de Trámite (1:N)
+  └── Tiene muchas → Matrículas (mod-gestion-academica) (1:N)
         │
         └── Tiene muchos → Detalles de Matrícula (1:N)
               │
               └── Tiene una → Evaluación (mod-evaluacion) (1:1)
                     │
                     └── Tiene muchas → Notas Parciales (1:N)
+
+Postulante (mod-admision — dominio externo)
+  │
+  └── Al matricularse → pasa a Estudiante (mod-gestion-academica)
 
 Estudiante + Periodo → Promedios (mod-evaluacion)
 ```
@@ -1030,7 +1150,7 @@ mod-planes-estudio/
 **Opción C — Scripts SQL versionados:**
 
 ```bash
-mod-estudiantes/
+mod-gestion-academica/
 ├── migrations/
 │   ├── V001__initial_schema.sql
 │   ├── V002__add_documentos_table.sql
@@ -1117,6 +1237,8 @@ JSONB se utiliza para:
 
 ### 10.3 Política de Conexiones
 
+Volumen real esperado: **500–3000 estudiantes** activos y **11 programas oficiales** (catálogo `programa_id` 1..11). El dimensionamiento siguiente asume ese orden de magnitud.
+
 ```yaml
 Core:
   max_connections: 50
@@ -1138,6 +1260,9 @@ Total estimado: 50 + (11 módulos * 8) ≈ 138 conexiones pico
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
 | 1.0.0 | 2026-06-26 | Arquitectura SIGA | Versión inicial del modelo de datos global |
+| 1.1.0 | 2026-08-29 | Arquitectura SIGA | Alineación MVP v1.1: 7 módulos, BD pragmática siga_core, trámites, catálogo 11 |
+| 1.2.0 | 2026-08-29 | Mesa de trabajo (planificación) | Coexistencia de mallas (DOC-15 §4.3): `planes_estudio.estado` normalizado a `vigente / en_baja / reemplazado / borrador` (un solo `Vigente` por programa; el parser marca En Baja al ingestar un plan nuevo) y nueva columna `estudiantes.plan_anclado_id` — malla del estudiante fijada en la ingesta al Ciclo I, contra la cual se resuelve todo su recorrido académico |
+| 1.3.0 | 2026-08-29 | Mesa de trabajo (planificación) | Nota §5.1 ampliada (DOC-15 §2.4): la carrera es única y los planes son versiones (1:N); flujo controlado "Subir (borrador) → Publicar → `vigente` + el anterior `en_baja`" (nunca dos vigentes); regla de bloqueo para pasar a `reemplazado` = 0 alumnos anclados |
 
 ---
 

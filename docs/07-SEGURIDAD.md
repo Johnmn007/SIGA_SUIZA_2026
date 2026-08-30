@@ -1,6 +1,8 @@
 # Arquitectura de Seguridad
 
-> **Versión:** 1.0 | **Última actualización:** Junio 2026 | **Estándar:** SIGA-SEC-1.0
+> **Versión:** 1.1 | **Última actualización:** 2026-08-29 | **Estándar:** SIGA-SEC-1.1
+>
+> **Nota de consolidación (v1.1):** este documento absorbe el contenido de `05-SEGURIDAD-ROLES.md` y `13-ARQUITECTURA_ROLES.md` como Anexos A y B (secciones 16 y 17), resolviendo la duplicación de roles detectada en el índice (DOC-00). La armonización fina de los anexos con el RBAC de la sección 3 y con los ADR de `01-VISION-ARQUITECTONICA.md` (ADR-002: HS256 en MVP, RS256 + refresh post-MVP) se realiza en la revisión por preguntas de este documento.
 
 ---
 
@@ -61,16 +63,16 @@
 
 ```json
 {
-    "sub": "module::mod-matricula",
+    "sub": "module::mod-gestion-academica",
     "scopes": [
-        "matricula:read",
-        "matricula:write",
+        "academica:read",
+        "academica:write",
         "core:health",
         "core:events"
     ],
     "type": "module_access",
-    "module_name": "mod-matricula",
-    "module_version": "1.2.0",
+    "module_name": "mod-gestion-academica",
+    "module_version": "2.0.0",
     "exp": 1700000000,
     "iat": 1699910000
 }
@@ -246,10 +248,10 @@ Permisos: "{modulo}:{accion}"
 | Rol | Permisos | Módulos Accesibles |
 |-----|----------|-------------------|
 | **admin** | `*:*` (todos) | Todos (total) |
-| **director** | `mod-*:read`, `mod-reportes:*`, `core:dashboard` | Todos (lectura), Reportes (total) |
-| **secretario** | `mod-estudiantes:write`, `mod-matricula:write`, `mod-*:read` | Estudiantes, Matrícula, resto (lectura) |
-| **docente** | `mod-planes:read`, `mod-evaluacion:write`, `mod-estudiantes:read` | Planes (lectura), Evaluación (escritura), Estudiantes (lectura) |
-| **alumno** | `mod-planes:read`, `mod-matricula:self`, `mod-evaluacion:self` | Planes (lectura), Matrícula (propia), Evaluación (propia) |
+| **director** | `mod-*:read`, `core:dashboard` | Todos (lectura); `mod-reportes:*` (post-MVP) |
+| **secretario** | `mod-gestion-academica:write`, `mod-*:read` | Gestión académica (escritura), resto (lectura) |
+| **docente** | `mod-planes-estudio:read`, `mod-evaluacion:write`, `mod-gestion-academica:read` | Planes (lectura), Evaluación (escritura), Estudiantes (lectura) |
+| **alumno** | `mod-planes-estudio:read`, `mod-gestion-academica:self`, `mod-evaluacion:self` | Planes (lectura), Matrícula/trámites (propios), Evaluación (propia) |
 | **sistemas** | `core:*`, `mod-*:read`, `mod-*:admin` | Todos (configuración técnica) |
 | **invitado** | `core:access` | Solo dashboard público |
 
@@ -260,15 +262,15 @@ Cada módulo define sus permisos en el manifiesto. A continuación, la matriz co
 | Módulo | Permisos | Descripción |
 |--------|----------|-------------|
 | `mod-planes-estudio` | `read`, `write`, `admin` | CRUD + aprobación de planes |
-| `mod-programas-estudio` | `read`, `write`, `admin` | Gestión de programas |
-| `mod-estudiantes` | `read`, `write`, `admin`, `import` | Maestro de estudiantes |
-| `mod-matricula` | `process`, `read`, `write`, `admin`, `cancel` | Proceso de matrícula |
-| `mod-evaluacion` | `read`, `write`, `admin`, `publish` | Registro de notas |
-| `mod-convalidaciones` | `read`, `write`, `admin`, `approve` | Convalidaciones |
-| `mod-traslados` | `read`, `write`, `admin` | Traslados internos/externos |
-| `mod-reingresos` | `read`, `write`, `admin` | Reingresos |
-| `mod-reportes` | `read`, `generate`, `admin`, `export` | Reportes MINEDU |
+| `mod-programas-estudio` | `read`, `write`, `admin` | Gestión de programas (catálogo 11) |
+| `mod-gestion-academica` | `read`, `write`, `admin`, `import`, `process`, `cancel`, `self` | Estudiantes + matrícula + trámites (convalidaciones dentro del módulo en MVP) |
+| `mod-evaluacion` | `read`, `write`, `admin`, `publish` | Registro de notas, cierre de actas |
+| `mod-usuarios` | `read`, `write`, `admin` | Identidad operativa: usuarios, roles, personal |
+| `mod-auditoria` | `read`, `admin` | Auditoría y trazabilidad |
+| `mod-admision` | `read`, `write`, `admin`, `ingest` | Postulantes, ingesta de admitidos (dominio externo) |
 | `core` | `access`, `module:manage`, `user:manage`, `config:manage` | Core del sistema |
+
+> **Post-MVP:** `mod-convalidaciones` (hoy dentro de mod-gestion-academica), `mod-traslados`, `mod-reingresos` y `mod-reportes` (MINEDU) definen sus permisos al construirse; quedan fuera del MVP.
 
 ### 3.4 Verificación de Permisos
 
@@ -1263,10 +1265,145 @@ Capa 6 - Monitoring & Response
 
 ---
 
-## 16. Historial de Cambios
+## 16. Anexo A — Matriz de Roles Organizacionales (IESTP)
+
+> **Fuente original:** `05-SEGURIDAD-ROLES.md` v1.0 (2026-06-27). Fusionado aquí en la consolidación del índice (2026-08-29). El anexo conserva el mapeo funcional de roles del IESTP. Su armonización con el RBAC de la sección 3 y con los ADR de `01-VISION-ARQUITECTONICA.md` se resuelve en la revisión por preguntas de este documento.
+
+### 16.1 Modelo de Identidad Centralizada (Core Identity)
+
+La autenticación y autorización son gobernadas exclusivamente por el componente `siga-core` (Gateway). Los microservicios no manejan contraseñas ni bases de datos de usuarios; confían ciegamente en el JWT emitido por el Core.
+
+> **Nota de alineación (v1.1):** el anexo original declaraba firma asimétrica (RS256). Según ADR-002 de `01-VISION-ARQUITECTONICA.md`, el MVP usa **HS256 simétrico**; RS256 + refresh token quedan agendados post-MVP.
+
+#### 16.1.1 Estructura del JWT (Payload)
+
+El token propaga la identidad y los permisos a todos los módulos:
+
+```json
+{
+  "sub": "user_1205",
+  "dni": "70123456",
+  "role": "coordinador_programa",
+  "scopes": ["programa:read", "programa_id:3", "notas:read"],
+  "exp": 1690000000
+}
+```
+
+El scope `programa_id:3` permite un "Tenant Isolation" lógico, limitando al usuario a operar solo sobre la carrera que tiene asignada.
+
+### 16.2 Matriz de Roles Estándar (IESTP)
+
+#### Nivel Directivo y Estratégico
+
+| Rol | Identificador | Alcance | Capacidades Principales |
+|---|---|---|---|
+| **Director General** | `director` | Global (Solo Lectura) | Visualiza dashboards gerenciales (deserción, vacantes, finanzas). Aprueba Nóminas y Actas finales para envío al MINEDU. |
+| **Coordinador de Programa** | `coordinador_programa` | Local (Por Programa/Carrera) | Asigna carga lectiva, aprueba convalidaciones de su carrera, supervisa notas de sus docentes. |
+
+#### Nivel Administrativo y Operativo
+
+| Rol | Identificador | Alcance | Capacidades Principales |
+|---|---|---|---|
+| **Secretaría Académica** | `secretaria_academica` | Global (Lectura/Escritura) | Gestiona matrículas, anulaciones, traslados, licencias, y emite Certificados Oficiales. |
+| **Responsable Admisión** | `admin_admision` | Módulo Admisión | Configura vacantes, gestiona postulantes y ejecuta la "Ingesta Masiva" de admitidos al sistema. |
+| **Tesorería** | `tesoreria` | Módulo Financiero | Gestiona pagos, conceptos, deudas y levanta alertas de morosidad. |
+| **Bienestar Estudiantil** | `bienestar` | Módulo Bienestar | Seguimiento psicológico, becas y alertas tempranas por bajo rendimiento o inasistencia. |
+
+#### Nivel Académico
+
+| Rol | Identificador | Alcance | Capacidades Principales |
+|---|---|---|---|
+| **Docente** | `docente` | Local (Por Unidad Didáctica) | Registro de asistencia, ingreso de notas (respetando cronogramas), y carga de sílabos. |
+
+#### Nivel Usuario Final
+
+| Rol | Identificador | Alcance | Capacidades Principales |
+|---|---|---|---|
+| **Estudiante** | `estudiante` | Local (Datos propios) | Matrícula online, visualización de Boletín de notas, horarios, y trámites virtuales. |
+| **Egresado** | `egresado` | Local (Histórico) | Visualización de récord académico histórico, solicitud de titulación y bolsa de trabajo. |
+
+#### Nivel Técnico
+
+| Rol | Identificador | Alcance | Capacidades Principales |
+|---|---|---|---|
+| **Administrador TI** | `superadmin` | Global (Infraestructura) | Creación de roles, gestión de periodos académicos base, monitoreo técnico y auditoría. No opera procesos académicos. |
+
+### 16.3 Middleware de Seguridad (Gateway)
+
+El Core inyecta un middleware en todas las rutas `/api/*` que:
+
+1. Verifica la existencia del Header `Authorization`.
+2. Valida la firma del JWT usando la llave pública.
+3. Extrae el `role` y `scopes` y los cruza con los requisitos declarados por el módulo destino en su `manifest.yaml`.
+4. Si la validación falla, retorna HTTP 403 (Forbidden) sin tocar el microservicio.
+
+> **Nota de alineación (v1.1):** el flujo de middleware vigente está detallado en la sección 4 (SecurityMiddleware). Además, el versionado de rutas pasa a `/api/v1/...` según la decisión de `01-VISION-ARQUITECTONICA.md` (ADR v1.1).
+
+---
+
+## 17. Anexo B — Arquitectura Organizacional y Macro-Procesos (IEST)
+
+> **Fuente original:** `13-ARQUITECTURA_ROLES.md`. Fusionado aquí en la consolidación del índice (2026-08-29). Mapa de roles y flujos basado en las normativas de certificación modular del modelo peruano (Ley N° 30512, sistema REGISTRA). Es la referencia funcional de negocio para los módulos del MVP.
+
+### 17.1 Matriz de Roles y Alcance (RBAC funcional)
+
+Cada actor opera bajo un **Alcance (Scope)**: nadie ve información que no necesita.
+
+| Rol en el Sistema | Área Real | Nivel de Alcance | Responsabilidades Principales |
+| :--- | :--- | :--- | :--- |
+| **`admin_admision`** | Comisión de Admisión | Institucional (Global) | Gestionar postulantes, exámenes y aprobar el "Padrón de Ingresantes". |
+| **`tesoreria`** | Caja / Finanzas | Institucional (Global) | Registrar pagos (matrículas, certificados). Habilitar bloqueos financieros. |
+| **`direccion_academica`** | Dirección / RR.HH. | Institucional (Global) | Aperturar el periodo académico, contratar docentes y distribuirlos a los programas. |
+| **`jefe_programa`** | Coord. Programa de Estudio | **Limitado a su Carrera** | Diseñar horarios, asignar "Carga Lectiva" (UDs) a docentes, supervisar notas y EFSRT. |
+| **`secretaria_programa`** | Sec. de Programa de Estudio | **Limitado a su Carrera** | Ejecutar la matrícula operativa de sus alumnos, orientar al estudiante, armar expedientes. |
+| **`secretaria_central`** | Secretaría Académica | Institucional (Global) | Custodiar el historial, emitir Nóminas Oficiales, Actas Finales y Certificados Modulares. |
+| **`docente`** | Plana Docente | Limitado a sus Clases | Registrar asistencia y notas, cerrar sus actas. |
+| **`estudiante`** | Alumnado | Limitado a su Perfil | Consultar horarios, boletas de notas, solicitar trámites. |
+
+### 17.2 Los 5 Macro-Procesos del Ecosistema
+
+Para conectar a estos actores, el sistema automatiza el paso de información entre ellos a través de 5 macro-procesos:
+
+**Macro-Proceso 1: Captación y Onboarding**
+1. **Admisión** cierra el examen y el sistema transfiere a los ganadores a la base central como `Ingresantes`.
+2. **Secretaría Central** valida que el ingresante haya entregado sus requisitos físicos (Certificado de secundaria, DNI, fotos). Si falta algún documento, **el sistema NO bloquea la matrícula inmediatamente**, sino que emite una **Alerta (con periodo de gracia)**.
+3. *Flexibilidad:* el periodo de gracia por defecto será de 2 meses (editable por el administrador). El alumno puede matricularse condicionalmente. Si expira el tiempo sin subsanar, el sistema bloquea futuras acciones o congela la matrícula.
+
+**Macro-Proceso 2: Planificación (Setup del Semestre)**
+1. **Dirección Académica** crea el "Periodo 2026-I" y da de alta a los docentes contratados, asignándolos a las distintas carreras.
+2. **Jefatura de Programa** ve los docentes asignados y arma *Horarios y Carga Lectiva*.
+3. *Validación:* el sistema evita **cruces de horario** (un docente en dos aulas a la vez) y evita exceder las horas límite de contratación.
+
+**Macro-Proceso 3: Matrícula y Recaudación (El Trípode Financiero-Académico)**
+1. **Tesorería:** el alumno paga; el cajero registra el recibo y el sistema cambia el flag a `Habilitado_Financiero = True`.
+2. **Secretaría de Programa:** ve la luz verde financiera, recibe al alumno y registra las Unidades Didácticas.
+3. **Fases de Matrícula y Cierre Oficial:**
+   - **Matrícula Regular:** durante el periodo oficial.
+   - **Matrícula Extemporánea:** a las 3 semanas de iniciado el cierre de la regular. El administrador configura la fecha límite.
+   - **Bloqueo Definitivo:** pasada la fecha límite, el sistema bloquea nuevas matrículas y **Secretaría Central** genera automáticamente la **Nómina Oficial de Matriculados**.
+4. *Flexibilidad:* el coordinador del programa se quita el peso de cobrar; Secretaría Académica controla las fechas de gracia extemporánea.
+
+**Macro-Proceso 4: Ejecución y Evaluación**
+1. **Docente:** ingresa las notas según el sílabo; al finalizar hace clic en "Cerrar Acta".
+2. **Jefatura de Programa:** tiene un dashboard tipo semáforo que muestra docentes atrasados en subir notas.
+3. *Control:* una vez que el docente cierra el acta, el sistema se bloquea para él. Si hubo un error, debe solicitar un trámite formal a Secretaría Central para la "Rectificación de Nota", dejando rastro de auditoría.
+
+**Macro-Proceso 5: Salida, Certificación y EFSRT**
+1. **Jefatura de Programa:** registra y aprueba las horas de Experiencias Formativas (EFSRT) a lo largo de los ciclos.
+2. **Secretaría Central:** cuando el estudiante completa un año (Ej. Ciclo I y II) más sus EFSRT, genera la "Certificación Modular" (requisito del modelo peruano). Se cobra a través de Tesorería.
+
+### 17.3 Sugerencias Clave de Arquitectura de Base de Datos
+
+- **Aislamiento por Scope:** en la tabla `usuarios_programas` se vinculan los IDs de Coordinadores y Secretarias de Programa con el ID de su carrera. El Gateway inyecta este `programa_id` en las consultas, haciendo imposible que la secretaria de Mecánica altere datos de Enfermería.
+- **Trazabilidad (Audit Logs):** cada cambio de nota, matrícula o aprobación de trámite guarda "quién", "cuándo" y "qué" cambió (tabla `core_audit_logs`), protegiendo a la institución ante auditorías.
+
+---
+
+## 18. Historial de Cambios
 
 | Fecha | Versión | Autor | Cambios |
 |-------|---------|-------|---------|
 | 2026-06-26 | 1.0 | Arquitecto SIGA | Versión inicial del documento de seguridad |
+| 2026-08-29 | 1.1 | Mesa de trabajo (planificación) | Consolidación del índice (DOC-00): absorción de `05-SEGURIDAD-ROLES.md` y `13-ARQUITECTURA_ROLES.md` como Anexos A y B; adición de notas de alineación (ADR HS256/RS256, rutas `/api/v1`) |
 
 ---
