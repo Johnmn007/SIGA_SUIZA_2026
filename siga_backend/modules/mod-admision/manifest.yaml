@@ -7,6 +7,7 @@ api_version: "v1"
 name: "mod-admision"
 description: "Modulo Piloto de Admision. Expone JSON de estudiantes admitidos para ingesta."
 version: "1.0.0"
+author: "SIGA Team"
 
 endpoints:
   http: "http://mod-admision:8009"
@@ -22,7 +23,3 @@ permissions:
 events:
   publishes: []
   subscribes: []
-
-tags:
-  - "admision"
-  - "piloto"

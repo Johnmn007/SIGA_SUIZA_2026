@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { Plus, Pencil, X, UserCog } from 'lucide-react';
 
 export function StaffManagement() {
   const [staffList, setStaffList] = useState([]);
@@ -121,23 +122,21 @@ export function StaffManagement() {
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h4 className="text-xl font-bold text-slate-800">Plana Docente y Administrativa</h4>
+          <h4 className="text-xl font-bold text-slate-text">Plana Docente y Administrativa</h4>
           <p className="text-slate-500 text-sm">Gestión de RRHH, Contratos y Designaciones</p>
         </div>
         <button 
-          className="btn-primary flex items-center space-x-2 shadow-glow"
+          className="btn-primary flex items-center space-x-2"
           onClick={() => { setShowModal(true); setEditingId(null); setFormData({ email: '', full_name: '', password: '', condicion_laboral: 'NOMBRADO_ESTADO', numero_resolucion: '', fecha_fin_contrato: '', cargo_funcional: 'DOCENTE_AULA', profesion_titulo: '', programa_estudio_id: '' }); }}
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <Plus className="w-5 h-5" />
           <span>Registrar Personal</span>
         </button>
       </div>
 
       <div className="glass-card overflow-hidden border border-slate-200">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="data-table w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider">
                 <th className="px-6 py-4 font-semibold">Personal</th>
@@ -165,14 +164,14 @@ export function StaffManagement() {
                 </tr>
               ) : (
                 staffList.map((item, index) => (
-                  <tr key={index} className="hover:bg-slate-50 transition-colors">
+                  <tr key={index} className="hover:bg-primary-soft/40 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white font-bold mr-3 shadow-md">
                           {item.usuario.full_name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div className="font-bold text-slate-800">{item.usuario.full_name}</div>
+                          <div className="font-bold text-slate-text">{item.usuario.full_name}</div>
                           <div className="text-xs text-slate-500">{item.usuario.email}</div>
                           {item.perfil.profesion_titulo && (
                             <div className="text-[10px] text-primary font-medium">{item.perfil.profesion_titulo}</div>
@@ -181,23 +180,19 @@ export function StaffManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-primary-soft text-primary border border-primary/20">
                         {item.perfil.cargo_funcional.replace('_', ' ')}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        item.perfil.condicion_laboral === 'NOMBRADO_ESTADO' 
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                          : 'bg-amber-100 text-amber-800 border border-amber-200'
-                      }`}>
+                      <span className={`badge ${item.perfil.condicion_laboral === 'NOMBRADO_ESTADO' ? 'badge-green' : 'badge-amber'}`}>
                         {item.perfil.condicion_laboral.replace('_', ' ')}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       {item.perfil.numero_resolucion ? (
                         <div>
-                          <div className="text-sm font-semibold text-slate-700">{item.perfil.numero_resolucion}</div>
+                          <div className="text-sm font-semibold text-slate-text">{item.perfil.numero_resolucion}</div>
                           {item.perfil.fecha_fin_contrato && (
                             <div className="text-xs text-slate-500">
                               Vence: {new Date(item.perfil.fecha_fin_contrato).toLocaleDateString()}
@@ -209,10 +204,8 @@ export function StaffManagement() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button onClick={() => openEditModal(item)} className="text-slate-400 hover:text-primary transition-colors p-2" title="Editar">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
+                      <button onClick={() => openEditModal(item)} className="text-slate-400 hover:text-primary transition-colors p-2 hover:bg-primary-soft rounded-lg" title="Editar">
+                        <Pencil className="w-5 h-5" />
                       </button>
                     </td>
                   </tr>
@@ -227,15 +220,16 @@ export function StaffManagement() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center sticky top-0 z-10">
-              <h3 className="text-lg font-bold text-slate-800">{editingId ? "Editar Personal (RRHH)" : "Registrar Personal (RRHH)"}</h3>
+            <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-primary to-primary-dark flex justify-between items-center sticky top-0 z-10">
+              <h3 className="text-lg font-bold text-white flex items-center">
+                <UserCog className="w-5 h-5 mr-2" />
+                {editingId ? "Editar Personal (RRHH)" : "Registrar Personal (RRHH)"}
+              </h3>
               <button 
-                className="text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-white/80 hover:text-white transition-colors"
                 onClick={() => { setShowModal(false); setEditingId(null); }}
               >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="w-6 h-6" />
               </button>
             </div>
             
@@ -257,7 +251,7 @@ export function StaffManagement() {
                         value={formData.full_name}
                         onChange={handleInputChange}
                         required
-                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                        className="w-full px-4 py-2 input-field px-4 py-2"
                       />
                     </div>
                     <div>
@@ -267,7 +261,7 @@ export function StaffManagement() {
                         name="profesion_titulo"
                         value={formData.profesion_titulo}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                        className="w-full px-4 py-2 input-field px-4 py-2"
                         placeholder="Ej. Ing. de Sistemas"
                       />
                     </div>
@@ -279,7 +273,7 @@ export function StaffManagement() {
                         value={formData.email}
                         onChange={handleInputChange}
                         required
-                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                        className="w-full px-4 py-2 input-field px-4 py-2"
                       />
                     </div>
                     <div>
@@ -290,7 +284,7 @@ export function StaffManagement() {
                         value={formData.password}
                         onChange={handleInputChange}
                         required={!editingId}
-                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                        className="w-full px-4 py-2 input-field px-4 py-2"
                       />
                     </div>
                   </div>
@@ -309,7 +303,7 @@ export function StaffManagement() {
                         name="cargo_funcional"
                         value={formData.cargo_funcional}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-semibold"
+                        className="w-full px-4 py-2 input-field px-4 py-2 font-semibold"
                       >
                         <option value="DOCENTE_AULA">Docente de Aula</option>
                         <option value="ASISTENTE_LABORATORIO">Asistente de Laboratorio</option>
@@ -326,14 +320,14 @@ export function StaffManagement() {
                           value={formData.programa_estudio_id}
                           onChange={handleInputChange}
                           required={requiresProgram}
-                          className="w-full px-4 py-2 bg-slate-50 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-semibold text-amber-900"
+                          className="input-field w-full px-4 py-2 font-semibold"
                         >
                           <option value="">-- Seleccionar Carrera --</option>
                           {programs.map(p => (
                             <option key={p.id} value={p.id}>{p.nombre}</option>
                           ))}
                         </select>
-                        <p className="text-[10px] text-amber-600 mt-1 font-medium">Requerido para aislar la data administrativa</p>
+                        <p className="text-[10px] text-primary mt-1 font-medium">Requerido para aislar la data administrativa</p>
                       </div>
                     )}
                   </div>
@@ -396,7 +390,7 @@ export function StaffManagement() {
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3 sticky bottom-0 z-10">
               <button 
                 type="button" 
-                className="px-5 py-2 font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                className="btn-ghost"
                 onClick={() => { setShowModal(false); setEditingId(null); }}
                 disabled={isSubmitting}
               >

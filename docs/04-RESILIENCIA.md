@@ -2,7 +2,10 @@
 
 | Versión | Fecha       | Autor               | Descripción                                      |
 |---------|-------------|----------------------|--------------------------------------------------|
+| 1.1     | 2026-08-29  | Mesa de trabajo (planificación) | Alineación MVP v1.1: matriz de resiliencia canónica, timeouts unificados, observabilidad post-pulido, módulos reales |
 | 1.0     | 2026-06-26  | Equipo Arquitectura  | Versión inicial del sistema de resiliencia       |
+
+> **Última actualización: 2026-08-29** · Documento alineado a las decisiones MVP v1.1 de 01-VISION-ARQUITECTONICA.md.
 
 ---
 
@@ -29,8 +32,8 @@ El sistema SIGA está diseñado para tolerar fallos de módulos individuales sin
 
 | Nivel | Icono | Comportamiento | Experiencia del Usuario | Ejemplo |
 |-------|-------|---------------|------------------------|---------|
-| ✅ **Normal** | 🟢 | Todos los módulos HEALTHY. Cache como acelerador. | Toda la funcionalidad disponible. Tiempos de respuesta normales. | Matrícula, consulta de notas, registro de estudiantes. |
-| ⚠️ **Degradado** | 🟡 | 1-2 módulos en DEGRADED o UNHEALTHY. Fallback activo. | Funcionalidad limitada. Algunas secciones muestran datos cacheados o mensajes "Servicio temporalmente no disponible". | Módulo de estudiantes caído → datos de estudiantes se muestran desde cache (pueden no estar actualizados). |
+| ✅ **Normal** | 🟢 | Todos los módulos HEALTHY. Cache como acelerador. | Toda la funcionalidad disponible. Tiempos de respuesta normales. | Registro de estudiantes y matrícula (mod-gestion-academica), consulta de notas (mod-evaluacion). |
+| ⚠️ **Degradado** | 🟡 | 1-2 módulos en DEGRADED o UNHEALTHY. Fallback activo. | Funcionalidad limitada. Algunas secciones muestran datos cacheados o mensajes "Servicio temporalmente no disponible". | mod-gestion-academica caído → datos académicos se muestran desde cache (pueden no estar actualizados). |
 | 🔶 **Crítico** | 🟠 | Múltiples módulos UNHEALTHY o módulos críticos caídos (auth, registry). | Avisos visibles de servicio no disponible. Operaciones críticas pueden fallar. | Core auth caído → nadie puede loguearse. |
 | ❌ **Caída Total** | 🔴 | Core caído o fallo catastrófico. | Página de mantenimiento. Sin acceso al sistema. | Falla de hardware, corte de energía, error de configuración crítico. |
 
@@ -120,7 +123,7 @@ El sistema SIGA está diseñado para tolerar fallos de módulos individuales sin
 │  │  │ Tipo │ Timeout       │ Reintentos       │ Backoff                 │   │ │
 │  │  ├──────┼──────────────┼─────────────────┼─────────────────────────┤   │ │
 │  │  │ HTTP │ 30s          │ 0 (CB maneja)    │ N/A                     │   │ │
-│  │  │ HC   │ 10s          │ 0                │ N/A                     │   │ │
+│  │  │ HC   │ 5s           │ 0                │ N/A                     │   │ │
 │  │  │ NATS │ 5s           │ 1                │ 1s                      │   │ │
 │  │  │ DB   │ 30s          │ 0 (pool maneja)  │ N/A                     │   │ │
 │  │  └──────┴──────────────┴─────────────────┴─────────────────────────┘   │ │
@@ -157,11 +160,12 @@ El sistema SIGA está diseñado para tolerar fallos de módulos individuales sin
 |-----------|--------|
 | Módulo responde healthy | Proxy normal, cache de respuesta |
 | Módulo responde lento (>5s) | Timeout, marcar degradado, usar cache si existe |
-| Módulo no responde (timeout 30s) | Circuit Breaker cuenta fallo, activar fallback |
-| 3 fallos consecutivos | Marcar módulo DEGRADED |
-| 5 fallos consecutivos | Circuit Breaker OPEN, bloquea tráfico |
-| Circuit Breaker OPEN por 60s | Transición a HALF_OPEN, probar 1 request |
-| Request en HALF_OPEN exitoso | Circuit Breaker CLOSED, módulo HEALTHY |
+| Módulo no responde (timeout de health check 5s) | Circuit Breaker cuenta fallo, activar fallback |
+| 1-2 fallos consecutivos | Marcar módulo DEGRADED |
+| 3-4 fallos consecutivos | Marcar módulo UNHEALTHY |
+| 5+ fallos consecutivos | Circuit Breaker OPEN, bloquea tráfico |
+| Circuit Breaker OPEN tras 60s (recovery_timeout) | Transición a HALF_OPEN, probar 1 request |
+| Request en HALF_OPEN exitoso | Circuit Breaker CLOSED (tras 3 éxitos), módulo HEALTHY |
 | Request en HALF_OPEN falla | Circuit Breaker OPEN nuevamente |
 | Cache hit en Redis | Retornar datos cacheados inmediatamente |
 | Cache miss en Redis | Intentar datos estáticos |
@@ -231,7 +235,7 @@ El Circuit Breaker es el patrón principal de resiliencia. Monitorea las llamada
         ───────────────────────────────────────────────────────────────    │
                                                                            │
         NOTA: Cada módulo tiene su propio Circuit Breaker independiente.   │
-        Un CB abierto para mod-estudiantes NO afecta a mod-matricula.     │
+        Un CB abierto para mod-gestion-academica NO afecta a mod-evaluacion. │
         └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -505,6 +509,7 @@ class ModuleHealth:
     last_check: Optional[datetime] = None
     response_time: float = 0.0
     error_count: int = 0
+    success_count: int = 0
     last_error: Optional[str] = None
     degraded_since: Optional[datetime] = None
     history: list = field(default_factory=list)  # Últimos 100 registros
@@ -520,7 +525,7 @@ class HealthMonitor:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._interval = settings.HEALTH_CHECK_INTERVAL  # 30s
-        self._timeout = settings.HEALTH_CHECK_TIMEOUT     # 10s
+        self._timeout = settings.HEALTH_CHECK_TIMEOUT     # 5s
         self._health_records: Dict[str, ModuleHealth] = {}
 
     async def start_monitoring(self):
@@ -613,12 +618,23 @@ class HealthMonitor:
         health.response_time = response_time
 
         if success:
-            health.status = "healthy"
             health.error_count = 0
-            health.degraded_since = None
+            # Sigue el estándar canónico: recuperación solo tras 3 health checks
+            # exitosos consecutivos desde que el módulo salió de healthy.
+            if health.status in ("degraded", "unhealthy"):
+                health.success_count += 1
+                if health.success_count >= 3:
+                    health.status = "healthy"
+                    health.degraded_since = None
+                    health.success_count = 0
+            else:
+                health.status = "healthy"
         else:
             health.error_count += 1
+            health.success_count = 0
             health.last_error = error_msg
+            # Umbrales canónicos: 1-2 fallos → DEGRADED, ≥3 → UNHEALTHY,
+            # ≥5 → Circuit Breaker OPEN (gestionado por ModuleRuntime).
             if health.error_count >= 3:
                 health.status = "unhealthy"
             else:
@@ -673,7 +689,7 @@ health_monitor = HealthMonitor()
 ```python
 # Estructura de ModuleHealthRecord (serializada)
 {
-    "module_name": "mod-estudiantes",
+    "module_name": "mod-gestion-academica",
     "status": "healthy",
     "last_check": "2026-06-26T12:00:00Z",
     "response_time": 0.045,  # 45ms
@@ -872,11 +888,11 @@ fallback_manager = FallbackManager()
 
 ### 6.4 Datos Estáticos de Fallback
 
-Ejemplo de archivo de fallback para `mod-estudiantes`:
+Ejemplo de archivo de fallback para `mod-gestion-academica`:
 
 ```yaml
-# fallbacks/mod-estudiantes.yaml
-# Datos estáticos de respaldo cuando mod-estudiantes no está disponible.
+# fallbacks/mod-gestion-academica.yaml
+# Datos estáticos de respaldo cuando mod-gestion-academica no está disponible.
 # Estos datos se muestran como fallback de último recurso.
 
 estudiantes: []
@@ -894,7 +910,7 @@ documentos_tipos:
   - CE
   - PASAPORTE
 
-mensaje: "Los datos de estudiantes no están disponibles actualmente."
+mensaje: "Los datos académicos no están disponibles actualmente."
 ```
 
 ### 6.5 Cabeceras de Respuesta en Fallback
@@ -910,11 +926,14 @@ Cuando se activa un fallback, el Core incluye cabeceras HTTP específicas para q
 El Frontend debe leer estas cabeceras y mostrar un indicador al usuario:
 
 ```javascript
-// Frontend: detectar respuesta degradada
-const response = await axios.get('/api/mod-estudiantes/v1/estudiantes');
-if (response.headers['x-siga-degraded'] === 'true') {
+// Frontend: detectar respuesta degradada (Fetch API nativa)
+const response = await fetch('/api/v1/gestion-academica/estudiantes', {
+    headers: { 'X-Request-Id': crypto.randomUUID() }
+});
+const data = await response.json();
+if (response.headers.get('x-siga-degraded') === 'true') {
     showDegradedWarning(
-        `Datos mostrados desde ${response.headers['x-siga-fallback']}. ` +
+        `Datos mostrados desde ${response.headers.get('x-siga-fallback')}. ` +
         `Pueden no estar actualizados.`
     );
 }
@@ -1015,7 +1034,7 @@ class CacheManager:
             key: Clave única
             value: Valor a cachear (debe ser serializable a JSON)
             ttl: Tiempo de vida en segundos (default: CACHE_DEFAULT_TTL)
-            tags: Tags para invalidación por grupo (ej: ["mod-estudiantes"])
+            tags: Tags para invalidación por grupo (ej: ["mod-gestion-academica"])
         """
         ttl = ttl or self._default_ttl
 
@@ -1051,7 +1070,7 @@ class CacheManager:
     async def delete_pattern(self, pattern: str):
         """
         Elimina claves que coinciden con un patrón.
-        Ejemplo: delete_pattern("mod-estudiantes:*")
+        Ejemplo: delete_pattern("mod-gestion-academica:*")
         """
         if self._redis:
             try:
@@ -1166,7 +1185,7 @@ async def handle_module_event(msg):
     subject = msg.subject
     
     # Extraer nombre del módulo del subject
-    # Ej: "estudiante.creado" → "mod-estudiantes"
+    # Ej: "estudiante.creado" → "mod-gestion-academica"
     module_name = f"mod-{subject.split('.')[0]}"
     
     # Invalidar cache del módulo
@@ -1195,9 +1214,9 @@ El Cache Manager expone las siguientes métricas para Prometheus:
 
 | Operación | Timeout | Configurable | Acción al expirar |
 |-----------|---------|-------------|-------------------|
-| **Health Check** | 10s | `HEALTH_CHECK_TIMEOUT` | Marcar módulo como UNHEALTHY |
+| **Health Check** | 5s | `HEALTH_CHECK_TIMEOUT` | Marcar módulo como UNHEALTHY |
 | **HTTP Proxy** (request a módulo) | 30s | `HTTP_PROXY_TIMEOUT` | Activar fallback (Circuit Breaker cuenta fallo) |
-| **NATS Publish** | 2s | Hardcodeado | Reintentar 1 vez, luego loguear |
+| **NATS Publish** | 5s | Hardcodeado | Reintentar 1 vez, luego loguear |
 | **NATS Request** (request-reply) | 5s | Hardcodeado | Reintentar 1 vez con backoff 1s |
 | **DB Query** (Core) | 30s | Hardcodeado en engine | Retornar error 500 |
 | **Redis Operación** | 2s | Hardcodeado en cliente | Fallback a caché en memoria |
@@ -1447,22 +1466,25 @@ if __name__ == "__main__":
 
 ## 11. Monitoreo de Resiliencia
 
+> **Observabilidad MVP (POST-PULIDO):** El contenido de esta sección (Prometheus, Grafana, `/metrics`) es **post-pulido** y se documenta como referencia futura.
+> Para el **MVP v1.1** la observabilidad se limita a: **logs + cabecera `X-Request-ID` + endpoint `/health` + endpoint `/core/status`**. La instrumentación con Prometheus/Grafana/OpenTelemetry y el endpoint `/metrics` **NO forman parte del MVP**.
+
 ### 11.1 Métricas a Exponer
 
-El Core expone las siguientes métricas para Prometheus en `/metrics`:
+*(Post-pulido)* El Core expondrá las siguientes métricas para Prometheus en `/metrics`:
 
 ```python
 # Métricas de Circuit Breaker
-circuit_breaker_state{module="mod-estudiantes"}  # 0=CLOSED, 1=OPEN, 2=HALF_OPEN
-circuit_breaker_failures_total{module="mod-estudiantes"}
-circuit_breaker_rejections_total{module="mod-estudiantes"}
+circuit_breaker_state{module="mod-gestion-academica"}  # 0=CLOSED, 1=OPEN, 2=HALF_OPEN
+circuit_breaker_failures_total{module="mod-gestion-academica"}
+circuit_breaker_rejections_total{module="mod-gestion-academica"}
 
 # Métricas de Health
-health_status{module="mod-estudiantes"}  # 0=unhealthy, 1=degraded, 2=healthy
-health_check_duration_seconds{module="mod-estudiantes"}
+health_status{module="mod-gestion-academica"}  # 0=unhealthy, 1=degraded, 2=healthy
+health_check_duration_seconds{module="mod-gestion-academica"}
 
 # Métricas de Fallback
-fallback_activations_total{module="mod-estudiantes", strategy="cache|static|degraded"}
+fallback_activations_total{module="mod-gestion-academica", strategy="cache|static|degraded"}
 
 # Métricas de Cache
 cache_hits_total
@@ -1471,8 +1493,8 @@ cache_hit_ratio
 cache_operations_total{type="get|set|delete"}
 
 # Métricas de Request
-request_duration_seconds{module="mod-estudiantes", method="GET", status="200"}
-request_total{module="mod-estudiantes", method="GET", status="200"}
+request_duration_seconds{module="mod-gestion-academica", method="GET", status="200"}
+request_total{module="mod-gestion-academica", method="GET", status="200"}
 
 # Métricas del Sistema
 modules_total
@@ -1491,11 +1513,11 @@ modules_offline
 │                                                                                  │
 │  ┌──────────────────────────┐  ┌──────────────────────────┐                      │
 │  │    ESTADO GENERAL         │  │    MÓDULOS ACTIVOS        │                     │
-│  │  🟢 Healthy: 4           │  │  mod-estudiantes   🟢    │                     │
-│  │  🟡 Degraded: 0          │  │  mod-matricula     🟢    │                     │
-│  │  🔴 Unhealthy: 1         │  │  mod-planes        🟢    │                     │
-│  │  ⚪ Offline: 0           │  │  mod-programas     🟢    │                     │
-│  │                           │  │  mod-tramites      🔴    │                     │
+│  │  🟢 Healthy: 4           │  │  mod-planes-estudio 🟢    │                     │
+│  │  🟡 Degraded: 0          │  │  mod-programas-e.  🟢    │                     │
+│  │  🔴 Unhealthy: 1         │  │  mod-gestion-acad. 🟢    │                     │
+│  │  ⚪ Offline: 0           │  │  mod-evaluacion    🟢    │                     │
+│  │                           │  │  mod-auditoria     🔴    │                     │
 │  └──────────────────────────┘  └──────────────────────────┘                      │
 │                                                                                  │
 │  ┌──────────────────────────────────────────────────────────────────────────┐   │
@@ -1510,9 +1532,9 @@ modules_offline
 │  │  TIEMPO DE RESPUESTA          │  │  CACHE HIT RATIO             │            │
 │  │  por módulo (promedio)        │  │                               │            │
 │  │                               │  │  🟢 85% hits                │            │
-│  │  mod-est:    45ms  🟢        │  │  Miss: 15%                  │            │
-│  │  mod-matr:   120ms 🟡        │  │  Objetivo: >90%             │            │
-│  │  mod-plan:   30ms  🟢        │  │                               │            │
+│  │  plan-est:  45ms  🟢        │  │  Miss: 15%                  │            │
+│  │  gest-acad: 120ms 🟡        │  │  Objetivo: >90%             │            │
+│  │  eval:      30ms  🟢        │  │                               │            │
 │  └──────────────────────────────┘  └──────────────────────────────┘             │
 │                                                                                  │
 │  ┌──────────────────────────────────────────────────────────────────────────┐   │
@@ -1630,14 +1652,14 @@ El endpoint `/core/status` incluye el estado del sistema de resiliencia:
         },
         "circuit_breakers": [
             {
-                "module": "mod-estudiantes",
+                "module": "mod-planes-estudio",
                 "state": "closed",
                 "failure_count": 0,
                 "total_calls": 1523,
                 "rejected_calls": 0
             },
             {
-                "module": "mod-matricula",
+                "module": "mod-evaluacion",
                 "state": "open",
                 "failure_count": 5,
                 "total_calls": 456,
@@ -1651,7 +1673,7 @@ El endpoint `/core/status` incluye el estado del sistema de resiliencia:
         },
         "fallback": {
             "static_fallbacks_loaded": 3,
-            "static_fallbacks_modules": ["mod-estudiantes", "mod-matricula", "mod-planes-estudio"]
+            "static_fallbacks_modules": ["mod-planes-estudio", "mod-gestion-academica", "mod-evaluacion"]
         }
     },
     "nats": { ... }
@@ -1664,4 +1686,5 @@ El endpoint `/core/status` incluye el estado del sistema de resiliencia:
 
 | Versión | Fecha | Autor | Descripción |
 |---------|-------|-------|-------------|
+| 1.1 | 2026-08-29 | Mesa de trabajo (planificación) | Alineación MVP v1.1: matriz de resiliencia canónica, timeouts unificados, observabilidad post-pulido, módulos reales |
 | 1.0 | 2026-06-26 | Equipo Arquitectura | Versión inicial del documento. Define filosofía de resiliencia, estrategias, Circuit Breaker, Health Monitor, Fallback Manager, Cache Manager, Timeout Management, Retry Policy, y monitoreo. |

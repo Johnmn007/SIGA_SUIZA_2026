@@ -1,6 +1,10 @@
 # Plan de Casuísticas y Gestión Académica Avanzada (Fase 4)
 
+> **Versión:** 2.0 | **Última actualización:** 2026-08-29 | **Estado:** Implementado (MVP v1.1)
+
 Este documento establece la arquitectura y las reglas de negocio para los escenarios excepcionales (casuísticas) que ocurren en el ciclo de vida de un estudiante en un IESTP. Estas reglas son esenciales para garantizar que la plataforma SIGA sea robusta ante cualquier situación administrativa.
+
+> **Estado de implementación:** Las entidades descritas en §12 y el panel `TramitesDashboard.jsx` para Secretaría Académica existen en `mod-gestion-academica` (MEMORIA_CONTEXTO v4.0). Lo pendiente se lista al final (§13).
 
 ## 1. Convalidaciones (Reconocimiento de UDs)
 
@@ -14,7 +18,7 @@ La convalidación es el proceso mediante el cual se reconocen las Unidades Didá
 
 **Regla de Sistema:**
 * Una UD convalidada recibe el estado `Convalidado`. 
-* La nota se registra típicamente como la nota de origen, o si es por suficiencia, la nota del examen de convalidación (mínimo 13).
+* La nota se registra típicamente como la nota de origen, o si es por suficiencia, la nota del examen de convalidación (mínimo 13 — **parametrizable** en configuración, no hardcodeado).
 * Las UDs convalidadas suman a los créditos acumulados del estudiante pero pueden ser excluidas del cálculo del "Promedio Ponderado Semestral" si así lo dicta el reglamento.
 
 ## 2. Reserva de Matrícula (Licencias de Estudio)
@@ -25,7 +29,7 @@ El estudiante tiene derecho a suspender temporalmente sus estudios, guardando su
 * **Plazo máximo:** Generalmente hasta cuatro (4) semestres académicos consecutivos o alternos a lo largo de su carrera.
 * **Momento de solicitud:**
   * *Antes de la matrícula:* El estudiante se marca en el sistema con estado `Reserva`. No consume vacante.
-  * *Durante el semestre:* Si ya estaba matriculado, se ejecuta un **Retiro Excepcional**. Su matrícula actual pasa a estado `Anulada_por_Reserva`. Las notas parciales obtenidas se borran.
+  * *Durante el semestre:* Si ya estaba matriculado, se ejecuta un **Retiro Excepcional**. Su matrícula actual pasa a estado `Anulada_por_Reserva`. Las notas parciales obtenidas **no se borran destructivamente**: se aplica **anulación lógica** con registro en `core_audit_logs` (trazabilidad completa).
 * **Impacto en el Sistema:** El estudiante no aparecerá en nóminas de evaluación ni contará como repitente.
 
 ## 3. Reingresos (Retorno al Sistema)
@@ -53,7 +57,7 @@ El traslado implica el ingreso a un Programa de Estudios asumiendo un historial 
 Cuando un estudiante termina su carrera (Ciclo VI) y nota que le faltan 1 o 2 UDs para egresar (o está en riesgo de no poder graduarse por un curso rezagado).
 
 **Reglas de Sistema:**
-* El sistema habilita la "Evaluación de Subsanación" solo si el estudiante desaprobó la UD previamente con nota entre 10 y 12 (dependiendo del reglamento interno de cada IESTP).
+* El sistema habilita la "Evaluación de Subsanación" solo si el estudiante desaprobó la UD previamente con nota dentro del rango configurable (por defecto entre 10 y 12, según el reglamento interno de cada IESTP) — **parametrizable**, no hardcodeado.
 * Se crea un acta especial (`Tipo_Acta: Extraordinaria`) independiente del periodo regular.
 * La nota máxima alcanzable suele estar capada según reglamento, o se registra normalmente indicando su origen de subsanación.
 
@@ -99,9 +103,24 @@ El sistema debe emitir documentos oficiales con código QR o firma digital para 
 
 ---
 
-## Estructura de Datos Propuesta (Para Fase 4)
+## 11. Certificación Modular, EFSRT y Rectificación de Nota
 
-Para soportar estas casuísticas, el `mod-gestion-academica` deberá expandir sus modelos con las siguientes entidades:
+(Anexo B de `07-SEGURIDAD.md` — Macro-Procesos 4 y 5)
+
+**Certificación Modular + EFSRT (Macro-Proceso 5):**
+1. **Jefatura de Programa** registra y aprueba las horas de Experiencias Formativas (**EFSRT**) a lo largo de los ciclos.
+2. **Secretaría Central**, cuando el estudiante completa un año (Ej. Ciclo I y II) más sus EFSRT, genera la **Certificación Modular** (requisito del modelo educativo peruano).
+3. La certificación se **cobra a través de Tesorería** (trípode Tesorería/Secretaría; flag `Habilitado_Financiero`).
+
+**Rectificación de Nota (Macro-Proceso 4):**
+* Una vez que el docente cierra el acta, el sistema se bloquea para él.
+* Si hubo un error, se solicita un **trámite formal a Secretaría Central** para la "Rectificación de Nota", dejando **rastro de auditoría** en `core_audit_logs`.
+
+---
+
+## 12. Estructura de Datos (Implementada en mod-gestion-academica)
+
+Para soportar estas casuísticas, `mod-gestion-academica` implementó las siguientes entidades (MEMORIA_CONTEXTO v4.0):
 
 1. **`HistorialAcademico`**: Tabla inmutable que guarda los estados (Activo -> Reserva -> Reingreso -> Egreso -> Titulado).
 2. **`BeneficiosEstudiante`**: Registra Becas y Convenios: `estudiante_id`, `tipo_beneficio`, `porcentaje_descuento`, `condicion_mantenimiento` (nota mínima), `periodo_validez`.
@@ -112,7 +131,19 @@ Para soportar estas casuísticas, el `mod-gestion-academica` deberá expandir su
 
 ---
 
-**Siguientes pasos de implementación:**
-1. Crear el esquema de base de datos para Convalidaciones en `mod-gestion-academica`.
-2. Crear un panel (Dashboard) para Secretaría Académica donde se aprueben los Reingresos y Reservas.
-3. Crear el flujo de "Adecuación de Malla" para cuando un estudiante reingresa a un plan diferente.
+## 13. Pendientes / Siguientes pasos
+
+1. ~~Crear el esquema de base de datos para Convalidaciones en `mod-gestion-academica`.~~ ✅ Implementado.
+2. ~~Crear un panel (Dashboard) para Secretaría Académica donde se aprueben los Reingresos y Reservas.~~ ✅ Implementado (`TramitesDashboard.jsx`).
+3. Crear el flujo de "Adecuación de Malla" para cuando un estudiante reingresa a un plan diferente. 🔄 Pendiente (post-MVP).
+
+---
+
+## 14. Historial de Cambios
+
+| Fecha | Versión | Autor | Cambios |
+|-------|---------|-------|---------|
+| 2026-06-27 | 1.0 | Arquitecto SIGA | Documento arquitectónico maestro de la Fase 4 (Trámites y Casuísticas) |
+| 2026-08-29 | 2.0 | Mesa de trabajo (planificación) | Realineación al estado real (MEMORIA_CONTEXTO v4.0): la estructura de datos está implementada en `mod-gestion-academica` (entidades + `TramitesDashboard.jsx`); anulación lógica de notas con registro en `core_audit_logs` (coherente con trazabilidad de `07-SEGURIDAD`); valores mínimos marcados como parametrizables (13, rango 10-12); incorporación de Certificación Modular + EFSRT y Rectificación de Nota como trámite formal con auditoría |
+
+---

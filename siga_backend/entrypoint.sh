@@ -8,6 +8,8 @@ export DB_URL="postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PO
 if [ "$SKIP_MIGRATIONS" != "true" ]; then
     echo "Running database migrations..."
     alembic upgrade head
+    echo "Ensuring all core tables exist (association tables, etc.)..."
+    python ensure_tables.py
 else
     echo "Skipping migrations (SKIP_MIGRATIONS=true)"
 fi

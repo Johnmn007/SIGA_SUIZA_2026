@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
+import { GraduationCap, Calendar, ClipboardList, BookOpen, FileText, Upload, ExternalLink, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export function DocentePlanning() {
   const { user } = useAuth();
@@ -118,13 +119,13 @@ export function DocentePlanning() {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      alert("✅ Sílabo enviado correctamente al Coordinador");
+      alert("Sílabo enviado correctamente al Coordinador");
       
       // Refresh silabos
       const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`);
       setSilabos(silabosRes || []);
     } catch (e) {
-      alert("❌ Error al enviar el sílabo");
+      alert("Error al enviar el sílabo");
     } finally {
       e.target.value = ''; // reset input
       setUploadingTarget(null);
@@ -155,13 +156,13 @@ export function DocentePlanning() {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      alert("✅ Plan de Trabajo enviado correctamente al Coordinador");
+      alert("Plan de Trabajo enviado correctamente al Coordinador");
       
       // Refresh planes
       const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`);
       setPlanes(planesRes || []);
     } catch (e) {
-      alert("❌ Error al enviar el Plan de Trabajo");
+      alert("Error al enviar el Plan de Trabajo");
     } finally {
       e.target.value = '';
       setUploadingTarget(null);
@@ -183,18 +184,18 @@ export function DocentePlanning() {
       {selectedProgram && selectedPeriod && (
         <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-primary mb-6 bg-gradient-to-r from-white to-slate-50">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xl">🎓</div>
+            <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary"><GraduationCap className="w-5 h-5" /></div>
             <div>
               <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
-              <p className="font-bold text-slate-800">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
+              <p className="font-bold text-slate-text">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
             </div>
           </div>
           <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 text-xl">📅</div>
+            <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary"><Calendar className="w-5 h-5" /></div>
             <div>
               <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
-              <p className="font-bold text-slate-800">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
+              <p className="font-bold text-slate-text">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
             </div>
           </div>
         </div>
@@ -206,13 +207,11 @@ export function DocentePlanning() {
           <div className="lg:col-span-1">
             <div className="glass-card p-6 h-full">
               <div className="flex items-center space-x-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
+                <div className="w-10 h-10 rounded-xl bg-primary-soft flex items-center justify-center text-primary">
+                  <ClipboardList className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">Plan de Trabajo</h3>
+                  <h3 className="text-lg font-bold text-slate-text">Plan de Trabajo</h3>
                   <p className="text-xs text-slate-500">Documento global del periodo</p>
                 </div>
               </div>
@@ -221,15 +220,15 @@ export function DocentePlanning() {
                 <div className="bg-green-50/50 border border-green-100 rounded-xl p-4">
                   <div className="flex justify-between items-center mb-3">
                     <span className="text-sm font-bold text-green-700">Estado: {planActual.estado.toUpperCase()}</span>
-                    <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">✅ Entregado</span>
+                    <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> Entregado</span>
                   </div>
                   <a 
                     href={planActual.archivo_url} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 font-medium mb-3"
+                    className="flex items-center space-x-2 text-sm text-primary hover:text-primary-dark font-medium mb-3"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    <ExternalLink className="w-4 h-4" />
                     <span>Ver Documento</span>
                   </a>
                   {planActual.observaciones && (
@@ -249,13 +248,13 @@ export function DocentePlanning() {
                 </div>
               ) : (
                 <div className="text-center p-6 bg-slate-50/50 rounded-xl border border-slate-100 border-dashed">
-                  <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">📄</div>
+                  <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-primary"><FileText className="w-6 h-6" /></div>
                   <p className="text-sm text-slate-500 mb-4">Aún no has presentado tu plan de trabajo para este periodo.</p>
                   <button 
                     onClick={triggerUploadPlan}
                     className="btn-primary w-full py-2 rounded-lg text-sm"
                   >
-                    Subir Plan de Trabajo
+                    <Upload className="w-4 h-4 mr-1 inline" /> Subir Plan de Trabajo
                   </button>
                 </div>
               )}
@@ -271,13 +270,11 @@ export function DocentePlanning() {
           <div className="lg:col-span-2">
             <div className="glass-card p-6 h-full">
               <div className="flex items-center space-x-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
+                <div className="w-10 h-10 rounded-xl bg-primary-soft flex items-center justify-center text-primary">
+                  <BookOpen className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">Unidades Didácticas y Sílabos</h3>
+                  <h3 className="text-lg font-bold text-slate-text">Unidades Didácticas y Sílabos</h3>
                   <p className="text-xs text-slate-500">Carga lectiva asignada por el coordinador</p>
                 </div>
               </div>
@@ -300,7 +297,7 @@ export function DocentePlanning() {
                       <div key={carga.id} className="border border-slate-100 rounded-xl p-4 hover:shadow-md transition-shadow bg-white">
                         <div className="flex flex-col md:flex-row justify-between md:items-center">
                           <div className="mb-4 md:mb-0">
-                            <h4 className="font-bold text-slate-800 text-md">{udNombre}</h4>
+                            <h4 className="font-bold text-slate-text text-md">{udNombre}</h4>
                             <div className="flex items-center space-x-3 mt-1">
                               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                                 Turno: {carga.turno}
@@ -324,10 +321,10 @@ export function DocentePlanning() {
                                   </span>
                                 </div>
                                 <div className="flex space-x-2 items-center">
-                                  <a href={silabo.archivo_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Ver Doc</a>
+                                  <a href={silabo.archivo_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center"><ExternalLink className="w-3 h-3 mr-1" />Ver Doc</a>
                                   {silabo.estado !== 'aprobado' && (
-                                    <button onClick={() => triggerUploadSilabo(carga.id)} className="text-xs text-slate-500 hover:text-slate-700 underline">
-                                      Actualizar
+                                    <button onClick={() => triggerUploadSilabo(carga.id)} className="text-xs text-slate-500 hover:text-slate-700 underline flex items-center">
+                                      <RefreshCw className="w-3 h-3 mr-1" /> Actualizar
                                     </button>
                                   )}
                                 </div>
@@ -340,9 +337,9 @@ export function DocentePlanning() {
                             ) : (
                               <button 
                                 onClick={() => triggerUploadSilabo(carga.id)}
-                                className="flex items-center text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors border border-indigo-200"
+                                className="flex items-center text-xs font-bold text-primary bg-primary-soft hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors border border-primary/20"
                               >
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                <Upload className="w-4 h-4 mr-1" />
                                 Subir Sílabo
                               </button>
                             )}

@@ -3,13 +3,14 @@
 | Versión | Fecha       | Autor               | Descripción                        |
 |---------|-------------|----------------------|------------------------------------|
 | 1.0     | 2026-06-26  | Equipo Arquitectura  | Versión inicial del documento      |
+| 1.1     | 2026-08-29  | Mesa de trabajo      | Alineación con la implementación real: alcance MVP (7 módulos), BD pragmática, versionado `/api/v1`, contrato de auth (login JSON + HS256), rate limiting, catálogo oficial de 11 programas y decisiones de despliegue/observabilidad |
 
 ---
 
 ## 1. Propósito del Documento
 
 ### 1.1 Alcance
-Este documento define la visión arquitectónica completa del Sistema Integrado de Gestión Académica (SIGA) para el Instituto de Educación Superior Tecnológico Público (IESTP). Abarca desde los principios fundamentales de diseño hasta el detalle de componentes, flujos de datos, decisiones arquitectónicas, y el stack tecnológico. Es el documento raíz del que derivan los artefactos técnicos detallados: `02-CORE.md`, `03-SOCKET-MODULE-RUNTIME.md`, y `04-RESILIENCIA.md`.
+Este documento define la visión arquitectónica completa del Sistema Integrado de Gestión Académica (SIGA) para el Instituto de Educación Superior Tecnológico Público (IESTP). Abarca desde los principios fundamentales de diseño hasta el detalle de componentes, flujos de datos, decisiones arquitectónicas, y el stack tecnológico. Es el documento raíz del que derivan los artefactos técnicos detallados: `02-CORE.md`, `03-SOCKET-MODULE-RUNTIME.md`, y `04-RESILIENCIA.md`. La versión 1.1 incorpora las decisiones de alcance del MVP tomadas por la mesa de trabajo (registradas como ADR v1.1), alineando la visión con la implementación real.
 
 ### 1.2 Audiencia
 | Rol | Uso del documento |
@@ -56,7 +57,7 @@ SIGA (Sistema Integrado de Gestión Académica) es una plataforma tecnológica i
 |---------|-------------|------------------------|
 | Administrativos | Secretaría académica, administración, tesorería | Matrícula, trámites, reportes, generación de documentos |
 | Docentes | Profesores de las 11 carreras | Registro de notas (evaluación), consulta de horarios, listas de estudiantes |
-| Estudiantes | Alumnos de las 11 carreras (aprox. 3000-5000) | Matrícula online, consulta de notas, horarios, malla curricular |
+| Estudiantes | Alumnos de las 11 carreras (aprox. 500–3000) | Matrícula online, consulta de notas, horarios, malla curricular |
 | Directivos | Director general, jefes de unidad académica | Reportes gerenciales, indicadores, toma de decisiones basada en datos |
 | Soporte TI | Administradores del sistema | Monitoreo, configuración, resolución de incidencias |
 
@@ -73,8 +74,12 @@ Cada módulo publica un **Manifiesto (`manifest.yaml`)** que declara: endpoints,
 ### P3: Comunicación Descentralizada (Event-Driven)
 Los módulos se comunican de forma asíncrona a través de **NATS** (event bus). No hay invocaciones directas entre módulos. Cuando un módulo necesita datos de otro módulo, debe hacerlo a través del Core (API Gateway) o suscribiéndose a los eventos que el otro módulo publica. Esto desacopla los módulos y permite que fallen independientemente.
 
+> **MVP (v1.1):** NATS es **degradable**. Si el broker no está disponible, cada módulo resuelve la entrega con su `outbox_worker`: el evento se registra y simula/publica sin bloquear la operación de negocio. La entrega garantizada (JetStream + reintentos) se refuerza en post-MVP [ADR-015].
+
 ### P4: Aislamiento de Datos
 Cada módulo posee su propia base de datos PostgreSQL. Ningún módulo accede directamente a la BD de otro módulo. El Core tiene su propia BD (`siga_core`) para identidad y registry. Esto garantiza que un bug en un módulo no corrompa datos de otro, y que cada módulo pueda evolucionar su esquema independientemente.
+
+> **Excepción pragmática MVP (v1.1):** en el MVP, `mod-usuarios`, `mod-auditoria` y `mod-admision` comparten la BD `siga_core`; en el despliegue docker-compose todos los módulos apuntan a `siga_core`. Se acepta conscientemente para reducir el costo operativo del MVP. Los esquemas permanecen organizados por tablas y la migración a BD propia por módulo está agendada en post-MVP [DOC-12].
 
 ### P5: Resiliencia Primero
 El sistema tolera fallos de módulos individuales sin colapsar. Se implementan: **Circuit Breaker** (evita cascada de fallos), **Health Monitor** (detección temprana), **Fallback Manager** (respuestas degradadas), **Cache Manager** (tiempos de respuesta rápidos y resiliencia a fallos de BD), y **Retry Policy** (reintentos con backoff exponencial). Un módulo caído no tumba el sistema.
@@ -91,6 +96,8 @@ El sistema tolera fallos de módulos individuales sin colapsar. Se implementan: 
 | Datos | Column-level encryption para datos sensibles, backups cifrados |
 | Infraestructura | Firewall, WAF, segwitación de redes, containers aislados |
 
+> **Nivel MVP (v1.1):** se implementa **rate limiting** en el Security Middleware del Core, **login con credenciales en JSON body** (nunca en la URL [ADR-013]) y JWT **HS256** [ADR-004]. TLS se delega al proxy del entorno de despliegue (nginx/reverso); cifrado de columnas y backups cifrados son objetivo post-MVP. Los secretos se gestionan con `.env` (ignorado por git) y variables de entorno de docker-compose (hardening básico [ADR-015]).
+
 ### P7: Escalabilidad Horizontal
 Cada módulo es stateless y puede escalar horizontalmente independientemente. El Core puede tener múltiples réplicas. NATS maneja la comunicación entre réplicas. Redis centraliza el caché distribuido. Las BDs PostgreSQL pueden escalar con read replicas. No hay puntos únicos de fallo no mitigados.
 
@@ -100,14 +107,20 @@ El Core es **estable por diseño**: sus interfaces (`/auth/*`, `/core/*`, `/api/
 ### P9: Observabilidad Total
 Todo componente expone: **logs estructurados** (JSON, niveles estándar), **métricas** (Prometheus: latencia, throughput, errores, estado de circuit breaker), y **tracing distribuido**. Es **obligatorio** el uso del header `X-Request-ID`, propagándolo desde el Frontend, pasando por el Gateway y Módulos, hasta incluirlo en los metadatos de los mensajes NATS. Esto permite debugging rápido, detección proactiva de anomalías y evitar "cajas negras" en fallos asíncronos.
 
+> **Nivel MVP (v1.1):** observabilidad mínima comprometida: logging del Core + cabecera `X-Request-ID` + endpoints `/health` y `/core/status`. Prometheus/Grafana y Loki+Tempo (tracing/logs distribuidos) quedan como objetivo post-pulido [ADR-015].
+
 ### P10: Multi-tenencia por Programa
 El instituto tiene 11 carreras. Los datos de cada carrera deben estar aislados lógicamente aunque compartan infraestructura. Esto se logra mediante la columna `programa_id` en todas las tablas de datos de módulos. Cada usuario puede tener acceso a una o más carreras. Las consultas siempre filtran por `programa_id` implícita o explícitamente. En el futuro, si una carrera requiere aislamiento físico, se puede migrar a su propia instancia sin cambios arquitectónicos mayores.
+
+> **Catálogo oficial MVP (v1.1):** 11 programas de estudio con `programa_id` 1..11, documentados en [DOC-10] y [DOC-14]. El mapeo de carreras (p. ej. en la ingesta de admisión) es **exacto**: un nombre no reconocido **bloquea la operación** con alerta — no se asigna `programa_id` de respaldo [ADR-014].
 
 ### P11: API-First
 Todo componente expone APIs REST bien documentadas (OpenAPI/Swagger). No hay integraciones ocultas, archivos compartidos, ni accesos directos a BD. El contrato API se define antes de la implementación. Las APIs del Core son auto-documentadas con FastAPI (OpenAPI en `/docs` y `/redoc`).
 
 ### P12: Automatización
 CI/CD obligatorio: cada commit pasa por linting, type checking, tests unitarios, tests de integración, y build. El despliegue a staging es automático. El despliegue a producción requiere aprobación manual pero es un proceso de un clic. Infraestructura como código (Docker Compose para desarrollo, Kubernetes para producción).
+
+> **MVP (v1.1):** Docker Compose es la herramienta **oficial de despliegue** (desarrollo y puesta en producción inicial en una sola VM/servidor [ADR-012]). Kubernetes y el pipeline CI/CD (GitHub Actions: lint + tests + build) quedan como objetivo post-pulido del MVP.
 
 ---
 
@@ -185,29 +198,28 @@ CI/CD obligatorio: cada commit pasa por linting, type checking, tests unitarios,
 ║                         MÓDULOS (Microservicios)                              ║
 ║                                                                              ║
 ║  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ║
-║  │ mod-planes-     │ │ mod-programas-│ │ mod-estudiantes│ │ mod-matricula  │ ║
-║  │ estudio :8002   │ │ estudio :8005 │ │ :8006          │ │ :8007          │ ║
-║  │                 │ │               │ │                │ │                │ ║
-║  │ Planes de      │ │ Programas/    │ │ Gestión de     │ │ Proceso de     │ ║
-║  │ estudio por    │ │ Carreras (11) │ │ estudiantes    │ │ matrícula      │ ║
-║  │ carrera        │ │               │ │ (datos, fotos, │ │ (cupos, pagos) │ ║
-║  │                │ │               │ │ historial)     │ │                │ ║
-║  │ BD: siga_planes│ │ BD: siga_prog │ │ BD: siga_est   │ │ BD: siga_matr  │ ║
+║  │ mod-planes-    │ │ mod-programas- │ │ mod-gestion-  │ │ mod-evaluacion │ ║
+║  │ estudio :8002  │ │ estudio :8005 │ │ academica :8006│ │ :8008          │ ║
+║  │                │ │               │ │                │ │                │ ║
+║  │ Planes de     │ │ Programas/    │ │ Estudiantes +   │ │ Notas,         │ ║
+║  │ estudio por   │ │ Carreras (11) │ │ matrícula y     │ │ evaluaciones,  │ ║
+║  │ carrera       │ │               │ │ trámites        │ │ actas          │ ║
 ║  └────────────────┘ └────────────────┘ └────────────────┘ └────────────────┘ ║
 ║                                                                              ║
-║  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ║
-║  │ mod-evaluacion │ │ mod-docencia   │ │ mod-tramites   │ │ mod-reportes   │ ║
-║  │ :8008 (futuro) │ │ :8009 (futuro) │ │ :8010 (futuro) │ │ :8011 (futuro) │ ║
-║  │                │ │                │ │                │ │                │ ║
-║  │ Notas,        │ │ Asignación     │ │ Trámites       │ │ Reportes       │ ║
-║  │ evaluaciones  │ │ docente,       │ │ documentarios  │ │ gerenciales    │ ║
-║  │                │ │ horarios       │ │ (certificados) │ │ + BI           │ ║
-║  └────────────────┘ └────────────────┘ └────────────────┘ └────────────────┘ ║
+║  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐                    ║
+║  │ mod-usuarios   │ │ mod-auditoria  │ │ mod-admision   │                    ║
+║  │ :8001          │ │ :8007          │ │ :8009 (externo)│                    ║
+║  │                │ │                │ │                │                    ║
+║  │ Identidad,     │ │ Auditoría y    │ │ Ingesta Excel  │                    ║
+║  │ roles, personal│ │ trazabilidad   │ │ MINEDU (bypass)│                    ║
+║  │                │ │                │ │ temporal       │                    ║
+║  └────────────────┘ └────────────────┘ └────────────────┘                    ║
+║  BD compartida `siga_core` (MVP); BD por módulo: post-MVP                     ║
 ║                                                                              ║
-║  ┌────────────────┐ ┌────────────────┐                                      ║
-║  │ mod-requisitos │ │ mod-egresados  │  ... más módulos                      ║
-║  │ :8012 (futuro) │ │ :8013 (futuro) │                                      ║
-║  └────────────────┘ └────────────────┘                                      ║
+║  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐                    ║
+║  │ mod-docencia   │ │ mod-reportes   │ │ mod-requisitos │  ... egresados, BI ║
+║  │ (post-MVP)     │ │ (post-MVP)     │ │ (post-MVP)     │                    ║
+║  └────────────────┘ └────────────────┘ └────────────────┘                    ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -230,21 +242,20 @@ CI/CD obligatorio: cada commit pasa por linting, type checking, tests unitarios,
 
 | Componente | Tecnología | Propósito | Puerto | Dependencias | Estado |
 |-----------|-----------|-----------|--------|-------------|-------|
-| **Core** | FastAPI + Python 3.11 | Gateway, Identity, Registry, Resilience | :8000 | PostgreSQL, NATS, Redis | Implementado |
-| **Frontend** | React 18 + Vite | Interfaz de usuario SPA | :5173 | Core (:8000) | Implementado |
-| **NATS** | NATS Server 2.10 | Event Bus asíncrono | :4222 | - | Implementado |
+| **Core** | FastAPI + Python 3.12 | Gateway, Identity, Registry, Resilience | :8000 | PostgreSQL, NATS, Redis | Implementado |
+| **Frontend** | React 19 + Vite 7 | Interfaz de usuario SPA | :5173 (compose: :80) | Core (:8000) | Implementado |
+| **NATS** | NATS Server 2.9+ (JetStream) | Event Bus asíncrono (degradable) | :4222 | - | Implementado |
 | **Redis** | Redis 7 | Caché distribuido, sesiones, rate limiting | :6379 | - | Implementado |
-| **PostgreSQL** | PostgreSQL 15 | Base de datos principal | :5432 | - | Implementado |
-| **mod-planes-estudio** | FastAPI + Python 3.11 | Gestión de planes de estudio por carrera | :8002 | PostgreSQL, NATS | Implementado |
-| **mod-programas-estudio** | FastAPI + Python 3.11 | Catálogo de programas/carreras | :8005 | PostgreSQL, NATS | Implementado |
-| **mod-estudiantes** | FastAPI + Python 3.11 | Registro y gestión de estudiantes | :8006 | PostgreSQL, NATS | Implementado |
-| **mod-matricula** | FastAPI + Python 3.11 | Proceso de matrícula académica | :8007 | PostgreSQL, NATS, mod-estudiantes | Implementado |
-| **mod-evaluacion** | FastAPI + Python 3.11 | Gestión de notas y evaluaciones | :8008 (futuro) | PostgreSQL, NATS, mod-estudiantes, mod-matricula | Planeado |
-| **mod-docencia** | FastAPI + Python 3.11 | Asignación docente y horarios | :8009 (futuro) | PostgreSQL, NATS, mod-planes-estudio | Planeado |
-| **mod-tramites** | FastAPI + Python 3.11 | Trámites documentarios digitales | :8010 (futuro) | PostgreSQL, NATS, mod-estudiantes | Planeado |
-| **mod-reportes** | FastAPI + Python 3.11 | Reportes gerenciales e indicadores | :8011 (futuro) | PostgreSQL, NATS, múltiples módulos | Planeado |
-| **mod-requisitos** | FastAPI + Python 3.11 | Requisitos de programas de estudio | :8012 (futuro) | PostgreSQL, NATS, mod-programas-estudio | Planeado |
-| **mod-egresados** | FastAPI + Python 3.11 | Gestión de egresados y titulados | :8013 (futuro) | PostgreSQL, NATS, mod-estudiantes | Planeado |
+| **PostgreSQL** | PostgreSQL 16 | Base de datos principal | :5432 | - | Implementado |
+| **mod-usuarios** | FastAPI + Python 3.12 | Identidad operativa: usuarios, roles, personal | :8001 | siga_core (MVP) | Implementado |
+| **mod-planes-estudio** | FastAPI + Python 3.12 | Planes de estudio por carrera; parser/import MINEDU | :8002 | PostgreSQL, NATS | Implementado |
+| **mod-programas-estudio** | FastAPI + Python 3.12 | Catálogo de programas (11 carreras), malla, carga lectiva, horarios, tutorías, sílabos | :8005 | PostgreSQL, NATS | Implementado |
+| **mod-gestion-academica** | FastAPI + Python 3.12 | Fusión Estudiantes + Matrícula + Trámites: registro, ingesta de admitidos, matrícula, pagos, trámites | :8006 | PostgreSQL, NATS | Implementado |
+| **mod-auditoria** | FastAPI + Python 3.12 | Trazabilidad de eventos y acciones | :8007 | siga_core (MVP) | Implementado |
+| **mod-evaluacion** | FastAPI + Python 3.12 | Notas, registros de evaluación, boletines | :8008 | PostgreSQL, NATS | Implementado |
+| **mod-admision** | FastAPI + Python 3.12 | Dominio externo (ADR-011) con deploy interno: subida Excel, publicación de admitidos | :8009 | siga_core (MVP) | Implementado |
+
+*Post-MVP (fuera del alcance v1.1):* `mod-docencia`, `mod-reportes`, `mod-requisitos`, `mod-egresados`. Partes de su alcance se resuelven hoy en `mod-programas-estudio` (carga lectiva, horarios, tutorías, sílabos) y `mod-gestion-academica` (trámites).
 
 ---
 
@@ -253,15 +264,15 @@ CI/CD obligatorio: cada commit pasa por linting, type checking, tests unitarios,
 | Capa | Tecnología | Versión | Propósito | Alternativas Consideradas |
 |------|-----------|---------|-----------|--------------------------|
 | **Core Framework** | FastAPI | 0.104+ | API Gateway, endpoints REST, WebSocket, validación automática | Flask (síncrono, sin WebSocket nativo), Django REST (pesado, síncrono) |
-| **Lenguaje Backend** | Python | 3.11+ | Lenguaje principal del Core y módulos | Node.js (cambio de ecosistema), Go (curva de aprendizaje alta) |
+| **Lenguaje Backend** | Python | 3.12+ | Lenguaje principal del Core y módulos | Node.js (cambio de ecosistema), Go (curva de aprendizaje alta) |
 | **ORM** | SQLAlchemy | 2.0+ | Mapeo objeto-relacional asíncrono | Tortoise ORM (menos maduro), Peewee (síncrono, limitado) |
 | **Migraciones** | Alembic | 1.12+ | Migraciones de BD para Core y módulos | - |
-| **Base de Datos** | PostgreSQL | 15+ | BD principal (Core + módulos) | MySQL (menor compliance SQL), MariaDB |
+| **Base de Datos** | PostgreSQL | 16+ | BD principal (Core + módulos) | MySQL (menor compliance SQL), MariaDB |
 | **Cache** | Redis | 7+ | Caché distribuido, sesiones, rate limiting | Memcached (solo cache, sin persistencia) |
-| **Event Bus** | NATS | 2.10+ | Mensajería asíncrona, pub/sub, request/reply | RabbitMQ (más complejo, menor throughput), Kafka (overkill para el alcance) |
-| **Frontend Framework** | React | 18+ | UI interactiva SPA | Vue 3 (menor ecosistema laboral), Angular (más opinado, pesado) |
-| **Build Frontend** | Vite | 5+ | Bundler rápido de desarrollo | Webpack (lento), Parcel (menos configurable) |
-| **HTTP Client** | Axios | 1.6+ | Peticiones HTTP desde frontend | Fetch API (menos features) |
+| **Event Bus** | NATS | 2.9+ (JetStream) | Mensajería asíncrona, pub/sub, request/reply (degradable) | RabbitMQ (más complejo, menor throughput), Kafka (overkill para el alcance) |
+| **Frontend Framework** | React | 19 | UI interactiva SPA | Vue 3 (menor ecosistema laboral), Angular (más opinado, pesado) |
+| **Build Frontend** | Vite | 7+ | Bundler rápido de desarrollo | Webpack (lento), Parcel (menos configurable) |
+| **HTTP Client** | Fetch API (nativo) | - | Peticiones HTTP desde frontend (reemplazó a Axios en v1.1) | Axios (abandonado por dependencia innecesaria) |
 | **Containerización** | Docker | 24+ | Contenedores para desarrollo y producción | - |
 | **Orquestación** | Docker Compose | 2.24+ | Orquestación multi-contenedor en desarrollo | K8s (complejo para desarrollo local) |
 | **Auth** | PyJWT + python-jose | - | JWT creation/validation | - |
@@ -353,7 +364,7 @@ CI/CD obligatorio: cada commit pasa por linting, type checking, tests unitarios,
 
 **Paso 1: Usuario → Frontend**
 - El usuario interactúa con la SPA React.
-- La acción desencadena una petición HTTP (Axios) o WebSocket.
+- La acción desencadena una petición HTTP (Fetch API) o WebSocket.
 - Si es HTTP: método, URL, headers (Authorization: Bearer {jwt}), body.
 - Si es WS: conexión a `wss://siga.edu.pe/ws?token={jwt}`.
 
@@ -415,7 +426,7 @@ Módulo A → NATS (evento: estudiante.creado) → Módulo B (suscrito)
                                               (Opcional) Publica respuesta en NATS
 ```
 
-Ejemplo: Cuando `mod-estudiantes` crea un estudiante, publica `estudiante.creado`. `mod-matricula` está suscrito a este evento y automáticamente crea un registro de matrícula pendiente para el nuevo estudiante.
+Ejemplo: Cuando `mod-gestion-academica` registra un estudiante, publica `estudiante.creado`. `mod-evaluacion` está suscrito a este evento y automáticamente prepara su registro de evaluación inicial para las UDs del ciclo matriculado.
 
 ---
 
@@ -423,15 +434,15 @@ Ejemplo: Cuando `mod-estudiantes` crea un estudiante, publica `estudiante.creado
 
 ### 8.1 API Gateway Pattern
 **Problema**: Múltiples microservicios con diferentes endpoints, protocolos y formatos. El cliente necesitaría conocer la ubicación de cada uno.
-**Solución**: El Core actúa como **único punto de entrada** para todos los clientes. Enruta peticiones al módulo correspondiente basado en la URL (`/api/{module_name}/{path}`). Centraliza autenticación, autorización, rate limiting, y resiliencia.
+**Solución**: El Core actúa como **único punto de entrada** para todos los clientes. Enruta peticiones al módulo correspondiente basado en la URL (`/api/v1/{module_name}/{path}`). Centraliza autenticación, autorización, rate limiting, y resiliencia.
 **Variante**: API Gateway con routing dinámico (no código estático). Los módulos se registran dinámicamente y el Gateway aprende sus rutas.
 
 ### 8.2 Microservices Pattern
 **Problema**: Un monolito académico es difícil de mantener, escalar y evolucionar. Un cambio en matrícula puede afectar a planes de estudio.
-**Solución**: Cada dominio académico es un **microservicio independiente** con su propia base de datos, su propio ciclo de vida y su propio equipo. Se comunican por NATS (eventos) y por HTTP a través del Core.
+**Solución**: Cada dominio académico es un **microservicio independiente** con su propio ciclo de vida y su propio equipo. Se comunican por NATS (eventos) y por HTTP a través del Core. *(MVP v1.1: los 7 módulos comparten la BD `siga_core` — estrategia pragmática; la base de datos por servicio es post-MVP.)*
 **Límites de los servicios**:
 - `mod-planes-estudio`: Planes de estudio, mallas curriculares, UDs, módulos formativos.
-- `mod-estudiantes-matricula`: *Recomendación arquitectónica*: Al inicio del proyecto, considerar fusionar `Estudiantes` y `Matrícula` temporalmente para evitar alta complejidad de Sagas, debido a su extrema cohesión. Posteriormente separarlos si el rendimiento lo exige.
+- `mod-gestion-academica`: **implementado (v1.1)** — materializa la recomendación original: fusión de `Estudiantes` + `Matrícula` + `Trámites` para evitar la complejidad de Sagas por su extrema cohesión. Separación posterior solo si el rendimiento lo exige.
 - `mod-evaluacion`: Notas, evaluaciones, calificaciones, actas.
 *(Nota: Para compartir código base entre estos microservicios sin acoplarlos lógicamente, se utilizará un enfoque de Monorepo con una librería interna `siga-core-lib`).*
 
@@ -453,20 +464,20 @@ Ejemplo: Cuando `mod-estudiantes` crea un estudiante, publica `estudiante.creado
 ### 8.6 Strangler Fig Pattern
 **Problema**: El IESTP tiene sistemas legacy que deben ser reemplazados gradualmente sin interrumpir operaciones.
 **Solución**: Cada nuevo módulo de SIGA "estrangula" una funcionalidad del sistema legacy. El Core redirige el tráfico al nuevo módulo cuando está disponible. El sistema legacy sigue funcionando para las funcionalidades no migradas. Eventualmente, el legacy se apaga completamente.
-**Ejemplo**: La matrícula manual (legacy) coexiste con `mod-matricula` durante el periodo de transición. El Core decide si usa el módulo o el legacy basado en configuración o feature flags.
+**Ejemplo**: La matrícula manual (legacy) coexiste con `mod-gestion-academica` durante el periodo de transición. El Core decide si usa el módulo o el legacy basado en configuración o feature flags.
 
 ### 8.7 Database per Service
 **Problema**: Si todos los módulos comparten una BD, un cambio de esquema en un módulo puede afectar a otros. No hay aislamiento.
-**Solución**: Cada módulo tiene su **propia base de datos PostgreSQL**. Solo el módulo dueño accede a su BD. El Core tiene su propia BD (`siga_core`) para identidad, registry y auditoría. No hay joins entre BDs de diferentes módulos — la integración se hace por API (a través del Core) o por eventos (NATS).
+**Solución**: Cada módulo tiene su **propia base de datos PostgreSQL**. Solo el módulo dueño accede a su BD. El Core tiene su propia BD (`siga_core`) para identidad, registry y auditoría. No hay joins entre BDs de diferentes módulos — la integración se hace por API (a través del Core) o por eventos (NATS). *(MVP v1.1: se aplica la variante pragmática — todos los servicios usan `siga_core`; la migración a BD propia por módulo está agendada post-MVP.)*
 **Excepción**: Tablas de referencia muy estables (ej: catálogo de programas de estudio) pueden cachearse en varios módulos, pero la fuente de verdad es siempre el módulo dueño.
 
 ### 8.8 Saga Pattern & Transactional Outbox
-**Problema**: Una operación de negocio puede requerir cambios en múltiples módulos (ej: matricular a un estudiante requiere crear registro en mod-matricula y actualizar estado en mod-estudiantes). No hay transacciones distribuidas. Si la BD hace commit pero NATS cae, los datos quedan inconsistentes.
+**Problema**: Una operación de negocio puede requerir cambios en múltiples módulos (ej: la ingesta de admitidos requiere crear el estudiante y su matrícula de Ciclo I). No hay transacciones distribuidas. Si la BD hace commit pero NATS cae, los datos quedan inconsistentes.
 **Solución**: **Saga coreográfica combinada con el Patrón Transactional Outbox**. Cada módulo guarda los cambios de negocio y el evento a emitir en la misma transacción SQL (tabla `outbox_events`). Un proceso asíncrono lee esta tabla y publica a NATS. Si un paso de la saga falla, se ejecutan transacciones compensatorias (rollback) a través de eventos de compensación.
 **Ejemplo**:
-1. `mod-matricula` crea registro de matrícula y el evento en `outbox_events` de forma atómica. Relay publica `matricula.iniciada`.
-2. `mod-estudiantes` recibe el evento, actualiza estado a "matriculado" y guarda su evento en outbox.
-3. Si falla el paso 2 → `mod-matricula` recibe evento de error y revierte la matrícula.
+1. `mod-admision` aprueba el Padrón de Ingresantes y publica `admission.ingested` desde su outbox de forma atómica.
+2. `mod-gestion-academica` recibe el evento, crea el estudiante y su matrícula de Ciclo I, y registra su propio evento de confirmación en su outbox.
+3. Si falla el paso 2 → `mod-gestion-academica` publica un evento de error y `mod-admision` revierte (compensación) la ingesta del usuario afectado.
 
 ---
 
@@ -490,6 +501,8 @@ Ejemplo: Cuando `mod-estudiantes` crea un estudiante, publica `estudiante.creado
 | **Fundamento** | (1) Aislamiento total: un bug en un módulo no corrompe datos de otro. (2) Independencia evolutiva: cada módulo migra su esquema sin afectar otros. (3) Escalabilidad: cada BD puede escalar independientemente. (4) Seguridad: un módulo comprometido no accede a datos de otros módulos. |
 | **Consecuencias** | + Aislamiento, escalabilidad, evolución independiente. - No hay joins entre BDs. - Consistencia eventual (Saga Pattern). - Mayor complejidad operacional (múltiples BDs). |
 
+> **Excepción MVP (v1.1):** por pragmatismo, `mod-usuarios`, `mod-auditoria` y `mod-admision` comparten `siga_core` [P4]; en el despliegue docker-compose todos los módulos apuntan a `siga_core`. La migración a BD propia está agendada en post-MVP [DOC-12].
+
 ### ADR-003: NATS vs RabbitMQ
 
 | Campo | Valor |
@@ -504,7 +517,7 @@ Ejemplo: Cuando `mod-estudiantes` crea un estudiante, publica `estudiante.creado
 | Campo | Valor |
 |-------|-------|
 | **Contexto** | Se necesita un mecanismo de autenticación para APIs REST. |
-| **Decisión** | Usar **JWT (JSON Web Tokens)** con RS256 (asimétrico). |
+| **Decisión** | Usar **JWT (JSON Web Tokens)**. **MVP (v1.1): HS256 simétrico** con un solo access token; migración a **RS256 asimétrico + refresh tokens rotativos** agendada en post-MVP. |
 | **Fundamento** | (1) Stateless: el Core no necesita almacenar sesiones en BD. (2) Escalabilidad: cualquier réplica del Core puede validar tokens sin estado compartido. (3) Los tokens incluyen claims (user_id, roles, permissions, programa_ids) que evitan consultas adicionales. (4) RS256 permite que los módulos validen tokens con la clave pública sin llamar al Core. |
 | **Consecuencias** | + Stateless, escalable, auto-contenido. - Los tokens no se pueden revocar inmediatamente (usar TTL corto + refresh tokens). - Mayor tamaño de payload (mitigado: claims mínimos en access token, detalles en refresh). |
 
@@ -522,7 +535,7 @@ Ejemplo: Cuando `mod-estudiantes` crea un estudiante, publica `estudiante.creado
 | Campo | Valor |
 |-------|-------|
 | **Contexto** | Las APIs evolucionan y los cambios breaking deben ser manejados sin romper clientes existentes. |
-| **Decisión** | **Prefijo de URL** con versionado mayor: `/api/v1/{module}/{path}`, `/api/v2/{module}/{path}`. |
+| **Decisión** | **Prefijo de URL** con versionado mayor: `/api/v1/{module}/{path}`, `/api/v2/{module}/{path}`. **Adoptado en v1.1**: el Gateway expone `/api/v1/{module}/{path}` y el frontend migra todas sus llamadas a v1. |
 | **Fundamento** | (1) URL versioning es el más explícito y fácil de depurar. (2) Cada versión es un conjunto de rutas independiente. (3) El Core puede coexistir con v1 y v2 simultáneamente durante la migración. (4) Header versioning (Accept-Version) es menos visible y más difícil de testear. |
 | **Consecuencias** | + Explícito, fácil de depurar, coexistencia de versiones. - URLs más largas. - Código duplicado temporalmente entre versiones. |
 
@@ -567,9 +580,45 @@ Ejemplo: Cuando `mod-estudiantes` crea un estudiante, publica `estudiante.creado
 | Campo | Valor |
 |-------|-------|
 | **Contexto** | Los estudiantes ingresan a la institución tras un proceso de admisión. El módulo de Admisión manejará pagos, puntajes y prospectos (cientos de candidatos). Mezclar esta data temporal con el SIGA ensuciaría la base de datos principal. |
-| **Decisión** | **Mantener Admisión como una App/Módulo Externo** (Separación de Contextos / Bounded Context). La integración se hará mediante **Ingesta por Push masiva** hacia `mod-gestion-academica` una vez culminado el proceso. |
+| **Decisión** | **Admisión = Dominio Externo** (Separación de Contextos / Bounded Context). En el MVP (v1.1) se despliega dentro del compose como `mod-admision` (:8009) por pragmatismo operativo. La integración formal es la **Ingesta por Push masiva** hacia `mod-gestion-academica` (endpoint `/admision/ingesta`, capa anticorrupción). |
 | **Fundamento** | (1) *Domain-Driven Design (DDD)*: El contexto "Postulante" es efímero y diferente al contexto "Estudiante". (2) *Single Source of Truth*: `mod-gestion-academica` actúa como MDM (Master Data Management); recibe el JSON masivo de admitidos, aplica una Capa Anticorrupción (ACL), genera los códigos universitarios y asienta a los alumnos en el Ciclo I. (3) *Seguridad*: Al asentar al estudiante, se gatilla la creación de credenciales en `mod-usuarios`. |
-| **Consecuencias** | + Base de datos académica limpia, escalabilidad separada para exámenes de admisión, alta cohesión. - Requiere construir el endpoint de ingesta masiva (ACL) en `mod-gestion-academica`. |
+| **Consecuencias** | + Base de datos académica limpia, escalabilidad separada para exámenes de admisión, alta cohesión. - Requiere mantener el endpoint de ingesta masiva (ACL) en `mod-gestion-academica`. - El acceso directo del frontend a `:8009` es una **excepción temporal** [ADR-013]: se migra al Gateway en post-MVP. |
+
+### ADR-012: Despliegue Oficial MVP (Docker Compose)
+
+| Campo | Valor |
+|-------|-------|
+| **Contexto** | Se debe decidir la herramienta de despliegue oficial para desarrollo y puesta en producción inicial. |
+| **Decisión** | **Docker Compose es la herramienta oficial de despliegue** del MVP (dev y producción inicial en una sola VM/servidor). Kubernetes y el pipeline CI/CD (GitHub Actions: lint + tests + build) quedan como objetivo post-pulido. |
+| **Fundamento** | Compose levanta el entorno completo (PostgreSQL 16 + NATS + Redis + Core + 7 módulos + frontend) con un comando; el instituto no requiere clúster y el equipo es pequeño. CI/CD se agrega una vez estabilizado el repositorio. |
+| **Consecuencias** | + Entorno reproducible y bajo costo operativo. - Escalamiento limitado a una VM; el salto a K8s requiere trabajo posterior. |
+
+### ADR-013: Contrato de Autenticación HTTP
+
+| Campo | Valor |
+|-------|-------|
+| **Contexto** | El login exponía las credenciales vía query params (`/auth/login?email=..&password=..`), quedando registradas en logs, proxies e historial del navegador. Adicionalmente, el frontend llamaba a `mod-admision` (:8009) por fuera del Gateway. |
+| **Decisión** | **Login con credenciales en el cuerpo JSON** (`POST /auth/login` con `{"email","password"}`; sin credenciales en la URL). Las llamadas a módulos usan el Gateway (`/api/v1/{module}/...`); el acceso directo a `:8009` es una **excepción temporal** que se migra post-MVP. |
+| **Fundamento** | Las URLs quedan registradas en logs e historial; el body es la vía estándar y no se filtra. El contrato de login se corrige en el MVP (impacta a `apiClient.login()`). |
+| **Consecuencias** | + Menor fuga de credenciales; contrato estándar. - Requiere limpiar el soporte de query params en el Core y ajustar el cliente frontend. |
+
+### ADR-014: Catálogo Oficial de Programas (11)
+
+| Campo | Valor |
+|-------|-------|
+| **Contexto** | El IESTP opera 11 carreras y la ingesta de admisión debe asignar cada admitido a su programa de forma confiable. |
+| **Decisión** | **11 programas con `programa_id` 1..11** como catálogo oficial del MVP [DOC-10], [DOC-14]. El mapeo nombre→`programa_id` en la ingesta es **exacto**: un nombre no reconocido **bloquea la operación con alerta** (se elimina el fallback 99). |
+| **Fundamento** | El fallback silencioso crea estudiantes huérfanos en la carrera equivocada; bloquear obliga a corregir la fuente antes de persistir. |
+| **Consecuencias** | + Datos confiables para matrícula y reportes. - Exige mantener sincronizados el catálogo y los mapeos entre Admisión y Gestión Académica. |
+
+### ADR-015: Seguridad y Operaciones del MVP
+
+| Campo | Valor |
+|-------|-------|
+| **Contexto** | P6, P9 y P12 definen capas (rate limiting, observabilidad, CI/CD, cifrado) que hoy no existen en el código. |
+| **Decisión** | Nivel MVP acotado: **(1) rate limiting** implementado en el Security Middleware del Core; **(2) observabilidad mínima** (logging del Core + `X-Request-ID` + `/health` + `/core/status`); **(3) hardening básico de secretos** (`.env` ignorado + variables de entorno de compose; TLS delegado al proxy del entorno); **(4) NATS degradable** (el `outbox_worker` opera sin broker). ROM post-pulido: Prometheus/Grafana/Loki+Tempo, cifrado de columnas, backups cifrados y CI/CD. |
+| **Fundamento** | Balance entre gobernabilidad y sobre-ingeniería: el MVP se mantiene auditable y operativo sin infraestructura adicional. |
+| **Consecuencias** | + MVP gobernable y operativamente simple. - Las capas completas se difieren y deben agendarse explícitamente en el roadmap post-pulido. |
 
 ---
 
@@ -589,6 +638,8 @@ Ejemplo: Cuando `mod-estudiantes` crea un estudiante, publica `estudiante.creado
 | **UD** | Unidad Didáctica. Componente curricular mínimo en un plan de estudios de educación superior tecnológica. Equivalente a una asignatura/materia. |
 | **MF** | Módulo Formativo. Conjunto de UDs que conforman un área de formación específica dentro de un plan de estudios. |
 | **NATS** | Message broker de alto rendimiento usado como event bus para comunicación asíncrona entre el Core y los módulos, y entre módulos entre sí. |
+| **Outbox (Transactional Outbox)** | Patrón que persiste el evento a publicar en la misma transacción de negocio (tabla `outbox_events`); un worker (`outbox_worker`) lo publica después a NATS, garantizando consistencia entre BD y bus. |
+| **X-Request-ID** | Cabecera HTTP de correlación propagada desde el frontend hasta los módulos (y metadatos NATS) para trazabilidad de cada petición. |
 | **JWT** | JSON Web Token. Estándar abierto (RFC 7519) para autenticación stateless basada en tokens firmados digitalmente. |
 | **RBAC** | Role-Based Access Control. Modelo de autorización donde los permisos se asignan a roles, y los roles se asignan a usuarios. |
 | **BD por Módulo** | Patrón arquitectónico donde cada microservicio tiene su propia base de datos, aislada de los demás. |
@@ -607,3 +658,4 @@ Ejemplo: Cuando `mod-estudiantes` crea un estudiante, publica `estudiante.creado
 | Versión | Fecha | Autor | Descripción |
 |---------|-------|-------|-------------|
 | 1.0 | 2026-06-26 | Equipo Arquitectura | Versión inicial del documento. Define visión, principios, componentes, stack, flujos, patrones, ADRs y glosario. |
+| 1.1 | 2026-08-29 | Mesa de trabajo | Decisiones de alcance MVP aplicadas: mapa de componentes real (7 módulos), BD pragmática, principios P3/P4/P6/P9/P10/P12 matizados, stack alineado a la implementación (Python 3.12, React 19, Vite 7, Postgres 16, Fetch API), ADR 002/004/006/011 actualizados, nuevos ADR 012–015 y catálogo oficial de 11 programas. |
