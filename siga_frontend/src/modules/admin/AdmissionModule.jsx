@@ -22,9 +22,13 @@ export function AdmissionModule() {
     formData.append("file", file);
 
     try {
-      // mod-admision upload endpoint
-      const res = await fetch('http://localhost:8009/api/mod-admision/upload', {
+      // Va por el gateway del Core, no directo al modulo: asi la peticion
+      // pasa por autenticacion y autorizacion como el resto del sistema.
+      // No fijamos Content-Type a proposito: el navegador debe generar el
+      // boundary de multipart/form-data.
+      const res = await fetch(`${API_BASE}/api/mod-admision/upload`, {
         method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         body: formData
       });
       

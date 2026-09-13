@@ -5,24 +5,37 @@ import bcrypt
 
 from .base_seeder import BaseSeeder
 from ..models import CoreUser, CoreRole
+from ...config import settings
 
 class UserSeeder(BaseSeeder):
-    """Seeder para usuarios del sistema"""
-    
+    """Seeder para usuarios del sistema.
+
+    Solo se ejecuta con ENVIRONMENT=development. Estas cuentas tienen
+    contrasenas triviales y publicas (docs/06-CREDENCIALES-PRUEBA.md); crearlas
+    fuera de desarrollo dejaria el sistema con un superadmin de clave conocida.
+    """
+
     def get_dependencies(self) -> List[str]:
-        return ["RoleSeeder"]
-    
+        return ["RoleSeeder", "PermissionSeeder"]
+
     async def should_run(self) -> bool:
+        if settings.environment.lower() != "development":
+            return False
         result = await self.db.execute(select(CoreUser))
         existing_users = result.scalars().all()
         return len(existing_users) == 0
-    
+
     async def run(self) -> List[CoreUser]:
         """Crea usuarios iniciales del sistema"""
         if not await self.should_run():
-            self.log_warning("Usuarios ya existen, saltando...")
+            if settings.environment.lower() != "development":
+                self.log_warning(
+                    f"ENVIRONMENT={settings.environment}: no se siembran usuarios de prueba"
+                )
+            else:
+                self.log_warning("Usuarios ya existen, saltando...")
             return []
-        
+
         # Obtener roles CON la sesión activa
         result = await self.db.execute(select(CoreRole))
         roles = {role.name: role for role in result.scalars().all()}
@@ -39,7 +52,7 @@ class UserSeeder(BaseSeeder):
                 "email": "tesoreria@siga.edu",
                 "password": "tesoreria123",
                 "full_name": "Caja Principal",
-                "roles": ["tesoreria"],
+                "roles": ["caja_tesoreria"],
                 "is_superuser": False
             },
             {
@@ -67,7 +80,7 @@ class UserSeeder(BaseSeeder):
                 "email": "admision@siga.edu",
                 "password": "admision123",
                 "full_name": "Oficina de Admisión",
-                "roles": ["admin_admision"],
+                "roles": ["oficina_admision"],
                 "is_superuser": False
             },
             {

@@ -1,5 +1,31 @@
+# Entornos virtuales (nunca deben entrar en la imagen ni en el contexto de build)
 venv/
+.venv/
+.venv_fixed/
+env/
+ENV/
+
+# Bytecode y caches
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secretos y configuración local
 .env
+.env.*
+!.env.example
+
+# Control de versiones y editores
 .git/
+.gitignore
+.vscode/
+.idea/
+
+# Artefactos temporales
+tmp_*
+*.log
+core_logs.txt

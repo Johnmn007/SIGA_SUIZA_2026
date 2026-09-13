@@ -25,7 +25,12 @@ class BaseModel(Base, TimeStampedMixin):
     id = Column(Integer, primary_key=True, index=True)
 
 class OutboxEvent(BaseModel):
-    __tablename__ = "outbox_events"
+    # Tabla propia por modulo. Los cinco modulos comparten la base siga_core:
+    # con un unico "outbox_events" (a) sus create_all() concurrentes chocaban al
+    # arrancar -> UniqueViolationError en pg_type, y (b) los outbox_worker
+    # competian por las mismas filas, con lo que un evento podia acabar
+    # publicandolo el modulo equivocado o perderse.
+    __tablename__ = "outbox_events_evaluacion"
     event_type = Column(String(100), nullable=False)
     payload = Column(JSON, nullable=False)
     published = Column(Boolean, default=False, index=True)

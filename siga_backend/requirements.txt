@@ -15,3 +15,10 @@ python-jose[cryptography]>=3.3.0
 redis>=5.0.0
 pandas>=2.1.3
 openpyxl>=3.1.2
+
+# Importado directamente por app/core/registry/{runtime,validator}.py.
+# Hasta ahora solo llegaba como extra transitivo de uvicorn[standard].
+pyyaml>=6.0
+
+# Usado por los scripts de tools/ y test_api.py / test_proxy.py.
+requests>=2.31.0

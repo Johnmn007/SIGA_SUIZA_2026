@@ -291,9 +291,17 @@ async def initialize_core():
     if settings.modules_auto_discover:
         discovered = await module_runtime.discover_modules()
         logger.info(f"📦 Módulos descubiertos: {len(discovered)}")
-    
-   
-    
+
+    # 4. Inicializar resiliencia (cache Redis + monitor de salud periódico).
+    #    La llamada faltaba, así que todo app/core/resilience quedaba inerte:
+    #    Redis nunca se conectaba y el estado de los módulos nunca se
+    #    refrescaba tras el health check inicial del arranque.
+    try:
+        from .core.resilience import initialize_resilience
+        await initialize_resilience()
+    except Exception as e:
+        logger.warning(f"⚠️  Resiliencia no inicializada: {e}")
+
     # 5. Publicar evento de core iniciado
     if settings.enable_nats and event_bus.connected:
         core_event = EventFactory.create_event(
@@ -316,8 +324,14 @@ async def initialize_core():
 async def startup_event():
     await initialize_core()
 
-@app.on_event("shutdown") 
+@app.on_event("shutdown")
 async def shutdown_event():
+    try:
+        from .core.resilience import shutdown_resilience
+        await shutdown_resilience()
+    except Exception as e:
+        logger.debug(f"Resiliencia ya detenida o no disponible: {e}")
+
     logger.info("🛑 Cerrando gateway HTTP...")
     await http_gateway.close()
     

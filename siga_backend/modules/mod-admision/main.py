@@ -39,7 +39,10 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "module": "mod-admision"}
+    # "healthy" (no "ok"): es el valor que exige docs/11-ESTANDAR-MODULOS.md y
+    # el que comprueban ManifestValidator y HealthMonitor. Con "ok" el modulo
+    # aparecia permanentemente degradado en GET /core/modules.
+    return {"status": "healthy", "module": "mod-admision"}
 
 @app.get("/")
 async def root():
@@ -184,7 +187,9 @@ def parse_excel_sync(contents: bytes):
         
     return admitidos_list
 
-@app.post("/api/mod-admision/upload")
+# El prefijo /api/mod-admision lo antepone el gateway del Core, que reenvia
+# a este servicio solo la parte del path posterior al nombre del modulo.
+@app.post("/upload")
 async def upload_excel(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     try:
         contents = await file.read()

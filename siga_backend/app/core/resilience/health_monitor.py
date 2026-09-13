@@ -81,7 +81,10 @@ class HealthMonitor:
         while self.is_monitoring:
             try:
                 await self._check_all_modules()
-                await asyncio.sleep(30)  # Check cada 30 segundos
+                # settings.health_check_interval ya existía en config.py pero
+                # nunca se leía; el intervalo estaba fijado a 30s en el código.
+                from ..config import settings
+                await asyncio.sleep(settings.health_check_interval)
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -145,6 +148,12 @@ class HealthMonitor:
             health.update(HealthStatus.UNHEALTHY, response_time, str(e))
             logger.error(f"❌ Error health check {module_name}: {e}")
         
+        # Reflejar el resultado en el registro de módulos, que es lo que
+        # devuelve GET /core/modules y lee el dashboard de administración.
+        # Sin esto, un módulo que arranca después del Core se queda marcado
+        # como "offline" para siempre.
+        self._sync_runtime_status(module_name, health)
+
         # Emitir evento si el estado cambió
         await self._emit_health_event(module_name, health)
         
@@ -201,6 +210,22 @@ class HealthMonitor:
         except Exception as e:
             logger.debug(f"⚠️  Error cacheando datos de {module_name}: {e}")
     
+    def _sync_runtime_status(self, module_name: str, health: ModuleHealth):
+        """Propaga el estado observado al ModuleInfo del registry."""
+        from ..registry.schemas import ModuleStatus
+
+        mapping = {
+            HealthStatus.HEALTHY: ModuleStatus.HEALTHY,
+            HealthStatus.DEGRADED: ModuleStatus.UNHEALTHY,
+            HealthStatus.UNHEALTHY: ModuleStatus.UNHEALTHY,
+            HealthStatus.OFFLINE: ModuleStatus.OFFLINE,
+        }
+
+        module = module_runtime.modules.get(module_name)
+        if module:
+            module.status = mapping.get(health.status, ModuleStatus.OFFLINE)
+            module.last_health_check = health.last_check
+
     def get_module_health(self, module_name: str) -> Optional[ModuleHealth]:
         """Obtiene estado de salud de un módulo"""
         return self.module_health.get(module_name)

@@ -1,1 +1,45 @@
+# ---- Python ----
 __pycache__/
+*.py[cod]
+*.so
+venv/
+.venv/
+.venv_fixed/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Node ----
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# ---- Secretos y configuración local ----
+.env
+.env.*
+!.env.example
+
+# ---- Datos y volcados (contienen datos personales reales) ----
+*.dump
+*.xlsx
+*.xls
+data/
+
+# ---- Artefactos temporales ----
+*.log
+core_logs.txt
+tmp_*
+
+# Certificados de CA locales (especificos de cada maquina, ver siga_frontend/certs/README.md)
+siga_frontend/certs/*.crt
+siga_frontend/certs/*.pem
+
+# Copias de seguridad locales de codigo retirado
+.archive/
+
+# Informe temporal de traspaso de la sesion de auditoria
+HANDOFF-ESTADO-CANONICO.md

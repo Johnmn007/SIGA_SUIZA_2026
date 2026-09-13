@@ -1,239 +1,277 @@
+# =============================================================================
+# SIGA - Orquestacion de desarrollo
+# =============================================================================
+# Requiere un archivo `.env` en esta misma carpeta (ver .env.example).
+#   docker compose up -d --build
+# =============================================================================
+
+# --- Configuracion compartida por los 8 servicios Python ---------------------
+# Una sola definicion evita que las credenciales se desincronicen entre servicios.
+x-backend-env: &backend-env
+  DB_USER: ${POSTGRES_USER:?falta POSTGRES_USER en .env}
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_NAME: ${POSTGRES_DB:?falta POSTGRES_DB en .env}
+  NATS_URL: nats://nats:4222
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  SECRET_KEY: ${SECRET_KEY:?falta SECRET_KEY en .env}
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  DEBUG: ${DEBUG:-True}
+  ENABLE_NATS: ${ENABLE_NATS:-True}
+  CACHE_ENABLED: ${CACHE_ENABLED:-True}
+  HEALTH_CHECK_INTERVAL: ${HEALTH_CHECK_INTERVAL:-15}
+
+x-module-base: &module-base
+  build:
+    context: ./siga_backend
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  volumes:
+    - ./siga_backend:/app
+  networks:
+    - backend
+  depends_on:
+    postgres:
+      condition: service_healthy
+    siga-core:
+      # Los modulos arrancan DESPUES de que el Core aplique las migraciones.
+      # Varios modulos hacen create_all() sobre tablas core_*; si se adelantan
+      # a Alembic, la primera migracion falla con "table already exists".
+      condition: service_healthy
+
 services:
+
+  # ====== INFRAESTRUCTURA ======
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "john.007"
-      POSTGRES_DB: siga_core
+      POSTGRES_USER: ${POSTGRES_USER:?falta POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?falta POSTGRES_DB en .env}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   nats:
     image: nats:2.9-alpine
-    ports:
-      - "4222:4222"
-    command: ["-js"]
+    restart: unless-stopped
+    # -m 8222 habilita el puerto de monitorizacion que consulta el healthcheck.
+    command: ["-js", "-m", "8222"]
+    networks:
+      - backend
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 5s
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - backend
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   # ====== CORE GATEWAY ======
+  # Unico servicio del backend con puerto publicado: es la puerta de entrada.
   siga-core:
-    build: 
+    build:
       context: ./siga_backend
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${CORE_HOST_PORT:-8000}:8000"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=1234
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
-      - NATS_URL=nats://nats:4222
-      - REDIS_URL=redis://redis:6379
+      <<: *backend-env
     volumes:
       - ./siga_backend:/app
+    networks:
+      - backend
+      - edge
     depends_on:
       postgres:
         condition: service_healthy
       nats:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
-  # ====== MICROSERVICES ======
+  # ====== MICROSERVICIOS ======
+  # Ninguno publica puerto en el host: solo son accesibles via el gateway.
   mod-usuarios:
-    build: 
-      context: ./siga_backend
-      dockerfile: Dockerfile
+    <<: *module-base
     command: ["sh", "-c", "cd modules/mod-usuarios && uvicorn main:app --host 0.0.0.0 --port 8001 --reload"]
-    ports:
-      - "8001:8001"
+    expose:
+      - "8001"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=1234
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
-      - NATS_URL=nats://nats:4222
-      - PORT=8001
-      - SKIP_MIGRATIONS=true
-    volumes:
-      - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *backend-env
+      PORT: 8001
+      SKIP_MIGRATIONS: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   mod-planes-estudio:
-    build: 
-      context: ./siga_backend
-      dockerfile: Dockerfile
+    <<: *module-base
     command: ["sh", "-c", "cd modules/mod-planes-estudio && uvicorn main:app --host 0.0.0.0 --port 8002 --reload"]
-    ports:
-      - "8002:8002"
+    expose:
+      - "8002"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=1234
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
-      - NATS_URL=nats://nats:4222
-      - PORT=8002
-      - SKIP_MIGRATIONS=true
-    volumes:
-      - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *backend-env
+      PORT: 8002
+      SKIP_MIGRATIONS: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   mod-programas-estudio:
-    build: 
-      context: ./siga_backend
-      dockerfile: Dockerfile
+    <<: *module-base
     command: ["sh", "-c", "cd modules/mod-programas-estudio && uvicorn main:app --host 0.0.0.0 --port 8005 --reload"]
-    ports:
-      - "8005:8005"
+    expose:
+      - "8005"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=1234
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
-      - NATS_URL=nats://nats:4222
-      - PORT=8005
-      - SKIP_MIGRATIONS=true
-    volumes:
-      - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *backend-env
+      PORT: 8005
+      SKIP_MIGRATIONS: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   mod-gestion-academica:
-    build: 
-      context: ./siga_backend
-      dockerfile: Dockerfile
+    <<: *module-base
     command: ["sh", "-c", "cd modules/mod-gestion-academica && uvicorn main:app --host 0.0.0.0 --port 8006 --reload"]
-    ports:
-      - "8006:8006"
+    expose:
+      - "8006"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=1234
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
-      - NATS_URL=nats://nats:4222
-      - PORT=8006
-      - SKIP_MIGRATIONS=true
-    volumes:
-      - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *backend-env
+      PORT: 8006
+      SKIP_MIGRATIONS: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8006/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   mod-auditoria:
-    build: 
-      context: ./siga_backend
-      dockerfile: Dockerfile
+    <<: *module-base
     command: ["sh", "-c", "cd modules/mod-auditoria && uvicorn main:app --host 0.0.0.0 --port 8007 --reload"]
-    ports:
-      - "8007:8007"
+    expose:
+      - "8007"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
-      - NATS_URL=nats://nats:4222
-      - PORT=8007
-      - SKIP_MIGRATIONS=true
-    volumes:
-      - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *backend-env
+      PORT: 8007
+      SKIP_MIGRATIONS: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8007/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   mod-evaluacion:
-    build: 
-      context: ./siga_backend
-      dockerfile: Dockerfile
+    <<: *module-base
     command: ["sh", "-c", "cd modules/mod-evaluacion && uvicorn main:app --host 0.0.0.0 --port 8008 --reload"]
-    ports:
-      - "8008:8008"
+    expose:
+      - "8008"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
-      - NATS_URL=nats://nats:4222
-      - PORT=8008
-      - SKIP_MIGRATIONS=true
-    volumes:
-      - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *backend-env
+      PORT: 8008
+      SKIP_MIGRATIONS: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8008/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   mod-admision:
-    build: 
-      context: ./siga_backend
-      dockerfile: Dockerfile
+    <<: *module-base
     command: ["sh", "-c", "cd modules/mod-admision && uvicorn main:app --host 0.0.0.0 --port 8009 --reload"]
-    ports:
-      - "8009:8009"
+    expose:
+      - "8009"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
-      - NATS_URL=nats://nats:4222
-      - PORT=8009
-      - SKIP_MIGRATIONS=true
+      <<: *backend-env
+      PORT: 8009
+      SKIP_MIGRATIONS: "true"
     volumes:
       - ./siga_backend:/app
-      - ./docs:/app/docs
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - ./docs:/app/docs:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8009/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   # ====== FRONTEND ======
   siga-frontend:
-    build: 
+    build:
       context: ./siga_frontend
       dockerfile: Dockerfile
-      target: build
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "80"]
+      target: dev
+    restart: unless-stopped
     ports:
-      - "3000:80"
+      - "${FRONTEND_HOST_PORT:-3000}:5173"
     environment:
-      - CHOKIDAR_USEPOLLING=true
-      - WATCHPACK_POLLING=true
+      # El navegador llega al Core por el puerto publicado en el host,
+      # no por la red interna de Docker.
+      VITE_API_URL: http://localhost:${CORE_HOST_PORT:-8000}
+      VITE_WS_URL: ws://localhost:${CORE_HOST_PORT:-8000}
+      # Bind mounts de Windows: inotify no cruza el limite, hace falta polling.
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
       - ./siga_frontend:/app
       - /app/node_modules
+    networks:
+      - edge
     depends_on:
-      - siga-core
+      siga-core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- -T 5 http://127.0.0.1:5173/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
 volumes:
   postgres_data:
+
+networks:
+  backend:
+    driver: bridge
+  edge:
+    driver: bridge

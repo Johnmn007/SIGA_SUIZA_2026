@@ -79,7 +79,10 @@ class AuthService:
                 "full_name": user.full_name,
                 "role": primary_role,
                 "roles": role_list,
-                "permissions": permissions
+                "permissions": permissions,
+                # get_current_user() ya lo devolvia; sin esto el objeto de
+                # usuario cambiaba de forma entre /auth/login y /auth/me.
+                "is_superuser": user.is_superuser
             }
         }
     

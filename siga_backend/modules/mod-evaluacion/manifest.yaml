@@ -4,7 +4,7 @@ description: "Módulo de registro de notas, promedios y evaluación"
 author: "SIGA Architecture Team"
 
 endpoints:
-  http: "http://localhost:8008"
+  http: "http://mod-evaluacion:8008"
   health_check: "/health"
 
 dependencies:

@@ -5,7 +5,10 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // .vite/deps son las dependencias pre-empaquetadas por Vite (React bundleado)
+  // y public/ se copia literalmente a dist/: ninguna de las dos es codigo
+  // fuente propio. Lintarlas producia 257 errores que ocultaban los reales.
+  globalIgnores(['dist', 'node_modules', '.vite', 'public']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

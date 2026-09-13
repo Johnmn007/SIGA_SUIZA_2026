@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base_seeder import BaseSeeder
 from .role_seeder import RoleSeeder
+from .permission_seeder import PermissionSeeder
 from .user_seeder import UserSeeder
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ class SeederRunner:
         """Registra todos los seeders disponibles"""
         self.seeders = {
             "RoleSeeder": RoleSeeder(self.db),
+            "PermissionSeeder": PermissionSeeder(self.db),
             "UserSeeder": UserSeeder(self.db)
         }
     

@@ -1,17 +1,27 @@
-api_version: "2.0"
+# Ajustado al estandar vigente MODULE-STD-1.0 (docs/11-ESTANDAR-MODULOS.md):
+#   - api_version debe cumplir ^v\d+$
+#   - endpoints.http debe ser una URL completa, no un objeto anidado
+# Con los valores anteriores ("2.0" y un objeto) la validacion Pydantic
+# fallaba y el modulo nunca llegaba a registrarse en el gateway.
+api_version: "v1"
 name: "mod-admision"
-description: "Módulo Piloto de Admisión. Expone JSON de estudiantes admitidos para ingesta."
+description: "Modulo Piloto de Admision. Expone JSON de estudiantes admitidos para ingesta."
 version: "1.0.0"
 
 endpoints:
-  http:
-    port: 8009
-    health_check: "/health"
-    base_path: "/api/v1/mod-admision"
+  http: "http://mod-admision:8009"
+
+health_check: "/health"
 
 dependencies: []
 
-grants: []
+permissions:
+  - "mod-admision:read"
+  - "mod-admision:write"
+
+events:
+  publishes: []
+  subscribes: []
 
 tags:
   - "admision"
