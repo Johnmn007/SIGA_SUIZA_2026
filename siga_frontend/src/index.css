@@ -30,3 +30,155 @@
     @apply block text-sm font-medium text-slate-600 mb-1;
   }
 }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out both;
+}
+
+@media print {
+  body {
+    background: white !important;
+    background-image: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* === OCULTAR EN IMPRESIÓN === */
+  .no-print,
+  nav,
+  aside,
+  [data-sidebar],
+  .sidebar,
+  .fixed.bottom-4 {
+    display: none !important;
+  }
+
+  /* Ocultar sidebar: primer hijo del flex container */
+  .flex.lg\:flex-row > div:first-child {
+    display: none !important;
+  }
+
+  /* Expandir contenido principal a ancho completo */
+  .flex.lg\:flex-row > div:last-child {
+    width: 100% !important;
+    flex: none !important;
+  }
+
+  /* Expandir contenedor max-width */
+  .max-w-7xl {
+    max-width: 100% !important;
+  }
+
+  /* === MOSTRAR EN IMPRESIÓN === */
+  .print-only {
+    display: block !important;
+  }
+
+  /* === FLATTEN GLASS EFFECTS === */
+  .glass-card,
+  .glass-panel {
+    background: white !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+    break-inside: avoid;
+  }
+
+  /* === DESHABILITAR ANIMACIONES === */
+  .animate-fade-in,
+  .animate-fade-in-up {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* === CONTENIDO DEL BOLETÍN === */
+  .boletin-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    space-y: 0 !important;
+  }
+
+  .boletin-header-print {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #1e293b;
+    margin-bottom: 16px;
+  }
+
+  .boletin-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 12px;
+  }
+
+  /* === TABLA DE NOTAS === */
+  .boletin-table {
+    font-size: 11px;
+  }
+
+  .boletin-table th,
+  .boletin-table td {
+    padding: 6px 8px !important;
+  }
+
+  .boletin-table thead {
+    background: #f1f5f9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* === BARRA DE PROGRESO → TEXTO EN IMPRESIÓN === */
+  .progress-bar-print-hide {
+    display: none !important;
+  }
+
+  .progress-text-print {
+    display: block !important;
+  }
+
+  /* === FOOTER DE IMPRESIÓN === */
+  .boletin-footer-print {
+    display: block !important;
+    text-align: center;
+    font-size: 10px;
+    color: #64748b;
+    margin-top: 24px;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  /* === MÁRGENES A4 === */
+  @page {
+    margin: 1.5cm;
+    size: A4 portrait;
+  }
+}
+
+/* Fuera de impresión: ocultar el texto alternativo del progreso */
+.progress-text-print {
+  display: none;
+}
+
+.print-only {
+  display: none;
+}

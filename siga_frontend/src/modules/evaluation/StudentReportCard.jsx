@@ -22,7 +22,6 @@ export function StudentReportCard() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef(null);
-  const debounceRef = useRef(null);
 
   useEffect(() => {
     const fetchPeriodos = async () => {
@@ -248,11 +247,25 @@ export function StudentReportCard() {
     return 'bg-slate-100 text-slate-600 border-slate-200';
   };
 
+  const handlePrint = () => window.print();
+
   return (
-    <div className="animate-fade-in max-w-4xl mx-auto space-y-6">
+    <div className="animate-fade-in max-w-4xl mx-auto space-y-6 boletin-container">
+
+      {/* Print-only header */}
+      <div className="boletin-header-print print-only">
+        <div>
+          <p className="text-sm font-bold text-slate-800">SIGA — Sistema de Gestión Académica</p>
+          <p className="text-xs text-slate-500">Boletín de Notas Oficial</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-slate-500">Emisión: {estudiante?.fecha_emision}</p>
+          <p className="text-xs text-slate-500">Periodo: {estudiante?.periodo_codigo}</p>
+        </div>
+      </div>
 
       {isAdmin && (
-        <div ref={searchRef}>
+        <div ref={searchRef} className="no-print">
           <StudentSearchBar
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
@@ -266,8 +279,8 @@ export function StudentReportCard() {
         </div>
       )}
 
-      {/* Selector de Periodo */}
-      <div className="flex items-center gap-3 mb-2">
+      {/* Selector de Periodo + Botón Imprimir */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-2 no-print">
         <label className="text-sm font-bold text-slate-600 uppercase tracking-wider">Periodo:</label>
         <select
           className="input-field py-2 text-sm min-w-[160px]"
@@ -278,10 +291,14 @@ export function StudentReportCard() {
             <option key={p.id} value={p.id}>{p.codigo}</option>
           ))}
         </select>
+        <button onClick={handlePrint} className="btn-primary text-sm px-4 py-2 flex items-center gap-2 ml-auto">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+          Imprimir Boletín
+        </button>
       </div>
 
       {/* SECCION 1: Datos del Estudiante + Periodo */}
-      <div className="glass-card p-6 border-l-4 border-l-primary">
+      <div className="glass-card p-6 border-l-4 border-l-primary boletin-section">
         <div className="flex flex-col md:flex-row items-center gap-6">
           <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary/20 to-primary-dark/20 flex items-center justify-center text-4xl shadow-inner border-2 border-white flex-shrink-0">
             {estudiante.foto_url ? (
@@ -319,7 +336,7 @@ export function StudentReportCard() {
       </div>
 
       {/* SECCION 2: Estado de Matrícula */}
-      <div className={`glass-card p-5 border-l-4 ${matricula_estado.pago_matricula ? 'border-l-emerald-500 bg-emerald-50/30' : 'border-l-amber-500 bg-amber-50/30'}`}>
+      <div className={`glass-card p-5 border-l-4 boletin-section ${matricula_estado.pago_matricula ? 'border-l-emerald-500 bg-emerald-50/30' : 'border-l-amber-500 bg-amber-50/30'}`}>
         <div className="flex items-start gap-4">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${matricula_estado.pago_matricula ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
             {matricula_estado.pago_matricula ? '✓' : '⚠'}
@@ -356,7 +373,7 @@ export function StudentReportCard() {
       </div>
 
       {/* SECCION 3: Estado Académico */}
-      <div className="glass-card p-5 border-l-4 border-l-blue-500">
+      <div className="glass-card p-5 border-l-4 border-l-blue-500 boletin-section">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">📋</div>
           <div>
@@ -369,7 +386,7 @@ export function StudentReportCard() {
       </div>
 
       {/* SECCION 4: Progreso de Créditos */}
-      <div className="glass-card p-5 border-l-4 border-l-purple-500">
+      <div className="glass-card p-5 border-l-4 border-l-purple-500 boletin-section">
         <div className="flex items-center gap-4 mb-3">
           <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">📊</div>
           <div className="flex-1">
@@ -382,16 +399,21 @@ export function StudentReportCard() {
             <span className="text-2xl font-extrabold text-purple-600">{progreso_creditos.porcentaje}%</span>
           </div>
         </div>
-        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+        {/* Barra visual (se oculta en impresión) */}
+        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden progress-bar-print-hide">
           <div
             className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-500"
             style={{ width: `${progreso_creditos.porcentaje}%` }}
           ></div>
         </div>
+        {/* Texto alternativo (solo aparece en impresión) */}
+        <p className="text-sm text-slate-600 font-semibold progress-text-print">
+          {progreso_creditos.creditos_aprobados} de {progreso_creditos.creditos_totales} créditos aprobados ({progreso_creditos.porcentaje}%)
+        </p>
       </div>
 
       {/* SECCION 5: Notas por Curso */}
-      <div className="glass-card overflow-hidden">
+      <div className="glass-card overflow-hidden boletin-section">
         <div className="bg-slate-800 text-white p-4 flex justify-between items-center">
           <h4 className="font-bold flex items-center text-lg">
             <span className="mr-2">📚</span> Notas del Periodo
@@ -404,7 +426,7 @@ export function StudentReportCard() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left boletin-table">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200">
                   <th className="py-3 px-4 font-bold text-slate-500 uppercase text-xs tracking-wider">Curso / Unidad Didáctica</th>
@@ -447,7 +469,7 @@ export function StudentReportCard() {
       </div>
 
       {/* SECCION 6: Resumen del Rendimiento */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 boletin-section">
         <div className="glass-card p-5 text-center border-t-4 border-t-primary">
           <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Promedio General</p>
           <p className={`text-4xl font-extrabold ${getGradeColor(resumen.promedio_general)}`}>
@@ -468,7 +490,7 @@ export function StudentReportCard() {
       </div>
 
       {/* SECCION 7: Historial de Periodos + Observaciones */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 boletin-section">
         {/* Historial */}
         <div className="glass-card overflow-hidden">
           <div className="bg-slate-800 text-white p-4">
@@ -515,6 +537,12 @@ export function StudentReportCard() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Print-only footer */}
+      <div className="boletin-footer-print print-only">
+        <p>Documento generado por SIGA — Sistema de Gestión Académica</p>
+        <p>Este boletín es un documento informativo. Para versiones oficiales, consulte con la institución.</p>
       </div>
 
     </div>
