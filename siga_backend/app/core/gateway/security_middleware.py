@@ -76,3 +76,9 @@ class SecurityMiddleware:
 
 # Instancia global (se inicializará en main.py)
 security_middleware: Optional[SecurityMiddleware] = None
+
+def init_security_middleware(auth_service: AuthService) -> SecurityMiddleware:
+    """Inicializa la instancia global del middleware de seguridad"""
+    global security_middleware
+    security_middleware = SecurityMiddleware(auth_service)
+    return security_middleware

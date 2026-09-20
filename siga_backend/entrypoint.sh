@@ -5,7 +5,11 @@ set -e
 export DB_URL="postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
 echo "Running database migrations..."
-alembic upgrade head
+if alembic upgrade head; then
+    echo "Migrations applied successfully."
+else
+    echo "WARNING: alembic upgrade head failed — starting without migrations."
+fi
 
 if [ "$#" -eq 0 ]; then
     echo "Starting SIGA Core con Hot Reload..."
