@@ -1,14 +1,15 @@
 #!/bin/sh
 set -e
 
-if [ "$SKIP_MIGRATIONS" != "true" ]; then
-    # Build DB URL for Alembic
-    export DB_URL="postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+# Build DB URL for Alembic
+export DB_URL="postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
+# Only run migrations for siga-core (microservices skip via SKIP_MIGRATIONS)
+if [ "$SKIP_MIGRATIONS" != "true" ]; then
     echo "Running database migrations..."
     alembic upgrade head
-    echo "Ensuring all core tables exist (association tables, etc.)..."
-    python ensure_tables.py
+else
+    echo "Skipping migrations (SKIP_MIGRATIONS=true)"
 fi
 
 if [ "$#" -eq 0 ]; then
