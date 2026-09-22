@@ -304,8 +304,8 @@ export function StudentMaster() {
   };
 
   return (
-    <div className="animate-fade-in">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+    <div className="animate-fade-in lg:flex lg:flex-col lg:min-h-0" style={{ maxHeight: 'var(--sidebar-height)' }}>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 lg:flex-shrink-0">
         <div>
           <h3 className="text-3xl font-bold tracking-tight text-slate-text">
             Registro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Estudiantes</span>
@@ -332,7 +332,7 @@ export function StudentMaster() {
         </div>
       </div>
 
-      <div className="glass-card p-2 mb-8 flex items-center max-w-3xl gap-2">
+      <div className="glass-card p-2 mb-8 flex items-center max-w-3xl gap-2 lg:flex-shrink-0">
           {['superadmin', 'admin'].includes(userRole) && (
             <select 
               className="input-field py-3 text-sm bg-slate-50 border-none w-48 font-bold text-primary"
@@ -364,8 +364,8 @@ export function StudentMaster() {
         {loading && <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-4"></div>}
       </div>
 
-      <div className="glass-card overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="glass-card overflow-hidden lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
+        <div className="overflow-x-auto overflow-y-auto custom-scrollbar max-h-[70vh] lg:max-h-none lg:flex-1 lg:min-h-0">
           <table className="data-table">
             <thead>
               <tr>
