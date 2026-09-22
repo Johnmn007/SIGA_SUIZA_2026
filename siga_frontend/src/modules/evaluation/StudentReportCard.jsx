@@ -130,15 +130,110 @@ export function StudentReportCard() {
 
   if (loading) {
     return (
-      <div className="animate-fade-in max-w-4xl mx-auto">
+      <div className="animate-fade-in max-w-4xl mx-auto space-y-6">
+        {/* Título */}
         <div className="mb-8 text-center">
           <h3 className="text-3xl font-bold tracking-tight text-slate-800">
             Boletín de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Notas</span>
           </h3>
         </div>
-        <div className="glass-card py-20 text-center">
-          <div className="inline-block w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4"></div>
-          <p className="text-slate-500">Cargando boletín...</p>
+
+        {/* Skeleton: Datos del estudiante */}
+        <div className="glass-card p-6 border-l-4 border-l-slate-200">
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            <div className="w-24 h-24 rounded-full bg-slate-200 animate-pulse flex-shrink-0"></div>
+            <div className="flex-1 text-center md:text-left space-y-3">
+              <div className="h-7 bg-slate-200 rounded-lg w-64 mx-auto md:mx-0 animate-pulse"></div>
+              <div className="h-4 bg-slate-200 rounded-lg w-48 mx-auto md:mx-0 animate-pulse"></div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="space-y-1">
+                    <div className="h-3 bg-slate-200 rounded w-16 mx-auto md:mx-0 animate-pulse"></div>
+                    <div className="h-4 bg-slate-200 rounded w-20 mx-auto md:mx-0 animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="text-center min-w-[140px] flex-shrink-0 space-y-2">
+              <div className="h-3 bg-slate-200 rounded w-16 mx-auto animate-pulse"></div>
+              <div className="h-6 bg-slate-200 rounded w-20 mx-auto animate-pulse"></div>
+              <div className="h-3 bg-slate-200 rounded w-24 mx-auto animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton: Estado de matrícula */}
+        <div className="glass-card p-5 border-l-4 border-l-slate-200">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-slate-200 animate-pulse flex-shrink-0"></div>
+            <div className="flex-1 space-y-3">
+              <div className="h-5 bg-slate-200 rounded w-40 animate-pulse"></div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="space-y-1">
+                    <div className="h-3 bg-slate-200 rounded w-14 animate-pulse"></div>
+                    <div className="h-4 bg-slate-200 rounded w-20 animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton: Estado académico */}
+        <div className="glass-card p-5 border-l-4 border-l-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-slate-200 animate-pulse flex-shrink-0"></div>
+            <div className="space-y-2">
+              <div className="h-5 bg-slate-200 rounded w-36 animate-pulse"></div>
+              <div className="h-4 bg-slate-200 rounded w-24 animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton: Progreso de créditos */}
+        <div className="glass-card p-5 border-l-4 border-l-slate-200">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="w-10 h-10 rounded-full bg-slate-200 animate-pulse flex-shrink-0"></div>
+            <div className="flex-1 space-y-2">
+              <div className="h-5 bg-slate-200 rounded w-40 animate-pulse"></div>
+              <div className="h-4 bg-slate-200 rounded w-56 animate-pulse"></div>
+            </div>
+            <div className="h-8 bg-slate-200 rounded w-14 animate-pulse"></div>
+          </div>
+          <div className="w-full bg-slate-200 rounded-full h-3 animate-pulse"></div>
+        </div>
+
+        {/* Skeleton: Tabla de notas */}
+        <div className="glass-card overflow-hidden">
+          <div className="bg-slate-200 animate-pulse p-4 flex justify-between items-center">
+            <div className="h-5 bg-slate-300 rounded w-40 animate-pulse"></div>
+            <div className="h-4 bg-slate-300 rounded w-16 animate-pulse"></div>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-3">
+                <div className="h-4 bg-slate-200 rounded flex-1 animate-pulse"></div>
+                <div className="h-4 bg-slate-200 rounded w-12 animate-pulse"></div>
+                <div className="h-4 bg-slate-200 rounded w-12 animate-pulse"></div>
+                <div className="h-4 bg-slate-200 rounded w-12 animate-pulse"></div>
+                <div className="h-4 bg-slate-200 rounded w-12 animate-pulse"></div>
+                <div className="h-5 bg-slate-200 rounded w-14 animate-pulse"></div>
+                <div className="h-5 bg-slate-200 rounded w-20 rounded-full animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Skeleton: Tarjetas de resumen */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="glass-card p-5 text-center space-y-3">
+              <div className="h-3 bg-slate-200 rounded w-28 mx-auto animate-pulse"></div>
+              <div className="h-10 bg-slate-200 rounded w-16 mx-auto animate-pulse"></div>
+              <div className="h-3 bg-slate-200 rounded w-24 mx-auto animate-pulse"></div>
+            </div>
+          ))}
         </div>
       </div>
     );
