@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../core/auth/useAuth';
 import { API_BASE } from '../../core/api/client';
 import { EditStudentModal } from './EditStudentModal';
+import { StudentDetail } from './StudentDetail';
 import { Search, CloudDownload, Plus, Users, Pencil, ChevronRight, Info, X } from 'lucide-react';
 
 const InputGroup = ({ label, type = "text", value, onChange, options = null }) => (
@@ -435,9 +437,9 @@ export function StudentMaster() {
       </div>
 
       {/* Modern Multi-Step Wizard Modal */}
-      {showModal && (
+      {showModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden bg-white/95 shadow-2xl animate-fade-in-up">
+          <div className="glass-card w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden bg-white/95 shadow-2xl animate-fade-in">
             
             <div className="flex justify-between items-center p-6 border-b border-slate-200">
               <h5 className="font-bold text-xl text-slate-text tracking-tight">Nuevo Registro de Estudiante</h5>
@@ -478,7 +480,8 @@ export function StudentMaster() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {editingStudent && (
@@ -489,6 +492,13 @@ export function StudentMaster() {
             setEditingStudent(null);
             handleSearch(''); // refetch students
           }}
+        />
+      )}
+
+      {selectedStudent && (
+        <StudentDetail
+          student={selectedStudent}
+          onClose={() => setSelectedStudent(null)}
         />
       )}
     </div>

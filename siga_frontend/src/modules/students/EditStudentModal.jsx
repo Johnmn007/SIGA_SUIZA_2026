@@ -1,22 +1,53 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { API_BASE } from '../../core/api/client';
-import { Pencil, X } from 'lucide-react';
+import { Pencil, X, Camera, Trash2 } from 'lucide-react';
+import { ProtectedImage } from './ProtectedImage';
 
 export function EditStudentModal({ student, onClose, onUpdated }) {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
 
   useEffect(() => {
     if (student) {
       setForm({ ...student });
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      setRemovePhoto(false);
     }
+  }, [student]);
+
+  useEffect(() => {
+    if (!student) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
   }, [student]);
 
   if (!student || !form) return null;
 
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    setRemovePhoto(false);
+  };
+
+  const handleRemovePhoto = () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setRemovePhoto(true);
   };
 
   const handleSubmit = async (e) => {
@@ -31,22 +62,45 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
       if (payload.email_personal === '') payload.email_personal = null;
       if (payload.celular === '') payload.celular = null;
 
+      const auth = `Bearer ${localStorage.getItem('token')}`;
+
       const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${student.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': auth
         },
         body: JSON.stringify(payload)
       });
 
-      if (res.ok) {
-        onUpdated();
-        onClose();
-      } else {
+      if (!res.ok) {
         const errData = await res.text();
         setError(`Error: ${errData}`);
+        setLoading(false);
+        return;
       }
+
+      if (photoFile) {
+        const fd = new FormData();
+        fd.append('file', photoFile);
+        const upRes = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${student.id}/foto`, {
+          method: 'POST',
+          headers: { 'Authorization': auth },
+          body: fd
+        });
+        if (!upRes.ok) {
+          setError("Datos guardados, pero no se pudo subir la foto. Intenta de nuevo.");
+          return;
+        }
+      } else if (removePhoto) {
+        await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${student.id}/foto`, {
+          method: 'DELETE',
+          headers: { 'Authorization': auth }
+        });
+      }
+
+      onUpdated();
+      onClose();
     } catch (err) {
       setError("Error de conexión");
       console.error(err);
@@ -55,9 +109,9 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="glass-card w-full max-w-2xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] bg-white/95 shadow-2xl">
+      <div className="glass-card w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] bg-white/95 shadow-2xl animate-fade-in">
         
         <div className="bg-gradient-to-r from-primary to-secondary px-6 py-4 flex justify-between items-center">
           <h3 className="text-lg font-bold text-white flex items-center">
@@ -74,13 +128,54 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
               {error}
             </div>
           )}
+          <div className="mb-6">
+            <p className="text-xs font-bold text-slate-600 uppercase mb-2">Foto del Estudiante</p>
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-100 border border-slate-200 flex items-center justify-center">
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Vista previa" className="w-full h-full object-cover" />
+                ) : (
+                  <ProtectedImage
+                    src={removePhoto ? null : form.foto_url}
+                    alt="Foto del estudiante"
+                    className="w-full h-full object-cover"
+                    fallback={
+                      <div className="w-full h-full bg-gradient-to-br from-primary to-secondary text-white flex items-center justify-center text-2xl font-bold">
+                        {`${(form.nombres || '')[0] || ''}${(form.apellidos || '')[0] || ''}`}
+                      </div>
+                    }
+                  />
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="btn-ghost cursor-pointer inline-flex items-center gap-2 text-sm">
+                  <Camera size={15} />
+                  {photoPreview || form.foto_url ? 'Cambiar foto' : 'Subir foto'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handlePhotoChange}
+                  />
+                </label>
+                {(form.foto_url || photoPreview) && (
+                  <button
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    className="text-xs text-red-600 hover:text-red-800 font-semibold flex items-center gap-1"
+                  >
+                    <Trash2 size={13} /> Quitar foto
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           <div className="bg-primary-soft border border-primary/20 p-4 rounded-xl mb-6 text-sm text-primary-dark">
             <strong>Nota:</strong> Esta función es para corregir errores de tipeo (Fase 3 - MVP). Si el cambio de nombre es por <strong>Mandato Legal</strong>, esto deberá tramitarse por mesa de partes (Fase 4 - Casuísticas).
           </div>
           
           <form id="edit-student-form" onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             
-            {/* DNI */}
             <div className="flex flex-col space-y-1">
               <label className="text-xs font-bold text-slate-600 uppercase">DNI / Documento</label>
               <input 
@@ -92,7 +187,6 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
               />
             </div>
             
-            {/* Fecha Nacimiento */}
             <div className="flex flex-col space-y-1">
               <label className="text-xs font-bold text-slate-600 uppercase">Fecha de Nacimiento</label>
               <input 
@@ -103,7 +197,6 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
               />
             </div>
 
-            {/* Nombres */}
             <div className="flex flex-col space-y-1">
               <label className="text-xs font-bold text-slate-600 uppercase">Nombres</label>
               <input 
@@ -115,7 +208,6 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
               />
             </div>
 
-            {/* Apellidos */}
             <div className="flex flex-col space-y-1">
               <label className="text-xs font-bold text-slate-600 uppercase">Apellidos</label>
               <input 
@@ -127,7 +219,6 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
               />
             </div>
 
-            {/* Email Personal */}
             <div className="flex flex-col space-y-1">
               <label className="text-xs font-bold text-slate-600 uppercase">Email Personal</label>
               <input 
@@ -138,7 +229,6 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
               />
             </div>
 
-            {/* Teléfono */}
             <div className="flex flex-col space-y-1">
               <label className="text-xs font-bold text-slate-600 uppercase">Teléfono / Celular</label>
               <input 
@@ -152,7 +242,6 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
               />
             </div>
 
-            {/* Dirección */}
             <div className="flex flex-col space-y-1 md:col-span-2">
               <label className="text-xs font-bold text-slate-600 uppercase">Dirección</label>
               <input 
@@ -188,6 +277,7 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
