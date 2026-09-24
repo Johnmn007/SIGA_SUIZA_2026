@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 
+const SECTION_TITLE = "text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em]";
+
 export function StudentReportCard() {
   const { user } = useAuth();
   const userRoles = user?.roles ? user.roles.map(r => typeof r === 'string' ? r : r.nombre || r.name) : [];
@@ -22,6 +24,10 @@ export function StudentReportCard() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef(null);
+
+  const [recentStudents, setRecentStudents] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('boletin_recent') || '[]'); } catch { return []; }
+  });
 
   useEffect(() => {
     const fetchPeriodos = async () => {
@@ -93,11 +99,20 @@ export function StudentReportCard() {
     setShowDropdown(false);
     setData(null);
     setError(null);
+
+    const entry = { id: student.id, nombres: student.nombres, apellidos: student.apellidos, codigo_estudiante: student.codigo_estudiante };
+    setRecentStudents(prev => {
+      const filtered = prev.filter(s => s.id !== student.id);
+      const updated = [entry, ...filtered].slice(0, 5);
+      localStorage.setItem('boletin_recent', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const handleClearSelection = () => {
     setSelectedStudentId(null);
     setSelectedStudentName('');
+    setSearchTerm('');
     setData(null);
     setError(null);
   };
@@ -128,112 +143,100 @@ export function StudentReportCard() {
     fetchBoletin();
   }, [periodoId, effectiveStudentId]);
 
+  const Membrete = () => (
+    <div className="text-center mb-8">
+      <div className="flex items-center justify-center gap-3 mb-2">
+        <span className="text-3xl">🎓</span>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-primary tracking-wide">SIGA</h1>
+      </div>
+      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-4">Sistema de Gestión Académica</p>
+      <div className="w-full h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent mb-4"></div>
+      <h2 className="text-sm font-bold text-slate-700 uppercase tracking-[0.2em]">Boletín de Notas Oficial</h2>
+      <div className="w-16 h-0.5 bg-primary mx-auto mt-3"></div>
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className="animate-fade-in max-w-4xl mx-auto space-y-6">
-        {/* Título */}
-        <div className="mb-8 text-center">
-          <h3 className="text-3xl font-bold tracking-tight text-slate-800">
-            Boletín de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Notas</span>
-          </h3>
-        </div>
-
-        {/* Skeleton: Datos del estudiante */}
-        <div className="glass-card p-6 border-l-4 border-l-slate-200">
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            <div className="w-24 h-24 rounded-full bg-slate-200 animate-pulse flex-shrink-0"></div>
-            <div className="flex-1 text-center md:text-left space-y-3">
-              <div className="h-7 bg-slate-200 rounded-lg w-64 mx-auto md:mx-0 animate-pulse"></div>
-              <div className="h-4 bg-slate-200 rounded-lg w-48 mx-auto md:mx-0 animate-pulse"></div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="space-y-1">
-                    <div className="h-3 bg-slate-200 rounded w-16 mx-auto md:mx-0 animate-pulse"></div>
-                    <div className="h-4 bg-slate-200 rounded w-20 mx-auto md:mx-0 animate-pulse"></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="text-center min-w-[140px] flex-shrink-0 space-y-2">
-              <div className="h-3 bg-slate-200 rounded w-16 mx-auto animate-pulse"></div>
-              <div className="h-6 bg-slate-200 rounded w-20 mx-auto animate-pulse"></div>
-              <div className="h-3 bg-slate-200 rounded w-24 mx-auto animate-pulse"></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Skeleton: Estado de matrícula */}
-        <div className="glass-card p-5 border-l-4 border-l-slate-200">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-full bg-slate-200 animate-pulse flex-shrink-0"></div>
-            <div className="flex-1 space-y-3">
-              <div className="h-5 bg-slate-200 rounded w-40 animate-pulse"></div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="space-y-1">
-                    <div className="h-3 bg-slate-200 rounded w-14 animate-pulse"></div>
-                    <div className="h-4 bg-slate-200 rounded w-20 animate-pulse"></div>
-                  </div>
-                ))}
+      <div className="animate-fade-in max-w-4xl mx-auto">
+        <Membrete />
+        <div className="space-y-5">
+          {/* Skeleton: Datos del estudiante */}
+          <div className="bg-white border border-slate-200 rounded-md p-6">
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="w-20 h-20 rounded-full bg-slate-100 animate-pulse flex-shrink-0"></div>
+              <div className="flex-1 text-center md:text-left space-y-3">
+                <div className="h-6 bg-slate-100 rounded w-64 mx-auto md:mx-0 animate-pulse"></div>
+                <div className="h-4 bg-slate-100 rounded w-48 mx-auto md:mx-0 animate-pulse"></div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="h-2.5 bg-slate-100 rounded w-14 mx-auto md:mx-0 animate-pulse"></div>
+                      <div className="h-3.5 bg-slate-100 rounded w-20 mx-auto md:mx-0 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Skeleton: Estado académico */}
-        <div className="glass-card p-5 border-l-4 border-l-slate-200">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-slate-200 animate-pulse flex-shrink-0"></div>
-            <div className="space-y-2">
-              <div className="h-5 bg-slate-200 rounded w-36 animate-pulse"></div>
-              <div className="h-4 bg-slate-200 rounded w-24 animate-pulse"></div>
+          {/* Skeleton: Estado de matrícula */}
+          <div className="bg-white border border-slate-200 rounded-md p-5">
+            <div className="flex items-start gap-4">
+              <div className="w-9 h-9 rounded bg-slate-100 animate-pulse flex-shrink-0"></div>
+              <div className="flex-1 space-y-3">
+                <div className="h-4 bg-slate-100 rounded w-36 animate-pulse"></div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="h-2.5 bg-slate-100 rounded w-12 animate-pulse"></div>
+                      <div className="h-3.5 bg-slate-100 rounded w-20 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Skeleton: Progreso de créditos */}
-        <div className="glass-card p-5 border-l-4 border-l-slate-200">
-          <div className="flex items-center gap-4 mb-3">
-            <div className="w-10 h-10 rounded-full bg-slate-200 animate-pulse flex-shrink-0"></div>
-            <div className="flex-1 space-y-2">
-              <div className="h-5 bg-slate-200 rounded w-40 animate-pulse"></div>
-              <div className="h-4 bg-slate-200 rounded w-56 animate-pulse"></div>
+          {/* Skeleton: Progreso */}
+          <div className="bg-white border border-slate-200 rounded-md p-5">
+            <div className="flex items-center gap-4 mb-3">
+              <div className="w-9 h-9 rounded bg-slate-100 animate-pulse flex-shrink-0"></div>
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-slate-100 rounded w-40 animate-pulse"></div>
+                <div className="h-3 bg-slate-100 rounded w-56 animate-pulse"></div>
+              </div>
+              <div className="h-7 bg-slate-100 rounded w-14 animate-pulse"></div>
             </div>
-            <div className="h-8 bg-slate-200 rounded w-14 animate-pulse"></div>
+            <div className="w-full bg-slate-100 rounded h-2 animate-pulse"></div>
           </div>
-          <div className="w-full bg-slate-200 rounded-full h-3 animate-pulse"></div>
-        </div>
-
-        {/* Skeleton: Tabla de notas */}
-        <div className="glass-card overflow-hidden">
-          <div className="bg-slate-200 animate-pulse p-4 flex justify-between items-center">
-            <div className="h-5 bg-slate-300 rounded w-40 animate-pulse"></div>
-            <div className="h-4 bg-slate-300 rounded w-16 animate-pulse"></div>
+          {/* Skeleton: Tabla */}
+          <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
+            <div className="bg-slate-50 border-b border-slate-200 p-4">
+              <div className="h-4 bg-slate-200 rounded w-36 animate-pulse"></div>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3">
+                  <div className="h-3.5 bg-slate-100 rounded flex-1 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-4 bg-slate-100 rounded w-12 animate-pulse"></div>
+                  <div className="h-5 bg-slate-100 rounded-full w-16 animate-pulse"></div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="divide-y divide-slate-100">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-4 py-3">
-                <div className="h-4 bg-slate-200 rounded flex-1 animate-pulse"></div>
-                <div className="h-4 bg-slate-200 rounded w-12 animate-pulse"></div>
-                <div className="h-4 bg-slate-200 rounded w-12 animate-pulse"></div>
-                <div className="h-4 bg-slate-200 rounded w-12 animate-pulse"></div>
-                <div className="h-4 bg-slate-200 rounded w-12 animate-pulse"></div>
-                <div className="h-5 bg-slate-200 rounded w-14 animate-pulse"></div>
-                <div className="h-5 bg-slate-200 rounded w-20 rounded-full animate-pulse"></div>
+          {/* Skeleton: Resumen */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-md p-5 text-center space-y-2">
+                <div className="h-2.5 bg-slate-100 rounded w-24 mx-auto animate-pulse"></div>
+                <div className="h-9 bg-slate-100 rounded w-14 mx-auto animate-pulse"></div>
+                <div className="h-2.5 bg-slate-100 rounded w-20 mx-auto animate-pulse"></div>
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Skeleton: Tarjetas de resumen */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="glass-card p-5 text-center space-y-3">
-              <div className="h-3 bg-slate-200 rounded w-28 mx-auto animate-pulse"></div>
-              <div className="h-10 bg-slate-200 rounded w-16 mx-auto animate-pulse"></div>
-              <div className="h-3 bg-slate-200 rounded w-24 mx-auto animate-pulse"></div>
-            </div>
-          ))}
         </div>
       </div>
     );
@@ -242,28 +245,23 @@ export function StudentReportCard() {
   if (error) {
     return (
       <div className="animate-fade-in max-w-4xl mx-auto">
-        <div className="mb-8 text-center">
-          <h3 className="text-3xl font-bold tracking-tight text-slate-800">
-            Boletín de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Notas</span>
-          </h3>
-        </div>
+        <Membrete />
         {isAdmin && (
-          <div className="mb-4" ref={searchRef}>
+          <div className="mb-6" ref={searchRef}>
             <StudentSearchBar
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
-              selectedStudentName={selectedStudentName}
-              onClearSelection={handleClearSelection}
               filteredStudents={filteredStudents}
               showDropdown={showDropdown}
               onSelect={handleSelectStudent}
               searchLoading={searchLoading}
+              recentStudents={recentStudents}
             />
           </div>
         )}
-        <div className="glass-card py-16 text-center border-l-4 border-l-red-500">
-          <div className="text-5xl mb-4">⚠️</div>
-          <p className="text-slate-600 font-medium">{error}</p>
+        <div className="bg-white border border-slate-200 rounded-md py-16 text-center">
+          <div className="text-4xl mb-3">⚠️</div>
+          <p className="text-slate-700 font-semibold">{error}</p>
           <p className="text-slate-400 text-sm mt-2">Verifica que existan matrículas y evaluaciones registradas para este periodo.</p>
         </div>
       </div>
@@ -273,27 +271,17 @@ export function StudentReportCard() {
   if (isAdmin && !selectedStudentId) {
     return (
       <div className="animate-fade-in max-w-4xl mx-auto">
-        <div className="mb-8 text-center">
-          <h3 className="text-3xl font-bold tracking-tight text-slate-800">
-            Boletín de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Notas</span>
-          </h3>
-        </div>
-        <div className="mb-4" ref={searchRef}>
+        <Membrete />
+        <div ref={searchRef} className="mb-6">
           <StudentSearchBar
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
-            selectedStudentName={selectedStudentName}
-            onClearSelection={handleClearSelection}
             filteredStudents={filteredStudents}
             showDropdown={showDropdown}
             onSelect={handleSelectStudent}
             searchLoading={searchLoading}
+            recentStudents={recentStudents}
           />
-        </div>
-        <div className="glass-card py-16 text-center">
-          <div className="text-5xl mb-4 opacity-40">🔍</div>
-          <p className="text-slate-500 font-medium text-lg">Selecciona un estudiante para ver su boletín</p>
-          <p className="text-slate-400 text-sm mt-2">Escribe un nombre, código o DNI en el buscador.</p>
         </div>
       </div>
     );
@@ -302,28 +290,23 @@ export function StudentReportCard() {
   if (!data) {
     return (
       <div className="animate-fade-in max-w-4xl mx-auto">
-        <div className="mb-8 text-center">
-          <h3 className="text-3xl font-bold tracking-tight text-slate-800">
-            Boletín de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Notas</span>
-          </h3>
-        </div>
+        <Membrete />
         {isAdmin && (
-          <div className="mb-4" ref={searchRef}>
+          <div className="mb-6" ref={searchRef}>
             <StudentSearchBar
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
-              selectedStudentName={selectedStudentName}
-              onClearSelection={handleClearSelection}
               filteredStudents={filteredStudents}
               showDropdown={showDropdown}
               onSelect={handleSelectStudent}
               searchLoading={searchLoading}
+              recentStudents={recentStudents}
             />
           </div>
         )}
-        <div className="glass-card py-16 text-center">
-          <div className="text-5xl mb-4 opacity-40">📄</div>
-          <p className="text-slate-500 font-medium text-lg">No hay información disponible.</p>
+        <div className="bg-white border border-slate-200 rounded-md py-16 text-center">
+          <div className="text-4xl mb-3 opacity-30">📄</div>
+          <p className="text-slate-600 font-medium">No hay información disponible.</p>
         </div>
       </div>
     );
@@ -333,19 +316,19 @@ export function StudentReportCard() {
 
   const getGradeColor = (val) => {
     if (val === null || val === undefined) return 'text-slate-400';
-    return val >= 13 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold';
+    return val >= 13 ? 'text-emerald-700 font-bold' : 'text-red-600 font-bold';
   };
 
   const getBadgeColor = (estado) => {
-    if (estado === 'aprobado') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    if (estado === 'desaprobado') return 'bg-red-100 text-red-700 border-red-200';
-    return 'bg-slate-100 text-slate-600 border-slate-200';
+    if (estado === 'aprobado') return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+    if (estado === 'desaprobado') return 'bg-red-50 text-red-700 border border-red-200';
+    return 'bg-slate-50 text-slate-600 border border-slate-200';
   };
 
   const handlePrint = () => window.print();
 
   return (
-    <div className="animate-fade-in max-w-4xl mx-auto space-y-6 boletin-container">
+    <div className="animate-fade-in max-w-4xl mx-auto boletin-container">
 
       {/* Print-only header */}
       <div className="boletin-header-print print-only">
@@ -359,24 +342,40 @@ export function StudentReportCard() {
         </div>
       </div>
 
-      {isAdmin && (
-        <div ref={searchRef} className="no-print">
+      {/* Membrete */}
+      <Membrete />
+
+      {isAdmin && selectedStudentName && (
+        <div className="no-print mb-6 bg-white border border-slate-200 rounded-md px-4 py-2.5 flex items-center justify-between">
+          <p className="text-sm text-slate-600">
+            Viendo boletín de: <span className="font-semibold text-slate-900">{selectedStudentName}</span>
+          </p>
+          <button
+            onClick={handleClearSelection}
+            className="text-xs font-semibold text-primary hover:text-primary-dark underline cursor-pointer ml-4 whitespace-nowrap"
+          >
+            Cambiar estudiante
+          </button>
+        </div>
+      )}
+
+      {isAdmin && !selectedStudentName && (
+        <div ref={searchRef} className="no-print mb-6">
           <StudentSearchBar
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
-            selectedStudentName={selectedStudentName}
-            onClearSelection={handleClearSelection}
             filteredStudents={filteredStudents}
             showDropdown={showDropdown}
             onSelect={handleSelectStudent}
             searchLoading={searchLoading}
+            recentStudents={recentStudents}
           />
         </div>
       )}
 
       {/* Selector de Periodo + Botón Imprimir */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-2 no-print">
-        <label className="text-sm font-bold text-slate-600 uppercase tracking-wider">Periodo:</label>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 no-print">
+        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em]">Periodo:</label>
         <select
           className="input-field py-2 text-sm min-w-[160px]"
           value={periodoId}
@@ -392,75 +391,102 @@ export function StudentReportCard() {
         </button>
       </div>
 
-      {/* SECCION 1: Datos del Estudiante + Periodo */}
-      <div className="glass-card p-6 border-l-4 border-l-primary boletin-section">
+      {/* SECCION 1: Datos del Estudiante */}
+      <div className="bg-white border border-slate-200 border-l-4 border-l-primary rounded-md p-6 mb-5 boletin-section">
+        <p className={`${SECTION_TITLE} mb-4 pb-2 border-b border-slate-100`}>Datos del Estudiante</p>
         <div className="flex flex-col md:flex-row items-center gap-6">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary/20 to-primary-dark/20 flex items-center justify-center text-4xl shadow-inner border-2 border-white flex-shrink-0">
+          <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center text-3xl flex-shrink-0">
             {estudiante.foto_url ? (
               <img src={estudiante.foto_url} alt="Foto" className="w-full h-full rounded-full object-cover" />
             ) : '🎓'}
           </div>
           <div className="flex-1 text-center md:text-left">
-            <h2 className="text-2xl font-bold text-slate-800">{estudiante.apellidos}, {estudiante.nombres}</h2>
-            <p className="text-slate-500 text-sm mt-1">{estudiante.programa_nombre}</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{estudiante.apellidos}, {estudiante.nombres}</h2>
+            <p className="text-slate-500 text-sm mt-0.5">{estudiante.programa_nombre}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 mt-4">
               <div>
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Código</p>
-                <p className="font-semibold text-slate-700 text-sm">{estudiante.codigo_estudiante}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Código</p>
+                <p className="font-semibold text-slate-800 text-sm">{estudiante.codigo_estudiante}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">DNI</p>
-                <p className="font-semibold text-slate-700 text-sm">{estudiante.dni}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">DNI</p>
+                <p className="font-semibold text-slate-800 text-sm">{estudiante.dni}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Celular</p>
-                <p className="font-semibold text-slate-700 text-sm">{estudiante.celular || '-'}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Celular</p>
+                <p className="font-semibold text-slate-800 text-sm">{estudiante.celular || '-'}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Email</p>
-                <p className="font-semibold text-slate-700 text-sm truncate" title={estudiante.email_personal}>{estudiante.email_personal || '-'}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Email</p>
+                <p className="font-semibold text-slate-800 text-sm truncate" title={estudiante.email_personal}>{estudiante.email_personal || '-'}</p>
               </div>
             </div>
           </div>
-          <div className="text-center min-w-[140px] flex-shrink-0">
-            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Periodo</p>
-            <p className="text-lg font-bold text-primary">{estudiante.periodo_codigo}</p>
-            <p className="text-xs text-slate-400 mt-2">Emisión: {estudiante.fecha_emision}</p>
+          <div className="text-center min-w-[130px] flex-shrink-0 border-l border-slate-200 pl-6">
+            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-1">Periodo</p>
+            <p className="text-lg font-extrabold text-slate-900">{estudiante.periodo_codigo}</p>
+            <p className="text-[10px] text-slate-400 mt-1.5">Emisión: {estudiante.fecha_emision}</p>
           </div>
         </div>
       </div>
 
+      {/* RESUMEN EN LENGUAJE NATURAL (solo Admin) */}
+      {isAdmin && (
+        <div className="bg-primary/5 border border-primary/20 rounded-md px-5 py-4 mb-5 boletin-section">
+          <p className="text-sm text-slate-700 leading-relaxed">
+            <span className="font-bold text-slate-900">{estudiante.apellidos}, {estudiante.nombres}</span>
+            {cursos_periodo.length === 0 ? (
+              <> aún no tiene notas registradas para este periodo.</>
+            ) : (
+              <>
+                {' '}lleva <span className="font-bold text-primary">{progreso_creditos.creditos_aprobados}</span> de <span className="font-bold">{progreso_creditos.creditos_totales}</span> créditos aprobados (<span className="font-bold text-primary">{progreso_creditos.porcentaje}%</span>).
+                Este periodo tiene <span className="font-bold text-emerald-700">{resumen.cursos_aprobados}</span> curso{resumen.cursos_aprobados !== 1 ? 's' : ''} aprobado{resumen.cursos_aprobados !== 1 ? 's' : ''} y <span className="font-bold text-red-600">{resumen.cursos_desaprobados}</span> desaprobado{resumen.cursos_desaprobados !== 1 ? 's' : ''}, con un promedio de <span className="font-bold">{resumen.promedio_general ?? '-'}</span>.
+                {' '}Su matrícula está{' '}
+                {matricula_estado.pago_matricula ? (
+                  <span className="font-bold text-emerald-700">pagada</span>
+                ) : (
+                  <span className="font-bold text-amber-600">pendiente de pago</span>
+                )}.
+                {resumen.cursos_desaprobados > 0 && (
+                  <span className="block mt-2 text-amber-700 font-semibold">⚠️ Requiere seguimiento por cursos desaprobados.</span>
+                )}
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
       {/* SECCION 2: Estado de Matrícula */}
-      <div className={`glass-card p-5 border-l-4 boletin-section ${matricula_estado.pago_matricula ? 'border-l-emerald-500 bg-emerald-50/30' : 'border-l-amber-500 bg-amber-50/30'}`}>
+      <div className={`bg-white border rounded-md p-5 mb-5 boletin-section ${matricula_estado.pago_matricula ? 'border-emerald-200' : 'border-amber-200'}`}>
         <div className="flex items-start gap-4">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${matricula_estado.pago_matricula ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+          <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 text-sm font-bold ${matricula_estado.pago_matricula ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {matricula_estado.pago_matricula ? '✓' : '⚠'}
           </div>
           <div className="flex-1">
-            <h4 className="font-bold text-slate-800 mb-2">Estado de Matrícula</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <p className={`${SECTION_TITLE} mb-3`}>Estado de Matrícula</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm">
               <div>
-                <span className="text-xs text-slate-400 font-bold uppercase">Pago</span>
-                <p className={`font-semibold ${matricula_estado.pago_matricula ? 'text-emerald-600' : 'text-amber-600'}`}>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Pago</p>
+                <p className={`font-semibold ${matricula_estado.pago_matricula ? 'text-emerald-700' : 'text-amber-700'}`}>
                   {matricula_estado.pago_matricula ? 'Pagado' : 'Pendiente'}
                 </p>
               </div>
               <div>
-                <span className="text-xs text-slate-400 font-bold uppercase">Tipo Ingreso</span>
-                <p className="font-semibold text-slate-700">{matricula_estado.tipo_ingreso || 'N/A'}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Tipo Ingreso</p>
+                <p className="font-semibold text-slate-800">{matricula_estado.tipo_ingreso || 'N/A'}</p>
               </div>
               <div>
-                <span className="text-xs text-slate-400 font-bold uppercase">Estado</span>
-                <p className="font-semibold text-slate-700 capitalize">{matricula_estado.estado_matricula}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Estado</p>
+                <p className="font-semibold text-slate-800 capitalize">{matricula_estado.estado_matricula}</p>
               </div>
               <div>
-                <span className="text-xs text-slate-400 font-bold uppercase">Fin Mat. Regular</span>
-                <p className="font-semibold text-slate-700 text-xs">{matricula_estado.fecha_fin_matricula_regular ? new Date(matricula_estado.fecha_fin_matricula_regular).toLocaleDateString() : 'N/A'}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Fin Mat. Regular</p>
+                <p className="font-semibold text-slate-800 text-xs">{matricula_estado.fecha_fin_matricula_regular ? new Date(matricula_estado.fecha_fin_matricula_regular).toLocaleDateString() : 'N/A'}</p>
               </div>
             </div>
             {!matricula_estado.pago_matricula && (
-              <p className="text-amber-700 text-xs mt-3 font-medium bg-amber-100/50 px-3 py-1.5 rounded-lg inline-block">
-                Tu matrícula tiene pagos pendientes. Algunas funcionalidades pueden estar restringidas.
+              <p className="text-amber-700 text-xs mt-3 font-medium bg-amber-50 border border-amber-200 px-3 py-1.5 rounded inline-block">
+                La matrícula tiene pagos pendientes.
               </p>
             )}
           </div>
@@ -468,90 +494,86 @@ export function StudentReportCard() {
       </div>
 
       {/* SECCION 3: Estado Académico */}
-      <div className="glass-card p-5 border-l-4 border-l-blue-500 boletin-section">
+      <div className="bg-white border border-slate-200 border-l-4 border-l-blue-500 rounded-md p-5 mb-5 boletin-section">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">📋</div>
+          <div className="w-9 h-9 rounded bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center flex-shrink-0 text-sm">📋</div>
           <div>
-            <h4 className="font-bold text-slate-800">Estado Académico</h4>
-            <p className="text-sm text-slate-600 capitalize mt-1">
-              <span className="font-semibold">{estado_academico}</span>
-            </p>
+            <p className={`${SECTION_TITLE}`}>Estado Académico</p>
+            <p className="text-sm text-slate-700 capitalize mt-0.5 font-semibold">{estado_academico}</p>
           </div>
         </div>
       </div>
 
       {/* SECCION 4: Progreso de Créditos */}
-      <div className="glass-card p-5 border-l-4 border-l-purple-500 boletin-section">
+      <div className="bg-white border border-slate-200 border-l-4 border-l-purple-500 rounded-md p-5 mb-5 boletin-section">
         <div className="flex items-center gap-4 mb-3">
-          <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">📊</div>
+          <div className="w-9 h-9 rounded bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center flex-shrink-0 text-sm">📊</div>
           <div className="flex-1">
-            <h4 className="font-bold text-slate-800">Progreso de Créditos</h4>
-            <p className="text-sm text-slate-500">
+            <p className={`${SECTION_TITLE}`}>Progreso de Créditos</p>
+            <p className="text-sm text-slate-500 mt-0.5">
               {progreso_creditos.creditos_aprobados} de {progreso_creditos.creditos_totales} créditos aprobados
             </p>
           </div>
           <div className="text-right">
-            <span className="text-2xl font-extrabold text-purple-600">{progreso_creditos.porcentaje}%</span>
+            <span className="text-2xl font-extrabold text-purple-600">{progreso_creditos.porcentaje}<span className="text-sm font-bold text-purple-400">%</span></span>
           </div>
         </div>
-        {/* Barra visual (se oculta en impresión) */}
-        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden progress-bar-print-hide">
+        <div className="w-full bg-slate-100 rounded h-2 overflow-hidden progress-bar-print-hide">
           <div
-            className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-500"
+            className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded transition-all duration-500"
             style={{ width: `${progreso_creditos.porcentaje}%` }}
           ></div>
         </div>
-        {/* Texto alternativo (solo aparece en impresión) */}
         <p className="text-sm text-slate-600 font-semibold progress-text-print">
           {progreso_creditos.creditos_aprobados} de {progreso_creditos.creditos_totales} créditos aprobados ({progreso_creditos.porcentaje}%)
         </p>
       </div>
 
       {/* SECCION 5: Notas por Curso */}
-      <div className="glass-card overflow-hidden boletin-section">
-        <div className="bg-slate-800 text-white p-4 flex justify-between items-center">
-          <h4 className="font-bold flex items-center text-lg">
+      <div className="bg-white border border-slate-200 rounded-md overflow-hidden mb-5 boletin-section">
+        <div className="bg-slate-800 text-white px-5 py-3.5 flex justify-between items-center">
+          <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
             <span className="mr-2">📚</span> Notas del Periodo
           </h4>
-          <span className="text-sm text-slate-300">{cursos_periodo.length} cursos</span>
+          <span className="text-xs text-slate-300 font-medium">{cursos_periodo.length} cursos</span>
         </div>
         {cursos_periodo.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-slate-400 font-medium">No hay cursos registrados para este periodo.</p>
+            <p className="text-slate-400 font-medium text-sm">No hay cursos registrados para este periodo.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left boletin-table">
               <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200">
-                  <th className="py-3 px-4 font-bold text-slate-500 uppercase text-xs tracking-wider">Curso / Unidad Didáctica</th>
-                  <th className="py-3 px-3 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Créditos</th>
-                  <th className="py-3 px-3 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Cap. 1</th>
-                  <th className="py-3 px-3 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Cap. 2</th>
-                  <th className="py-3 px-3 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Cap. 3</th>
-                  <th className="py-3 px-3 font-bold text-slate-800 uppercase text-xs tracking-wider text-center bg-slate-100/50">Final</th>
-                  <th className="py-3 px-3 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Estado</th>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="py-2.5 px-4 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em]">Curso / Unidad Didáctica</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Créditos</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 1</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 2</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 3</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase text-[10px] tracking-[0.15em] text-center bg-slate-100">Final</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {cursos_periodo.map((curso, idx) => (
-                  <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="py-3 px-4 font-semibold text-slate-700 text-sm">{curso.unidad_nombre}</td>
-                    <td className="py-3 px-3 text-center font-medium text-slate-500 text-sm">{curso.creditos}</td>
-                    <td className={`py-3 px-3 text-center text-sm ${getGradeColor(curso.nota_c1)}`}>
+                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-2.5 px-4 font-medium text-slate-800 text-sm">{curso.unidad_nombre}</td>
+                    <td className="py-2.5 px-3 text-center text-slate-500 text-sm">{curso.creditos}</td>
+                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c1)}`}>
                       {curso.nota_c1 ?? '-'}
                     </td>
-                    <td className={`py-3 px-3 text-center text-sm ${getGradeColor(curso.nota_c2)}`}>
+                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c2)}`}>
                       {curso.nota_c2 ?? '-'}
                     </td>
-                    <td className={`py-3 px-3 text-center text-sm ${getGradeColor(curso.nota_c3)}`}>
+                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c3)}`}>
                       {curso.nota_c3 ?? '-'}
                     </td>
-                    <td className={`py-3 px-3 text-center text-lg bg-slate-50/50 ${getGradeColor(curso.nota_final)}`}>
+                    <td className={`py-2.5 px-3 text-center text-base bg-slate-50/80 font-bold ${getGradeColor(curso.nota_final)}`}>
                       {curso.nota_final ?? '-'}
                     </td>
-                    <td className="py-3 px-3 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${getBadgeColor(curso.estado)}`}>
+                    <td className="py-2.5 px-3 text-center">
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${getBadgeColor(curso.estado)}`}>
                         {curso.estado}
                       </span>
                     </td>
@@ -564,32 +586,32 @@ export function StudentReportCard() {
       </div>
 
       {/* SECCION 6: Resumen del Rendimiento */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 boletin-section">
-        <div className="glass-card p-5 text-center border-t-4 border-t-primary">
-          <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Promedio General</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5 boletin-section">
+        <div className="bg-white border border-slate-200 border-t-4 border-t-primary rounded-md p-5 text-center">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Promedio General</p>
           <p className={`text-4xl font-extrabold ${getGradeColor(resumen.promedio_general)}`}>
             {resumen.promedio_general ?? '-'}
           </p>
-          <p className="text-xs text-slate-400 mt-1">de 20 puntos</p>
+          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de 20 puntos</p>
         </div>
-        <div className="glass-card p-5 text-center border-t-4 border-t-emerald-500">
-          <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Aprobados</p>
-          <p className="text-4xl font-extrabold text-emerald-600">{resumen.cursos_aprobados}</p>
-          <p className="text-xs text-slate-400 mt-1">de {resumen.total_cursos} cursos</p>
+        <div className="bg-white border border-slate-200 border-t-4 border-t-emerald-500 rounded-md p-5 text-center">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Aprobados</p>
+          <p className="text-4xl font-extrabold text-emerald-700">{resumen.cursos_aprobados}</p>
+          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de {resumen.total_cursos} cursos</p>
         </div>
-        <div className="glass-card p-5 text-center border-t-4 border-t-red-500">
-          <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Desaprobados</p>
-          <p className="text-4xl font-extrabold text-red-500">{resumen.cursos_desaprobados}</p>
-          <p className="text-xs text-slate-400 mt-1">de {resumen.total_cursos} cursos</p>
+        <div className="bg-white border border-slate-200 border-t-4 border-t-red-500 rounded-md p-5 text-center">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Desaprobados</p>
+          <p className="text-4xl font-extrabold text-red-600">{resumen.cursos_desaprobados}</p>
+          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de {resumen.total_cursos} cursos</p>
         </div>
       </div>
 
-      {/* SECCION 7: Historial de Periodos + Observaciones */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 boletin-section">
+      {/* SECCION 7: Historial + Observaciones */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8 boletin-section">
         {/* Historial */}
-        <div className="glass-card overflow-hidden">
-          <div className="bg-slate-800 text-white p-4">
-            <h4 className="font-bold flex items-center text-lg">
+        <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
+          <div className="bg-slate-800 text-white px-5 py-3">
+            <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
               <span className="mr-2">📅</span> Historial de Periodos
             </h4>
           </div>
@@ -600,16 +622,16 @@ export function StudentReportCard() {
           ) : (
             <div className="divide-y divide-slate-100">
               {historial.map((h, idx) => (
-                <div key={idx} className="p-4 hover:bg-slate-50/50 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-slate-800">{h.periodo_codigo}</span>
+                <div key={idx} className="px-5 py-3 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-slate-800 text-sm">{h.periodo_codigo}</span>
                     <span className={`text-lg font-extrabold ${getGradeColor(h.promedio)}`}>
                       {h.promedio ?? '-'}
                     </span>
                   </div>
-                  <div className="flex gap-4 text-xs text-slate-500">
-                    <span className="text-emerald-600 font-semibold">✓ {h.cursos_aprobados} aprobados</span>
-                    <span className="text-red-500 font-semibold">✗ {h.cursos_desaprobados} desaprobados</span>
+                  <div className="flex gap-4 text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+                    <span className="text-emerald-700">✓ {h.cursos_aprobados} aprobados</span>
+                    <span className="text-red-600">✗ {h.cursos_desaprobados} desaprobados</span>
                   </div>
                 </div>
               ))}
@@ -618,9 +640,9 @@ export function StudentReportCard() {
         </div>
 
         {/* Observaciones */}
-        <div className="glass-card overflow-hidden">
-          <div className="bg-slate-800 text-white p-4">
-            <h4 className="font-bold flex items-center text-lg">
+        <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
+          <div className="bg-slate-800 text-white px-5 py-3">
+            <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
               <span className="mr-2">📝</span> Observaciones
             </h4>
           </div>
@@ -634,6 +656,20 @@ export function StudentReportCard() {
         </div>
       </div>
 
+      {/* PIE DE PÁGINA */}
+      <div className="border-t border-slate-300 pt-6 pb-4 mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+          <div>
+            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-1">Secretaría Académica</p>
+            <div className="w-48 border-b border-slate-400 mb-1"></div>
+            <p className="text-[10px] text-slate-400">Firma y sello</p>
+          </div>
+          <p className="text-[10px] text-slate-400 text-right">
+            Documento generado el {estudiante.fecha_emision} por el Sistema SIGA
+          </p>
+        </div>
+      </div>
+
       {/* Print-only footer */}
       <div className="boletin-footer-print print-only">
         <p>Documento generado por SIGA — Sistema de Gestión Académica</p>
@@ -644,49 +680,57 @@ export function StudentReportCard() {
   );
 }
 
-function StudentSearchBar({ searchTerm, setSearchTerm, selectedStudentName, onClearSelection, filteredStudents, showDropdown, onSelect, searchLoading }) {
+function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDropdown, onSelect, searchLoading, recentStudents }) {
+  const showRecent = showDropdown && searchTerm.length === 0 && recentStudents.length > 0;
+  const showResults = showDropdown && searchTerm.length >= 3;
+
   return (
     <div className="relative">
-      {selectedStudentName && (
-        <div className="flex items-center gap-2 mb-2 px-1">
-          <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">Estudiante seleccionado:</span>
-          <span className="text-sm font-semibold text-primary">{selectedStudentName}</span>
-          <button
-            onClick={onClearSelection}
-            className="text-xs text-red-500 hover:text-red-700 underline ml-1 cursor-pointer"
-          >
-            Cambiar
-          </button>
-        </div>
-      )}
-      <div className="glass-card flex items-center gap-2 px-4 py-2">
-        <span className="px-2 text-slate-400 text-xl">🔍</span>
+      <div className="bg-white border border-slate-200 rounded-md flex items-center gap-2 px-4 py-2 shadow-sm">
+        <span className="px-1 text-slate-400 text-lg">🔍</span>
         <input
           type="text"
-          className="w-full bg-transparent border-none focus:ring-0 py-2 text-slate-700 placeholder-slate-400 outline-none"
+          className="w-full bg-transparent border-none focus:ring-0 py-1.5 text-slate-700 placeholder-slate-400 outline-none text-sm"
           placeholder="Buscar estudiante por DNI, nombre, apellido o código..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          onFocus={() => { if (filteredStudents.length > 0) setShowDropdown(true); }}
+          onFocus={() => setShowDropdown(true)}
         />
-        {searchLoading && <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>}
+        {searchLoading && <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin"></div>}
       </div>
-      {showDropdown && filteredStudents.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-          {filteredStudents.map((student) => (
+
+      {showRecent && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg">
+          <p className="px-4 pt-3 pb-1 text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Consultados recientemente</p>
+          {recentStudents.map((student) => (
             <button
               key={student.id}
               onClick={() => onSelect(student)}
-              className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-b-0 cursor-pointer"
+              className="w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 cursor-pointer"
             >
               <p className="font-semibold text-slate-800 text-sm">{student.apellidos}, {student.nombres}</p>
-              <p className="text-xs text-slate-400 mt-0.5">Código: {student.codigo_estudiante} | DNI: {student.dni}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Cód: {student.codigo_estudiante}</p>
             </button>
           ))}
         </div>
       )}
-      {showDropdown && searchTerm.length >= 3 && filteredStudents.length === 0 && !searchLoading && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl p-4 text-center">
+
+      {showResults && filteredStudents.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+          {filteredStudents.map((student) => (
+            <button
+              key={student.id}
+              onClick={() => onSelect(student)}
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 cursor-pointer"
+            >
+              <p className="font-semibold text-slate-800 text-sm">{student.apellidos}, {student.nombres}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Cód: {student.codigo_estudiante} · DNI: {student.dni}</p>
+            </button>
+          ))}
+        </div>
+      )}
+      {showResults && searchTerm.length >= 3 && filteredStudents.length === 0 && !searchLoading && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg p-4 text-center">
           <p className="text-slate-400 text-sm">No se encontraron estudiantes con "{searchTerm}"</p>
         </div>
       )}
