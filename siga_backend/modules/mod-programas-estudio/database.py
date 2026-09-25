@@ -34,7 +34,14 @@ class OutboxEvent(BaseModel):
     payload = Column(JSON, nullable=False)
     published = Column(Boolean, default=False, index=True)
 
-engine = create_async_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(
+    DATABASE_URL, 
+    echo=False, 
+    pool_size=10, 
+    max_overflow=20, 
+    pool_pre_ping=True, 
+    pool_recycle=300
+)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 async def get_db():

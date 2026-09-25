@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete, text
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
@@ -210,6 +210,73 @@ async def actualizar_programa(programa_id: int, programa_data: ProgramaCreate, d
     await db.commit()
     await db.refresh(programa)
     return programa
+
+@router.delete("/programas/{programa_id}")
+async def eliminar_programa(programa_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ProgramaEstudio).where(ProgramaEstudio.id == programa_id))
+    db_programa = result.scalar_one_or_none()
+    if not db_programa:
+        raise HTTPException(status_code=404, detail="Programa no encontrado")
+
+    # Verificar si hay estudiantes vinculados
+    res_estudiantes = await db.execute(
+        select(func.count()).select_from(text("estudiantes")).where(text("programa_id = :pid")),
+        {"pid": programa_id}
+    )
+    total_estudiantes = res_estudiantes.scalar() or 0
+    if total_estudiantes > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar el programa porque tiene {total_estudiantes} estudiantes asociados. Si ya no se oferta, se recomienda cambiar su estado a 'Inactivo' o 'En liquidación'."
+        )
+
+    # Eliminar configuraciones asociadas
+    await db.execute(
+        delete(ProgramaConfiguracion).where(ProgramaConfiguracion.programa_id == programa_id)
+    )
+
+    # Eliminar requisitos asociados
+    await db.execute(
+        delete(ProgramaRequisito).where(ProgramaRequisito.programa_id == programa_id)
+    )
+
+    # Eliminar unidades de los módulos del programa
+    res_modulos = await db.execute(
+        select(ProgramaModulo.id).where(ProgramaModulo.programa_id == programa_id)
+    )
+    modulo_ids = res_modulos.scalars().all()
+    if modulo_ids:
+        await db.execute(
+            delete(ProgramaUnidad).where(ProgramaUnidad.programa_modulo_id.in_(modulo_ids))
+        )
+        await db.execute(
+            delete(ProgramaModulo).where(ProgramaModulo.id.in_(modulo_ids))
+        )
+
+    # Eliminar tutorías, horarios, planes docentes y cargas si existieran
+    await db.execute(text("DELETE FROM tutorias WHERE programa_id = :pid"), {"pid": programa_id})
+    await db.execute(text("DELETE FROM horarios_periodo WHERE programa_id = :pid"), {"pid": programa_id})
+    await db.execute(text("DELETE FROM planes_trabajo_docente WHERE programa_id = :pid"), {"pid": programa_id})
+    await db.execute(text("DELETE FROM carga_lectiva WHERE programa_id = :pid"), {"pid": programa_id})
+
+    # Eliminar el programa
+    await db.delete(db_programa)
+
+    # Registrar evento en outbox
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    event = OutboxEvent(
+        event_type="carrera.eliminada",
+        payload={
+            "id": programa_id,
+            "nombre": db_programa.nombre,
+            "codigo": db_programa.codigo,
+            "metadata": {"request_id": request_id}
+        }
+    )
+    db.add(event)
+    await db.commit()
+
+    return {"message": "Programa de estudio eliminado exitosamente", "id": programa_id}
 
 class ProgramaConfiguracionCreate(BaseModel):
     periodo_academico: Optional[int] = 1
