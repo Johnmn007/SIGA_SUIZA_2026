@@ -1,20 +1,21 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "john.007"
-      POSTGRES_DB: siga_core
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./dump_railway.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+  # Base de datos local comentada: la aplicacion consume Railway
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: "john.007"
+  #     POSTGRES_DB: siga_core
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./dump_railway.sql:/docker-entrypoint-initdb.d/init.sql:ro
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
 
   nats:
     image: nats:2.9-alpine
@@ -47,17 +48,16 @@ services:
       - "8000:8000"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
     volumes:
       - ./siga_backend:/app
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -73,18 +73,16 @@ services:
       - "8001:8001"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8001
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   mod-planes-estudio:
     build: 
@@ -95,18 +93,16 @@ services:
       - "8002:8002"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8002
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   mod-programas-estudio:
     build: 
@@ -117,18 +113,16 @@ services:
       - "8005:8005"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8005
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   mod-gestion-academica:
     build: 
@@ -139,18 +133,16 @@ services:
       - "8006:8006"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8006
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   mod-auditoria:
     build: 
@@ -161,18 +153,16 @@ services:
       - "8007:8007"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8007
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   mod-evaluacion:
     build: 
@@ -183,18 +173,16 @@ services:
       - "8008:8008"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8008
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   mod-admision:
     build: 
@@ -205,19 +193,17 @@ services:
       - "8009:8009"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8009
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
       - ./docs:/app/docs
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   # ====== FRONTEND ======
   siga-frontend:
@@ -238,5 +224,5 @@ services:
       - siga-core
 
 volumes:
-  postgres_data:
+  # postgres_data:
   frontend_node_modules:
