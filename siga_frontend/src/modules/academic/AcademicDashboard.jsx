@@ -752,7 +752,7 @@ export function AcademicDashboard() {
                 return (
                   <div 
                     key={program.id} 
-                    className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200 p-6 flex flex-col justify-between group"
+                    className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200 p-6 flex flex-col justify-between group overflow-hidden"
                   >
                     <div>
                       {/* Top Badges: Code, Area & Status */}
@@ -838,45 +838,47 @@ export function AcademicDashboard() {
                     </div>
 
                     {/* Quick Action Buttons */}
-                    <div className="pt-3.5 border-t border-slate-100 flex items-center gap-1.5">
-                      <button 
-                        className="flex-1 py-2 px-2.5 bg-primary text-white hover:bg-primary-dark font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-                        onClick={() => {
-                          setSelectedProgram(program.id);
-                          setView('mesh');
-                        }}
-                        title="Explorar Malla Curricular y Unidades Didácticas"
-                      >
-                        <span>Ver Malla</span>
-                        <ArrowRight size={13} />
-                      </button>
+                    <div className="pt-3.5 border-t border-slate-100 mt-auto">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button 
+                          className="py-2.5 px-3 bg-primary text-white hover:bg-primary-dark font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm hover:shadow cursor-pointer"
+                          onClick={() => {
+                            setSelectedProgram(program.id);
+                            setView('mesh');
+                          }}
+                          title="Explorar Malla Curricular y Unidades Didácticas"
+                        >
+                          <span>Ver Malla</span>
+                          <ArrowRight size={13} />
+                        </button>
 
-                      <button 
-                        className="py-2 px-2 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-xl border border-slate-200 text-xs transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
-                        onClick={() => handleOpenConfigModal(program)}
-                        title="Configurar turnos, cupos y coordinación"
-                      >
-                        <Sliders size={13} className="text-slate-500" />
-                        <span className="hidden sm:inline">Parametrización</span>
-                      </button>
+                        <button 
+                          className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium rounded-xl border border-slate-200/90 text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer"
+                          onClick={() => handleOpenConfigModal(program)}
+                          title="Configurar turnos, cupos y coordinación"
+                        >
+                          <Sliders size={13} className="text-slate-500 shrink-0" />
+                          <span>Parametrización</span>
+                        </button>
 
-                      <button 
-                        className="py-2 px-2 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-xl border border-slate-200 text-xs transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
-                        onClick={() => setEditingProgram({ ...program })}
-                        title="Editar información de la carrera"
-                      >
-                        <Edit3 size={13} className="text-slate-500" />
-                        <span className="hidden sm:inline">Editar</span>
-                      </button>
+                        <button 
+                          className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium rounded-xl border border-slate-200/90 text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer"
+                          onClick={() => setEditingProgram({ ...program })}
+                          title="Editar información de la carrera"
+                        >
+                          <Edit3 size={13} className="text-slate-500 shrink-0" />
+                          <span>Editar</span>
+                        </button>
 
-                      <button 
-                        className="py-2 px-2 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 font-medium rounded-xl border border-rose-200 text-xs transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
-                        onClick={() => { setDeleteError(''); setProgramToDelete(program); }}
-                        title="Eliminar programa de estudio"
-                      >
-                        <Trash2 size={13} className="text-rose-500" />
-                        <span className="hidden sm:inline">Eliminar</span>
-                      </button>
+                        <button 
+                          className="py-2.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 font-medium rounded-xl border border-rose-200/90 text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer"
+                          onClick={() => { setDeleteError(''); setProgramToDelete(program); }}
+                          title="Eliminar programa de estudio"
+                        >
+                          <Trash2 size={13} className="text-rose-500 shrink-0" />
+                          <span>Eliminar</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
