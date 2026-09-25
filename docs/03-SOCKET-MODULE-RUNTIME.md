@@ -2,7 +2,10 @@
 
 | Versión | Fecha       | Autor               | Descripción                                        |
 |---------|-------------|----------------------|----------------------------------------------------|
+| 1.1     | 2026-08-29  | Mesa de trabajo (planificación) | Alineación MVP v1.1: módulo de ejemplo real, matriz de resiliencia canónica, rutas protegidas |
 | 1.0     | 2026-06-26  | Equipo Arquitectura  | Versión inicial del Socket / Module Runtime        |
+
+> **Última actualización: 2026-08-29** · Documento alineado a las decisiones MVP v1.1 de 01-VISION-ARQUITECTONICA.md.
 
 ---
 
@@ -17,26 +20,25 @@ El Socket no es un servicio separado — vive dentro del Core como la **Capa de 
 ### 1.2 Analogía
 
 ```
-CORE                      SOCKET                    MÓDULOS
-┌─────────────────┐      ┌─────────────┐      ┌──────────────────┐
-│                 │      │             │      │  mod-estudiantes  │
-│  Energía        │─────→│  Registry   │←────→│  ┌────────────┐  │
-│  (Infraestructura)     │  Runtime    │      │  │ BD propia  │  │
-│                 │      │  Validator  │      │  └────────────┘  │
-│  Identidad      │      │  Discovery  │      ├──────────────────┤
-│  (Auth)         │      │  Health     │      │  mod-matricula   │
-│                 │      │  Monitor    │      │  ┌────────────┐  │
-│  Gateway        │      │  Circuit    │      │  │ BD propia  │  │
-│  (Proxy)        │      │  Breaker    │      │  └────────────┘  │
-│                 │      │             │      ├──────────────────┤
-│  Resiliencia    │      │             │      │  mod-planes-e.  │
-│  (Cache)        │      │             │      │  ┌────────────┐  │
-│                 │      │             │      │  │ BD propia  │  │
-└─────────────────┘      └─────────────┘      │  └────────────┘  │
-                                               └──────────────────┘
+CORE                      SOCKET                    MÓDULOS MVP
+┌─────────────────┐      ┌─────────────┐      ┌────────────────────┐
+│                 │      │             │      │  mod-planes-estudio │
+│  Energía        │─────→│  Registry   │←────→│  (:8002)            │
+│  (Infraestructura)     │  Runtime    │      ├────────────────────┤
+│                 │      │  Validator  │      │  mod-programas-e.   │
+│  Identidad      │      │  Discovery  │      │  (:8005)            │
+│  (Auth)         │      │  Health     │      ├────────────────────┤
+│                 │      │  Monitor    │      │  mod-gestion-acad.  │
+│  Gateway        │      │  Circuit    │      │  (:8006)            │
+│  (Proxy)        │      │  Breaker    │      └────────────────────┘
+│                 │      │             │
+│  Resiliencia    │      │             │      (En MVP, todos los
+│  (Cache)        │      │             │       módulos apuntan a
+│                 │      │             │       la BD `siga_core`)
+└─────────────────┘      └─────────────┘
 ```
 
-El Core provee la **infraestructura base** (energía eléctrica): autenticación, gateway, resiliencia, event bus. El **Socket** es el punto de conexión estandarizado (el enchufe): define el contrato, valida que los módulos cumplan el estándar, y gestiona su estado. Cada **módulo** es un dispositivo que se enchufa: tiene su propia función, sus propios datos, y puede ser reemplazado sin modificar la instalación eléctrica.
+En el MVP, el Core provee la **infraestructura base** (energía eléctrica): autenticación, gateway, resiliencia, event bus. El **Socket** es el punto de conexión estandarizado (el enchufe): define el contrato, valida que los módulos cumplan el estándar, y gestiona su estado. Cada **módulo** es un dispositivo que se enchufa: tiene su propia función y puede ser reemplazado sin modificar la instalación eléctrica. **Nota (MVP):** en la fase MVP todos los servicios apuntan a la BD compartida `siga_core`; la BD propia por módulo es una decisión post-MVP.
 
 ### 1.3 Responsabilidades del Socket
 
@@ -54,7 +56,7 @@ El Core provee la **infraestructura base** (energía eléctrica): autenticación
 ### 1.4 Lo que NO hace el Socket
 
 - **No ejecuta código de módulos**: los módulos son procesos independientes.
-- **No almacena datos de módulos**: cada módulo tiene su propia BD.
+- **No almacena datos de módulos**: cada módulo gestiona sus propios datos. En el MVP todos comparten la BD `siga_core`; la BD propia por módulo es post-MVP.
 - **No implementa lógica de negocio**: eso es responsabilidad de cada módulo.
 - **No reemplaza un API Gateway completo**: el Socket solo gestiona el ciclo de vida; el Gateway (otra capa del Core) maneja el ruteo de peticiones.
 
@@ -137,7 +139,7 @@ El Core provee la **infraestructura base** (energía eléctrica): autenticación
 | **REGISTERED** | Registrado en el runtime, listo para health check inicial | ❌ No | Primer health check pendiente |
 | **HEALTHY** | Health check OK, funcionando normalmente | ✅ Sí | Enrutamiento normal, cache habilitado |
 | **DEGRADED** | 1-2 fallos consecutivos, responde parcialmente | ⚠️ Sí (con advertencia) | Enrutamiento con fallback parcial |
-| **UNHEALTHY** | 3+ fallos consecutivos, Circuit Breaker OPEN | ❌ No | Fallback activado, sin enrutamiento directo |
+| **UNHEALTHY** | 3+ fallos consecutivos; a partir de 5+ fallos el Circuit Breaker pasa a OPEN | ❌ No | Fallback activado, sin enrutamiento directo |
 | **OFFLINE** | No responde desde el registro inicial | ❌ No | Sin intentos de conexión |
 | **REMOVED** | Desregistrado explícitamente | ❌ No | No existe en el runtime |
 
@@ -170,7 +172,7 @@ El manifiesto es un archivo `manifest.yaml` ubicado en la raíz de cada módulo.
 # ──────────────────────────────────────────────
 # IDENTIDAD DEL MÓDULO (Obligatorio)
 # ──────────────────────────────────────────────
-name: "mod-estudiantes"                # Obligatorio. Regex: ^mod-[a-z0-9-]+$
+name: "mod-planes-estudio"            # Obligatorio. Regex: ^mod-[a-z0-9-]+$
                                        # Debe ser único en el sistema.
                                        # No puede usar nombres reservados:
                                        # core, siga, admin, auth, api, ws
@@ -183,12 +185,12 @@ version: "1.2.3"                       # Obligatorio. Semver: X.Y.Z
 api_version: "v1"                      # Obligatorio. Regex: ^v\d+$
                                        # Define la versión de API que expone.
                                        # Cada versión major tiene su prefijo:
-                                       # /api/v1/mod-estudiantes/...
+                                       # /api/v1/mod-planes-estudio/...
 
 description: >                         # Opcional pero recomendado
-  Gestión de estudiantes del IESTP.
-  CRUD de datos personales, historial académico,
-  documentos, y estado del estudiante.
+  Gestión de planes de estudio y mallas
+  curriculares de los programas del IESTP:
+  unidades didácticas y módulos formativos.
 
 author: "Equipo SIGA"                  # Opcional
 
@@ -196,7 +198,7 @@ author: "Equipo SIGA"                  # Opcional
 # ENDPOINTS (Obligatorio)
 # ──────────────────────────────────────────────
 endpoints:
-  http: "http://localhost:8006"        # Obligatorio. URL base del módulo.
+  http: "http://localhost:8002"        # Obligatorio. URL base del módulo.
                                        # El Core proxye a esta URL.
   grpc: ""                             # Opcional (futuro). Para gRPC.
 
@@ -213,42 +215,41 @@ health_check: "/health"                # Default: /health
 dependencies:
   requires:                            # Módulos MUST HAVE para funcionar
     - "mod-programas-estudio"          # Sin estos, el módulo no opera
-    - "mod-planes-estudio"
   optional:                            # Módulos NICE TO HAVE
-    - "mod-notificaciones"             # Sin estos, funcionalidad reducida
+    - "mod-evaluacion"                 # Sin estos, funcionalidad reducida
 
 # ──────────────────────────────────────────────
 # EVENTOS (Obligatorio)
 # ──────────────────────────────────────────────
 events:
   publishes:                           # Eventos que este módulo emite
-    - "estudiante.creado"              #   → Otros módulos se suscriben
-    - "estudiante.actualizado"
-    - "estudiante.eliminado"
+    - "plan.published"                 #   → Otros módulos se suscriben
+    - "plan.archived"
+    - "ud.updated"
   subscribes:                          # Eventos a los que este módulo
-    - "usuario.creado"                 #   reacciona
+    - "program.updated"                #   reacciona
     - "core.started"
-    - "matricula.confirmada"
 
 # ──────────────────────────────────────────────
 # PERMISOS (Obligatorio)
 # ──────────────────────────────────────────────
 permissions:
   requires:                            # Permisos que el módulo necesita
-    - "mod-estudiantes:read"           #   (el usuario debe tenerlos)
-    - "mod-estudiantes:write"
+    - "mod-planes-estudio:read"        #   (el usuario debe tenerlos)
+    - "mod-planes-estudio:write"
     - "mod-programas-estudio:read"
   grants:                              # Permisos que el módulo define
-    - "mod-estudiantes:read"           #   (se crean automáticamente)
-    - "mod-estudiantes:write"
-    - "mod-estudiantes:admin"
+    - "mod-planes-estudio:read"        #   (se crean automáticamente)
+    - "mod-planes-estudio:write"
+    - "mod-planes-estudio:admin"
 
 # ──────────────────────────────────────────────
 # CONFIGURACIÓN (Opcional)
 # ──────────────────────────────────────────────
 config:
-  database: "siga_estudiantes"         # Nombre de la BD del módulo
-  port: 8006                           # Puerto del módulo
+  database: "siga_core"                # En MVP todos los servicios apuntan a
+                                       # `siga_core`. BD propia post-MVP.
+  port: 8002                           # Puerto del módulo
   timeout: 30                          # Timeout por defecto
   cache_ttl: 300                       # TTL de cache para este módulo
 
@@ -259,7 +260,7 @@ tags:
   - "core"
   - "academico"
   - "fase-1"
-  - "estudiantes"
+  - "planes-estudio"
 ```
 
 ### 3.2 Validaciones del Manifiesto
@@ -275,7 +276,7 @@ tags:
 | `health_check` | string | ✅ | Debe comenzar con `/`. Default: `/health`. |
 | `dependencies.requires` | list | ❌ | Cada elemento debe ser nombre de módulo válido. |
 | `dependencies.optional` | list | ❌ | Cada elemento debe ser nombre de módulo válido. |
-| `events.publishes` | list | ✅ | Al menos un evento. Debe contener al menos un punto (ej: `estudiante.creado`). |
+| `events.publishes` | list | ✅ | Al menos un evento. Debe contener al menos un punto (ej: `plan.published`). |
 | `events.subscribes` | list | ✅ | Al menos un evento. |
 | `permissions.requires` | list | ✅ | Formato `{modulo}:{accion}`. |
 | `permissions.grants` | list | ✅ | Formato `{modulo}:{accion}`. |
@@ -324,17 +325,17 @@ class ModuleInfo(BaseModel):
     Combina datos del manifiesto con estado de runtime.
     """
     # ── Datos del Manifiesto ──────────────────
-    name: str                                                 # mod-estudiantes
+    name: str                                                 # mod-planes-estudio
     version: str                                              # 1.2.3
     api_version: str                                          # v1
     description: Optional[str] = None
-    endpoints: Dict[str, str]                                 # {"http": "http://localhost:8006"}
+    endpoints: Dict[str, str]                                 # {"http": "http://localhost:8002"}
     health_check: str = "/health"
     events: Optional[Dict[str, List[str]]] = None             # {"publishes": [...], "subscribes": [...]}
     permissions: Optional[Dict[str, List[str]]] = None        # {"requires": [...], "grants": [...]}
-    config: Optional[Dict[str, Any]] = None                   # {"database": "siga_estudiantes", ...}
+    config: Optional[Dict[str, Any]] = None                   # {"database": "siga_core" (MVP), "port": 8002, ...}
     dependencies: Optional[Dict[str, List[str]]] = None       # {"requires": [...], "optional": [...]}
-    tags: Optional[List[str]] = None                          # ["core", "academico", "fase-1"]
+    tags: Optional[List[str]] = None                          # ["core", "academico", "fase-1", "planes-estudio"]
 
     # ── Estado de Runtime ─────────────────────
     status: ModuleStatus = ModuleStatus.DISCOVERED            # Estado actual
@@ -732,7 +733,9 @@ class ModuleRuntime:
                 module.health_count = 0
                 module.last_health_check = datetime.utcnow()
 
-                # Transiciones de estado por fallo
+                # Transiciones de estado por fallo.
+                # Sigue el estándar canónico de resiliencia (ver 04-RESILIENCIA.md):
+                # 1-2 fallos → DEGRADED, ≥3 fallos → UNHEALTHY, ≥5 fallos → CB OPEN.
                 if module.fail_count >= 5:
                     module.status = ModuleStatus.UNHEALTHY
                     module.circuit_state = CircuitState.OPEN
@@ -743,8 +746,8 @@ class ModuleRuntime:
                             {"module": name, "fail_count": module.fail_count}
                         )
                 elif module.fail_count >= 3:
-                    module.status = ModuleStatus.DEGRADED
-                elif module.status == ModuleStatus.HEALTHY and module.fail_count >= 1:
+                    module.status = ModuleStatus.UNHEALTHY
+                else:
                     module.status = ModuleStatus.DEGRADED
 
             return False
@@ -1034,7 +1037,7 @@ class ModuleManifest(BaseModel):
     api_version: str = Field(pattern=r"^v\d+$")
     description: Optional[str] = None
     author: Optional[str] = None
-    endpoints: Dict[str, str]  # {"http": "http://localhost:8006"}
+    endpoints: Dict[str, str]  # {"http": "http://localhost:8002"}
     health_check: str = "/health"
     dependencies: Optional[Dict[str, List[str]]] = None
     events: Optional[Dict[str, List[str]]] = None
@@ -1263,14 +1266,13 @@ Cada módulo debe exponer un endpoint `/health` que retorne:
 // HTTP 200 OK
 {
     "status": "healthy",
-    "module": "mod-estudiantes",
+    "module": "mod-planes-estudio",
     "version": "1.2.3",
     "timestamp": "2026-06-26T12:00:00Z",
     "uptime_seconds": 3600,
     "database": "connected",
     "dependencies": {
-        "mod-programas-estudio": "healthy",
-        "mod-planes-estudio": "healthy"
+        "mod-programas-estudio": "healthy"
     }
 }
 ```
@@ -1281,7 +1283,7 @@ Si el módulo tiene problemas internos (BD caída, dependencia no disponible):
 // HTTP 200 OK (aún responde, pero reporta problemas)
 {
     "status": "degraded",
-    "module": "mod-estudiantes",
+    "module": "mod-planes-estudio",
     "version": "1.2.3",
     "timestamp": "2026-06-26T12:00:00Z",
     "database": "disconnected",
@@ -1296,7 +1298,7 @@ Si el módulo tiene problemas internos (BD caída, dependencia no disponible):
 // HTTP 503 Service Unavailable
 {
     "status": "unhealthy",
-    "module": "mod-estudiantes",
+    "module": "mod-planes-estudio",
     "version": "1.2.3",
     "timestamp": "2026-06-26T12:00:00Z",
     "message": "Módulo no puede procesar requests"
@@ -1310,7 +1312,7 @@ Si el módulo tiene problemas internos (BD caída, dependencia no disponible):
 | 1-2 fallos consecutivos | Marcar como DEGRADED | DEGRADED |
 | 3+ fallos consecutivos | Marcar como UNHEALTHY | UNHEALTHY |
 | 5+ fallos consecutivos | Abrir Circuit Breaker | UNHEALTHY + CB OPEN |
-| 1 éxito después de CB OPEN | Transición a HALF_OPEN | UNHEALTHY + CB HALF_OPEN |
+| CB OPEN tras 60s (recovery_timeout) con éxito | Transición a HALF_OPEN | UNHEALTHY + CB HALF_OPEN |
 | 3 éxitos consecutivos en HALF_OPEN | Cerrar CB | HEALTHY |
 | 1 fallo en HALF_OPEN | Volver a OPEN | UNHEALTHY + CB OPEN |
 
@@ -1320,13 +1322,15 @@ Si el módulo tiene problemas internos (BD caída, dependencia no disponible):
 
 | Endpoint | Método | Propósito | Request | Response |
 |----------|--------|-----------|---------|----------|
-| `/core/modules` | GET | Listar todos los módulos | Query: `?status=healthy` | `[ModuleInfo, ...]` |
+| `/core/modules` | GET | Listar todos los módulos (**protegido: JWT + rate limit**) | Query: `?status=healthy` | `[ModuleInfo, ...]` |
 | `/core/modules/register` | POST | Registrar nuevo módulo | `ModuleManifest` (JSON) | `ModuleInfo` + compliance |
 | `/core/modules/{name}` | GET | Detalle de un módulo | - | `ModuleInfo` |
 | `/core/modules/{name}` | DELETE | Desregistrar un módulo | - | `{"success": bool}` |
 | `/core/modules/{name}/health` | GET | Health check de un módulo | - | `{"status", "response_time"}` |
 | `/core/modules/{name}/compliance` | GET | Compliance de un módulo | - | `{"score", "compliant", "checks"}` |
 | `/core/modules/{name}/status` | PUT | Actualizar estado manual | `{"status": "healthy"}` | `{"success": bool}` |
+
+> **Nota de seguridad:** `GET /core/modules` es una ruta **protegida** (requiere JWT + rate limit), alineada a §4.2/06. No es pública.
 
 ### Implementación de Rutas
 
@@ -1340,7 +1344,8 @@ from app.core.registry.validator import ManifestValidator
 
 router = APIRouter(prefix="/modules", tags=["Socket API"])
 
-@router.get("")
+# Ruta protegida: requiere JWT + rate limit (alineado a §4.2/06)
+@router.get("", dependencies=[Depends(require_jwt), Depends(rate_limit)])
 async def list_modules(status: Optional[str] = None):
     """Lista todos los módulos registrados, opcionalmente filtrados por estado."""
     if status:
@@ -1487,15 +1492,15 @@ Cuando el Circuit Breaker cambia de estado, se publican eventos en NATS:
 ```python
 # Cuando se abre el circuito (5 fallos consecutivos)
 await event_bus.publish("circuit_breaker.opened", {
-    "module": "mod-estudiantes",
+    "module": "mod-planes-estudio",
     "fail_count": 5,
     "timestamp": "2026-06-26T12:00:00Z"
 })
 
 # Cuando se cierra el circuito (recuperación)
 await event_bus.publish("circuit_breaker.closed", {
-    "module": "mod-estudiantes",
-    "recovery_time_seconds": 120,
+    "module": "mod-planes-estudio",
+    "recovery_time_seconds": 60,
     "timestamp": "2026-06-26T12:02:00Z"
 })
 ```
@@ -1522,7 +1527,7 @@ await event_bus.publish("circuit_breaker.closed", {
 
 1. **Solo el Core puede registrar/desregistrar módulos**: Los endpoints de registro (`POST /core/modules/register`, `DELETE /core/modules/{name}`) solo son accesibles desde localhost o mediante token interno de administración.
 
-2. **Autenticación de módulos**: Cada módulo puede autenticarse ante el Core usando un token interno (API key) configurado en el manifiesto. Esto evita que módulos no autorizados se registren.
+2. **Autenticación de módulos**: Cada módulo se autentica ante el Core mediante un **token JWT interno** enviado en la cabecera `X-Internal-Token` (HS256). Esto evita que módulos no autorizados se registren. Es el **único mecanismo documentado y vigente** para el MVP (el token HMAC de §13.2 queda como opción futura).
 
 3. **Validación de origen**: En desarrollo, solo se permiten módulos desde `localhost`. En producción, se configura una whitelist de IPs/redes.
 
@@ -1531,6 +1536,8 @@ await event_bus.publish("circuit_breaker.closed", {
 5. **Validación estricta de manifiestos**: El schema Pydantic y el compliance validator garantizan que solo módulos que cumplan el estándar sean registrados.
 
 ### 13.2 Token Interno de Módulo
+
+> **Política vigente (MVP):** el mecanismo oficial de autenticación de módulos es el **JWT** enviado en `X-Internal-Token` (HS256), conforme a §13.1. El esquema **HMAC** que sigue a continuación se documenta **solo como opción futura** — no se deben implementar ambos en paralelo; se mantiene una única política documentada (JWT).
 
 ```python
 # Generación de token interno para un módulo
@@ -1571,7 +1578,7 @@ def validate_module_token(token: str, module_name: str, secret: str) -> bool:
 
 | Endpoint | Método | Autenticación | Rate Limit | Acceso |
 |----------|--------|--------------|------------|--------|
-| `/core/modules` | GET | No requerida | 100/min | Público |
+| `/core/modules` | GET | JWT | 100/min | Protegido (JWT + rate limit) |
 | `/core/modules/register` | POST | Token interno | 20/min | Solo Core/localhost |
 | `/core/modules/{name}` | GET | No requerida | 100/min | Público |
 | `/core/modules/{name}` | DELETE | Token interno | 10/min | Solo Core/localhost |
@@ -1583,4 +1590,5 @@ def validate_module_token(token: str, module_name: str, secret: str) -> bool:
 
 | Versión | Fecha | Autor | Descripción |
 |---------|-------|-------|-------------|
+| 1.1 | 2026-08-29 | Mesa de trabajo (planificación) | Alineación MVP v1.1: módulo de ejemplo real, matriz de resiliencia canónica, rutas protegidas |
 | 1.0 | 2026-06-26 | Equipo Arquitectura | Versión inicial del documento. Define el Socket/Module Runtime, ciclo de vida de módulos, manifiesto MODULE-STD-2.0, algoritmos de descubrimiento, validación, health check, y seguridad. |

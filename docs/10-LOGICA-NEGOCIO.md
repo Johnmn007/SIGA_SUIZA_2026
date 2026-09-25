@@ -1,6 +1,6 @@
 # Lógica de Negocio Académico
 
-> **Versión:** 1.0 | **Última actualización:** Junio 2026 | **Estándar:** SIGA-BIZ-1.0
+> **Versión:** 1.4 | **Última actualización:** 2026-08-29 | **Estándar:** SIGA-BIZ-1.0
 
 ---
 
@@ -17,7 +17,7 @@
 | Duración | 3 años (6 ciclos académicos) |
 | Escala | 0 – 20 |
 | Mínima aprobatoria | 13 |
-| Régimen | Semestral (Ciclo I: Abril-Agosto, Ciclo II: Septiembre-Febrero) |
+| Régimen | Semestral — 2 periodos/año con convención `YYYY-N`: `2026-1` Abril–Agosto y `2026-2` Agosto–Diciembre (ver DOC-15 §4) |
 
 ### 1.2 Programas de Estudio
 
@@ -34,6 +34,19 @@
 | AGR | Agroindustria | 3 | 27 |
 | MIN | Minería | 3 | 26 |
 | LAB | Laboratorio Clínico | 3 | 30 |
+
+### 1.2 Marco Normativo
+
+El presente documento de lógica de negocio se enmarca en la normativa vigente del modelo de Institutos y Escuelas de Educación Superior:
+
+| Norma | Referencia |
+|-------|-----------|
+| **Ley N° 30512** | Ley de Institutos y Escuelas de Educación Superior y su modificatoria. Define el régimen académico, la organización modular y los procesos de certificación de los IESTP. |
+| **Reglamento de la Ley N° 30512** | Norma reglamentaria que desarrolla la operación de los programas de estudio, las unidades didácticas y la certificación modular. |
+| **Certificación Modular** | Modelo de formación por competencias organizado en módulos formativos; al culminar un módulo/año, la institución emite la correspondiente certificación (ver §5.3). |
+| **EFSRT** | Experiencias Formativas en Situaciones Reales de Trabajo, componente que el estudiante debe completar junto con la formación académica para la certificación. |
+
+> **Coherencia con Anexo B de 07-SEGURIDAD (Macro-Proceso 5 — Salida, Certificación y EFSRT).** El flujo de certificación de este documento se alinea con esa referencia funcional (registro/aprobación de horas EFSRT por Jefatura de Programa y emisión de certificación modular por Secretaría Central).
 
 ---
 
@@ -175,9 +188,9 @@ Formula:
 
 ### 4.4 Promocion por Ciclo (Regla del 70%)
 
-- REGULAR: Aprueba todas las UDs del ciclo
-- IRREGULAR: Desaprueba <= 70% de creditos del ciclo. Se matricula en el siguiente ciclo con las UDs desaprobadas (lleva curso).
-- REPITE: Desaprueba > 70% de creditos del ciclo. Debe repetir el ciclo completo.
+- REGULAR (Invicto): Aprueba todas las UDs del ciclo.
+- IRREGULAR: Desaprueba < 70% de las asignaturas (UDs) del ciclo. Avanza al siguiente ciclo; puede agregar jalados de ciclos anteriores de la **misma paridad/semestre** si el creditaje (≤24) lo permite.
+- REPITE (Separado): Desaprueba > 70% de las asignaturas (UDs) del ciclo. Queda **separado del periodo**; puede regresar el próximo año **como reingresante** previa evaluación y permiso del área académica.
 
 ### 4.5 Limites de Credito
 
@@ -196,7 +209,7 @@ CICLO I - AUTOMATICA
 - Sistema asigna automaticamente todas las UDs del primer ciclo
 - No aplica validacion de prerrequisitos
 - No aplica limite de creditos
-- Estado inicial: REGULAR
+- Estado inicial: Matriculado provisional (STAND BY) — se ratifica por boleta de pago (Tesorería)
 
 CICLOS II-VI - ASISTIDA
 - Estudiante selecciona UDs de un catalogo
@@ -238,7 +251,7 @@ Fase 2: PRE-MATRICULA (Estudiante)
 Fase 3: VALIDACION (Sistema)
   - Verificar estado academico (regular/irregular/repite)
   - Verificar creditos minimos y maximos
-  - Verificar prerrequisitos (solo para irregulares)
+  - Verificar prerrequisitos (Ciclos II-VI, para todos los matriculados)
   - Generar resumen de matricula
 
 Fase 4: CONFIRMACION (Secretaria)
@@ -280,6 +293,35 @@ Fase 5: CIERRE
   - Actualizacion de historial academico
   - Preparacion para siguiente ciclo
 
+### 5.3 Certificación Modular y Actas de Certificación
+
+Subproceso que formaliza la certificación del estudiante al completar un módulo/año de estudios (modelo peruano, Ley N° 30512 — ver §1.2), alineado con el **Macro-Proceso 5** del Anexo B de 07-SEGURIDAD:
+
+```
+Fase 1: REGISTRO Y APROBACION DE EFSRT (Jefatura de Programa)
+  - Jefatura de Programa registra y aprueba las horas de Experiencias
+    Formativas en Situaciones Reales de Trabajo (EFSRT) del estudiante
+    a lo largo de los ciclos.
+
+Fase 2: VERIFICACION DEL CUMPLIMIENTO (Sistema)
+  - Sistema verifica que el estudiante haya completado el módulo/año
+    (ej. Ciclo I y II) y sus EFSRT.
+
+Fase 3: EMISION DE LA CERTIFICACION (Secretaria Central)
+  - Secretaria Central genera la "Certificacion Modular" (requisito del
+    modelo peruano).
+
+Fase 4: COBRO VIA TESORERIA (Tesorería)
+  - La certificacion se cobra a traves de Tesoreria (registro de pago por
+    certificado).
+
+Fase 5: ENTREGA / ACTA DE CERTIFICACION
+  - Registro del acta de certificacion en el expediente academico del
+    estudiante.
+```
+
+> **Nota de alcance:** este subproceso no introduce reglas nuevas más allá de las ya definidas en el Marco Normativo y en el Anexo B de 07-SEGURIDAD; únicamente ordena la certificación como un flujo propio dentro de la lógica académica del sistema.
+
 ---
 
 ## 6. Alertas Tempranas
@@ -289,7 +331,7 @@ Fase 5: CIERRE
 | Alerta | Disparador | Destinatario | Accion | Prioridad |
 |--------|-----------|-------------|--------|-----------|
 | AL-01: Riesgo de Repitencia | Nota < 13 en 2+ evaluaciones consecutivas | Tutor, Estudiante | Notificar, programar tutoria | Alta |
-| AL-02: Inasistencia Critica | Faltas > 20% del total de horas del ciclo | Docente, Secretaria | Notificar, citar a apoderado | Alta |
+| AL-02: Inasistencia Critica | Faltas > 20% del total de horas del ciclo | Docente, Secretaria | Notificar al estudiante y registrar en su expediente | Alta |
 | AL-03: Bajo Rendimiento | Promedio parcial < 11 | Tutor, Estudiante | Cita con tutor academico | Media |
 | AL-04: Desercion Potencial | Estudiante no se matricula 2 semanas despues del inicio | Secretaria, Tutor | Contactar al estudiante | Alta |
 | AL-05: Excelencia Academica | Promedio >= 18 | Direccion, Estudiante | Felicitacion, reconocimiento | Baja |
@@ -307,7 +349,7 @@ Fase 5: CIERRE
 | Nuevo | Ingresa por primera vez al IESTP | Matricula automatica en Ciclo I; no aplican prerrequisitos; no aplica limite de creditos |
 | Regular | Aprobo todas las UDs del ciclo anterior | Matricula completa en siguiente ciclo; prerrequisitos estandar |
 | Irregular | Desaprobo <=70% de creditos del ciclo anterior | Matricula en siguiente ciclo + UDs desaprobadas; priorizar desaprobadas; limite 24 creditos |
-| Repitente | Desaprobo >70% de creditos del ciclo anterior | Repite ciclo completo; no puede avanzar; maximo 3 repitencias permitidas |
+| Repitente | Desaprobo >70% de asignaturas (UDs) del ciclo anterior | Se separa del periodo; retorna el proximo ano como reingresante (evaluacion + permiso del area academica) |
 | Trasladado | Viene de otro IESTP | Convalidacion de UDs cursadas; ubicacion en ciclo segun UDs convalidadas |
 | Reingresante | Estuvo ausente 1+ ciclos y retoma estudios | Evaluacion de convalidacion; posible ubicacion en ciclo anterior |
 
@@ -377,4 +419,8 @@ Fase 5: CIERRE
 | Fecha | Version | Autor | Cambios |
 |-------|---------|-------|---------|
 | 2026-06-26 | 1.0 | Arquitecto SIGA | Version inicial del documento de logica de negocio |
+| 2026-08-29 | 1.1 | Mesa de trabajo (planificación) | Anclaje normativo (Ley N° 30512 y reglamento, certificación modular, EFSRT); subproceso §5.3 "Certificación Modular y Actas de Certificación" (coherente con Anexo B / Macro-Proceso 5); AL-02 sin "apoderado" (estudiantes mayores de edad); política de prerrequisitos unificada (validar para todos en Ciclos II-VI) |
+| 2026-08-29 | 1.2 | Mesa de trabajo (planificación) | Estado inicial del ingresante en CICLO I pasa de `REGULAR` a **Matriculado provisional (STAND BY)**, ratificable por boleta de pago (Tesorería) — coherente con DOC-15 §5.4 y DOC-14 Caso A (v2.2) |
+| 2026-08-29 | 1.3 | Mesa de trabajo (planificación) | Regla del 70% afinada (DOC-15 §5.6 y DOC-14 v2.3): el umbral se mide sobre **asignaturas/UDs** del ciclo, no créditos; REPITE pasa a "Separado del periodo con retorno el próximo año como reingresante (evaluación + permiso)"; jalados recuperables solo de la misma paridad/semestre y vigentes con tope de créditos |
+| 2026-08-29 | 1.4 | Mesa de trabajo (planificación) | Alcance de matrícula MVP vs. Futuro (DOC-15 §5.1 y DOC-14 v2.4): el MVP opera los tipos Ingresante (A), Regular/Invicto (B) e Irregular (C); Reingresante, Traslado, Convalidación y Convenio quedan como **diseño preparado** (la matriz §7 y las tablas §4.4/§7 ya contemplan Trasladado y Reingresante) para activación futura — sin cambios de reglas en esta entrega |
 

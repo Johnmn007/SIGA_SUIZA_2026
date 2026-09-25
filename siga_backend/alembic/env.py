@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 import os
 import sys
+import ssl
 
 # Agregar el directorio app al path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -16,6 +17,12 @@ config = context.config
 db_url = os.getenv("DB_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
+
+# SSL para conexiones externas
+ssl_ctx = ssl.create_default_context()
+ssl_ctx.check_hostname = False
+ssl_ctx.verify_mode = ssl.CERT_NONE
+connect_args = {"ssl": ssl_ctx}
 
 # Interpretar el archivo de config para logging
 if config.config_file_name is not None:
@@ -51,6 +58,7 @@ async def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:

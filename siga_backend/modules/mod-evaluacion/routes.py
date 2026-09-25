@@ -2,8 +2,6 @@ from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
-from datetime import datetime
-import uuid
 
 from database import get_db, OutboxEvent
 from models import RegistroEvaluacion
@@ -87,12 +85,9 @@ async def actualizar_notas(registro_id: int, data: RegistroEvaluacionUpdate, req
 
 @router.post("/registros/sync-matricula")
 async def sincronizar_matriculas(payload: dict, request: Request, db: AsyncSession = Depends(get_db)):
-    # Este endpoint simula ser llamado por un worker o NATS consumer para crear registros 
-    # automáticamente cuando una matrícula es confirmada (consumiendo 'gestion_academica.matricula.confirmada')
-    
     matricula_id = payload.get("matricula_id")
     estudiante_id = payload.get("estudiante_id")
-    detalles = payload.get("detalles", []) # asumiendo que el evento provee detalles o se consultan
+    detalles = payload.get("detalles", [])
     periodo_id = payload.get("periodo_id")
     
     for det in detalles:
