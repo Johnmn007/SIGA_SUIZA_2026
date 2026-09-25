@@ -248,6 +248,26 @@ async def agregar_unidad(modulo_id: int, unidad_data: dict, request: Request, db
     await db.refresh(db_unidad)
     return db_unidad
 
+@router.delete("/modulos/{modulo_id}")
+async def eliminar_modulo(modulo_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ProgramaModulo).where(ProgramaModulo.id == modulo_id))
+    modulo = result.scalar_one_or_none()
+    if not modulo:
+        raise HTTPException(status_code=404, detail="Módulo no encontrado")
+    await db.delete(modulo)
+    await db.commit()
+    return {"message": "Módulo eliminado exitosamente"}
+
+@router.delete("/unidades/{unidad_id}")
+async def eliminar_unidad(unidad_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ProgramaUnidad).where(ProgramaUnidad.id == unidad_id))
+    unidad = result.scalar_one_or_none()
+    if not unidad:
+        raise HTTPException(status_code=404, detail="Unidad didáctica no encontrada")
+    await db.delete(unidad)
+    await db.commit()
+    return {"message": "Unidad didáctica eliminada exitosamente"}
+
 @router.get("/programas/{programa_id}/malla")
 async def obtener_malla(programa_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(

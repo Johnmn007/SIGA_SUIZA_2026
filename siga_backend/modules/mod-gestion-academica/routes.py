@@ -327,6 +327,11 @@ async def registrar_convalidacion(data: ResolucionConvalidacionCreate, db: Async
     result = await db.execute(select(ResolucionConvalidacion).options(selectinload(ResolucionConvalidacion.detalles)).where(ResolucionConvalidacion.id == db_resolucion.id))
     return result.scalar_one()
 
+@router.get("/convalidaciones/", response_model=List[ResolucionConvalidacionResponse])
+async def obtener_todas_convalidaciones(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ResolucionConvalidacion).options(selectinload(ResolucionConvalidacion.detalles)).order_by(ResolucionConvalidacion.id.desc()))
+    return result.scalars().all()
+
 @router.get("/convalidaciones/estudiante/{estudiante_id}", response_model=List[ResolucionConvalidacionResponse])
 async def obtener_convalidaciones_estudiante(estudiante_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(ResolucionConvalidacion).options(selectinload(ResolucionConvalidacion.detalles)).where(ResolucionConvalidacion.estudiante_id == estudiante_id))
@@ -339,6 +344,11 @@ async def registrar_beneficio(data: BeneficioEstudianteCreate, db: AsyncSession 
     await db.commit()
     await db.refresh(db_beneficio)
     return db_beneficio
+
+@router.get("/beneficios/", response_model=List[BeneficioEstudianteResponse])
+async def obtener_todos_beneficios(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(BeneficioEstudiante).order_by(BeneficioEstudiante.id.desc()))
+    return result.scalars().all()
 
 @router.get("/beneficios/estudiante/{estudiante_id}", response_model=List[BeneficioEstudianteResponse])
 async def obtener_beneficios_estudiante(estudiante_id: int, db: AsyncSession = Depends(get_db)):
