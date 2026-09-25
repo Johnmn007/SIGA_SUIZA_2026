@@ -4,13 +4,14 @@ import logging
 
 from ..identity.auth_service import AuthService
 from ..identity.tokens import token_service
+from ..identity.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
 class SecurityMiddleware:
     """Middleware de seguridad para el Gateway HTTP"""
     
-    def __init__(self, auth_service: AuthService):
+    def __init__(self, auth_service: Optional[AuthService] = None):
         self.auth_service = auth_service
     
     async def authenticate_request(self, request: Request, authorization: Optional[str] = Header(None)) -> Optional[Dict[str, Any]]:
@@ -39,8 +40,11 @@ class SecurityMiddleware:
             if scheme.lower() != "bearer":
                 raise HTTPException(status_code=401, detail="Esquema de autenticación inválido")
             
-            # Verificar y obtener usuario
-            user = await self.auth_service.get_current_user(token)
+            # Verificar y obtener usuario con sesión fresca
+            async with AsyncSessionLocal() as db:
+                auth = AuthService(db)
+                user = await auth.get_current_user(token)
+
             if not user:
                 raise HTTPException(status_code=401, detail="Token inválido o expirado")
             
