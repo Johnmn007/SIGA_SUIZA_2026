@@ -2,13 +2,17 @@
 set -e
 
 if [ "$SKIP_MIGRATIONS" != "true" ]; then
-    # Build DB URL for Alembic
     export DB_URL="postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
     echo "Running database migrations..."
-    alembic upgrade head
+    if alembic upgrade head; then
+        echo "Migrations completed successfully."
+    else
+        echo "WARNING: Alembic migrations failed. Continuing anyway..."
+    fi
+
     echo "Ensuring all core tables exist (association tables, etc.)..."
-    python ensure_tables.py
+    python ensure_tables.py || echo "WARNING: ensure_tables failed. Continuing anyway..."
 fi
 
 if [ "$#" -eq 0 ]; then

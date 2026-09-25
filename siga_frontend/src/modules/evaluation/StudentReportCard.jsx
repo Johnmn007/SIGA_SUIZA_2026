@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { API_BASE } from '../../core/api/client';
-import { GraduationCap, BarChart3, FileText, Camera, Trash2 } from 'lucide-react';
+import { GraduationCap, BarChart3, FileText } from 'lucide-react';
 import { ProtectedImage } from '../students/ProtectedImage';
 
 export function StudentReportCard() {
   const [loading, setLoading] = useState(false);
-  const [studentId, setStudentId] = useState('1'); // Mock: Asumimos estudiante con ID 1
-  const [period, setPeriod] = useState('2026-I');
+  const studentId = '1'; // Mock: Asumimos estudiante con ID 1
+  const period = '2026-I';
   
   const [studentInfo, setStudentInfo] = useState(null);
   const [grades, setGrades] = useState([]);
@@ -71,55 +71,6 @@ export function StudentReportCard() {
     fetchReportCard();
   }, [studentId]);
   
-  const [uploading, setUploading] = useState(false);
-  const [photoMsg, setPhotoMsg] = useState(null);
-
-  const handlePhotoUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setPhotoMsg(null);
-    try {
-      const token = localStorage.getItem('token');
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${studentId}/foto`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: fd
-      });
-      if (!res.ok) throw new Error('No se pudo subir la foto');
-      const updated = await res.json();
-      setStudentInfo(updated);
-      setPhotoMsg({ type: 'ok', text: 'Foto actualizada correctamente.' });
-    } catch (err) {
-      setPhotoMsg({ type: 'err', text: err.message });
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
-  };
-
-  const handlePhotoRemove = async () => {
-    setUploading(true);
-    setPhotoMsg(null);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${studentId}/foto`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('No se pudo quitar la foto');
-      const updated = await res.json();
-      setStudentInfo(updated);
-      setPhotoMsg({ type: 'ok', text: 'Foto eliminada.' });
-    } catch (err) {
-      setPhotoMsg({ type: 'err', text: err.message });
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const calculateAverage = (g) => {
     const vals = [g.c1, g.c2, g.c3].filter(v => v !== '-' && v !== null);
     if (vals.length === 0) return '-';
@@ -170,38 +121,6 @@ export function StudentReportCard() {
           </div>
         </div>
       )}
-
-      <div className="glass-card p-6 mb-8">
-        <div className="flex flex-col sm:flex-row items-center gap-6">
-          <div className="w-28 h-28 rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-primary-soft to-slate-light border-2 border-white shadow-sm">
-            <ProtectedImage
-              src={studentInfo?.foto_url}
-              alt="Foto de perfil"
-              className="w-full h-full object-cover"
-              fallback={<div className="w-full h-full flex items-center justify-center"><GraduationCap className="w-12 h-12 text-primary" /></div>}
-            />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-bold text-slate-text mb-1">Foto de Perfil</h3>
-            <p className="text-sm text-slate-500 mb-3">Sube una foto reciente para tu ficha institucional. (JPG, PNG o WEBP - máx. 5 MB)</p>
-            {photoMsg && (
-              <p className={`text-xs mb-2 font-semibold ${photoMsg.type === 'ok' ? 'text-emerald-600' : 'text-red-600'}`}>{photoMsg.text}</p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <label className={`btn-primary cursor-pointer text-sm px-4 py-2 inline-flex items-center gap-2 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                <Camera size={15} />
-                {studentInfo?.foto_url ? 'Cambiar foto' : 'Subir foto'}
-                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoUpload} />
-              </label>
-              {studentInfo?.foto_url && (
-                <button onClick={handlePhotoRemove} disabled={uploading} className="btn-ghost text-sm px-4 py-2 inline-flex items-center gap-2">
-                  <Trash2 size={15} /> Quitar
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div className="glass-card overflow-hidden">
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white p-4 flex justify-between items-center">
