@@ -17,6 +17,17 @@ def _calcular_promedio(c1, c2, c3):
         return None
     return round(sum(notas) / len(notas))
 
+def _aplicar_notas(db_obj, nota_final_solicitada=None):
+    """Calcula nota_final y estado del registro.
+
+    Si existen notas por capacidad (c1/c2/c3) se recalcula el promedio.
+    En caso contrario se conserva la nota final enviada por el docente
+    (flujo actual del Panel Docente: ingreso directo del Promedio Final).
+    """
+    notas = _calcular_promedio(db_obj.nota_c1, db_obj.nota_c2, db_obj.nota_c3)
+    db_obj.nota_final = notas if notas is not None else nota_final_solicitada
+    db_obj.estado = _determinar_estado(db_obj.nota_final)
+
 def _determinar_estado(promedio):
     if promedio is None:
         return "cursando"
@@ -29,8 +40,7 @@ async def crear_registro(data: RegistroEvaluacionCreate, request: Request, db: A
         raise HTTPException(status_code=400, detail="El registro de evaluación ya existe para esta matrícula")
     
     db_obj = RegistroEvaluacion(**data.model_dump())
-    db_obj.nota_final = _calcular_promedio(db_obj.nota_c1, db_obj.nota_c2, db_obj.nota_c3)
-    db_obj.estado = _determinar_estado(db_obj.nota_final)
+    _aplicar_notas(db_obj, nota_final_solicitada=data.nota_final)
     
     db.add(db_obj)
     await db.commit()
@@ -57,8 +67,7 @@ async def actualizar_notas(registro_id: int, data: RegistroEvaluacionUpdate, req
     for key, value in update_data.items():
         setattr(db_obj, key, value)
         
-    db_obj.nota_final = _calcular_promedio(db_obj.nota_c1, db_obj.nota_c2, db_obj.nota_c3)
-    db_obj.estado = _determinar_estado(db_obj.nota_final)
+    _aplicar_notas(db_obj, nota_final_solicitada=update_data.get("nota_final", db_obj.nota_final))
     
     event = OutboxEvent(
         event_type="evaluacion.nota.actualizada",

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, func
 from sqlalchemy.orm import selectinload
 from database import get_db, OutboxEvent
 from models import Estudiante, Matricula, MatriculaDetalle
@@ -98,10 +98,16 @@ async def crear_estudiante(request: Request, data: EstudianteCreate, db: AsyncSe
     return db_estudiante
 
 @router.get("/estudiantes/", response_model=List[EstudianteResponse])
-async def obtener_estudiantes(programa_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+async def obtener_estudiantes(programa_id: Optional[int] = None, email: Optional[str] = None, db: AsyncSession = Depends(get_db)):
     query = select(Estudiante).order_by(Estudiante.apellidos)
     if programa_id is not None:
         query = query.where(Estudiante.programa_id == programa_id)
+    if email:
+        email = email.strip().lower()
+        query = query.where(or_(
+            func.lower(Estudiante.email_institucional) == email,
+            func.lower(Estudiante.email_personal) == email
+        ))
     result = await db.execute(query)
     return result.scalars().all()
 
