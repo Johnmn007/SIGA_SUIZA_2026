@@ -206,6 +206,71 @@ async def actualizar_programa(programa_id: int, programa_data: ProgramaCreate, d
     await db.refresh(programa)
     return programa
 
+class ProgramaConfiguracionCreate(BaseModel):
+    periodo_academico: Optional[int] = 1
+    turnos: Optional[List[str]] = ["mañana", "noche"]
+    coordinador_id: Optional[int] = None
+    max_estudiantes: Optional[int] = 35
+
+@router.get("/programas/{programa_id}/configuracion")
+async def obtener_configuracion_programa(programa_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ProgramaConfiguracion)
+        .where(ProgramaConfiguracion.programa_id == programa_id)
+        .order_by(ProgramaConfiguracion.id.desc())
+    )
+    config = result.scalars().first()
+    if not config:
+        return {
+            "programa_id": programa_id,
+            "periodo_academico": 1,
+            "turnos": ["mañana", "noche"],
+            "coordinador_id": None,
+            "max_estudiantes": 35
+        }
+    turnos_list = config.turnos if isinstance(config.turnos, list) else (list(config.turnos.keys()) if isinstance(config.turnos, dict) else ["mañana"])
+    return {
+        "id": config.id,
+        "programa_id": config.programa_id,
+        "periodo_academico": config.periodo_academico,
+        "turnos": turnos_list,
+        "coordinador_id": config.coordinador_id,
+        "max_estudiantes": config.max_estudiantes
+    }
+
+@router.post("/programas/{programa_id}/configuracion")
+async def guardar_configuracion_programa(programa_id: int, config_data: ProgramaConfiguracionCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ProgramaConfiguracion)
+        .where(ProgramaConfiguracion.programa_id == programa_id)
+        .order_by(ProgramaConfiguracion.id.desc())
+    )
+    config = result.scalars().first()
+    if config:
+        config.turnos = config_data.turnos
+        config.max_estudiantes = config_data.max_estudiantes
+        config.coordinador_id = config_data.coordinador_id
+        config.periodo_academico = config_data.periodo_academico or 1
+    else:
+        config = ProgramaConfiguracion(
+            programa_id=programa_id,
+            periodo_academico=config_data.periodo_academico or 1,
+            turnos=config_data.turnos,
+            coordinador_id=config_data.coordinador_id,
+            max_estudiantes=config_data.max_estudiantes or 35
+        )
+        db.add(config)
+    await db.commit()
+    await db.refresh(config)
+    return {
+        "id": config.id,
+        "programa_id": config.programa_id,
+        "periodo_academico": config.periodo_academico,
+        "turnos": config.turnos,
+        "coordinador_id": config.coordinador_id,
+        "max_estudiantes": config.max_estudiantes
+    }
+
 @router.post("/programas/{programa_id}/modulos", status_code=status.HTTP_201_CREATED)
 async def agregar_modulo(programa_id: int, modulo_data: dict, request: Request, db: AsyncSession = Depends(get_db)):
     db_modulo = ProgramaModulo(programa_id=programa_id, **modulo_data)
