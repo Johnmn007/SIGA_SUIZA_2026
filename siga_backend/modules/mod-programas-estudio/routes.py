@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
@@ -54,9 +54,14 @@ async def health_check():
 # Endpoints CRUD
 @router.post("/programas", response_model=ProgramaResponse, status_code=status.HTTP_201_CREATED)
 async def crear_programa(programa: ProgramaCreate, request: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ProgramaEstudio).where(ProgramaEstudio.codigo == programa.codigo))
+    result = await db.execute(
+        select(ProgramaEstudio).where(
+            (func.lower(func.trim(ProgramaEstudio.codigo)) == func.lower(func.trim(programa.codigo))) |
+            (func.lower(func.trim(ProgramaEstudio.nombre)) == func.lower(func.trim(programa.nombre)))
+        )
+    )
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Ya existe un programa con este codigo")
+        raise HTTPException(status_code=400, detail="Este programa de estudio ya existe")
 
     db_programa = ProgramaEstudio(**programa.model_dump())
     db.add(db_programa)

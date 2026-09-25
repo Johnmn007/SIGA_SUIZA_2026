@@ -43,6 +43,7 @@ export function AcademicDashboard() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showPeriodManager, setShowPeriodManager] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createError, setCreateError] = useState('');
   const [editingProgram, setEditingProgram] = useState(null);
   const [configProgram, setConfigProgram] = useState(null);
   
@@ -193,15 +194,32 @@ export function AcademicDashboard() {
   // Create Program Handler
   const handleCreateProgram = async (e) => {
     e.preventDefault();
+    setCreateError('');
     setSavingProgram(true);
     try {
+      const nombreTrimmed = newProgram.nombre.trim();
+      const codigoTrimmed = newProgram.codigo.trim().toUpperCase();
+
+      // Validación preventiva local: verificar si el programa ya existe por código o por nombre
+      const normalize = (str) => (str || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const existeLocal = programs.some(p => 
+        (p.codigo && p.codigo.trim().toUpperCase() === codigoTrimmed) ||
+        (normalize(p.nombre) === normalize(nombreTrimmed))
+      );
+
+      if (existeLocal) {
+        setCreateError("Este programa de estudio ya existe");
+        setSavingProgram(false);
+        return;
+      }
+
       const fullDescription = newProgram.resolucion 
         ? `${newProgram.resolucion}. ${newProgram.descripcion}` 
         : newProgram.descripcion || 'Carrera profesional técnica oficial del IESTP Suiza';
 
       const payload = {
-        nombre: newProgram.nombre.trim(),
-        codigo: newProgram.codigo.trim().toUpperCase(),
+        nombre: nombreTrimmed,
+        codigo: codigoTrimmed,
         descripcion: fullDescription,
         creditos_totales: parseInt(newProgram.creditos_totales) || 126,
         duracion_periodos: parseInt(newProgram.duracion_periodos) || 6,
@@ -209,12 +227,10 @@ export function AcademicDashboard() {
         estado: newProgram.estado || 'activo'
       };
 
-      await apiClient.request('/api/mod-programas-estudio/programas', {
-        method: 'POST',
-        data: payload
-      });
+      await apiClient.callModule('mod-programas-estudio', 'programas', 'POST', payload);
 
       setShowCreateModal(false);
+      setCreateError('');
       setNewProgram({
         nombre: '',
         codigo: '',
@@ -228,7 +244,12 @@ export function AcademicDashboard() {
       await fetchData();
     } catch (error) {
       console.error('Error al crear programa:', error);
-      alert(error.response?.data?.detail || 'Error al registrar el programa de estudio. Verifique que el código no esté duplicado.');
+      const detail = error.message || '';
+      if (detail.toLowerCase().includes('ya existe') || detail.toLowerCase().includes('duplicado') || detail.includes('programa de estudio')) {
+        setCreateError("Este programa de estudio ya existe");
+      } else {
+        setCreateError(detail || "Este programa de estudio ya existe");
+      }
     } finally {
       setSavingProgram(false);
     }
@@ -460,7 +481,7 @@ export function AcademicDashboard() {
         <div className="flex flex-wrap items-center gap-2.5">
           <button 
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white font-semibold text-sm shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => { setCreateError(''); setShowCreateModal(true); }}
           >
             <Plus size={16} className="stroke-[2.5]" />
             <span>Crear Nuevo Programa</span>
@@ -1007,6 +1028,13 @@ export function AcademicDashboard() {
             </div>
 
             <form onSubmit={handleCreateProgram} className="p-6 overflow-y-auto space-y-4">
+              {createError && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200/90 flex items-center gap-2.5 text-rose-700 text-xs sm:text-sm font-bold shadow-xs animate-shake">
+                  <AlertCircle size={18} className="text-rose-500 shrink-0" />
+                  <span>{createError}</span>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                   Nombre del Programa de Estudio <span className="text-rose-500">*</span>
@@ -1014,9 +1042,14 @@ export function AcademicDashboard() {
                 <input
                   type="text"
                   placeholder="Ej. ARQUITECTURA DE PLATAFORMAS Y SERVICIOS TI"
-                  className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-semibold"
+                  className={`w-full px-3.5 py-2.5 bg-slate-50/50 border rounded-xl text-xs sm:text-sm text-slate-800 uppercase focus:outline-none focus:ring-2 transition-all font-semibold ${
+                    createError ? 'border-rose-400 focus:ring-rose-200 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:ring-primary/20 focus:border-primary'
+                  }`}
                   value={newProgram.nombre}
-                  onChange={e => setNewProgram({ ...newProgram, nombre: e.target.value })}
+                  onChange={e => {
+                    setNewProgram({ ...newProgram, nombre: e.target.value });
+                    if (createError) setCreateError('');
+                  }}
                   required
                 />
               </div>
@@ -1029,9 +1062,14 @@ export function AcademicDashboard() {
                   <input
                     type="text"
                     placeholder="Ej. 0584735 o APS-01"
-                    className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs sm:text-sm font-mono uppercase text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-bold"
+                    className={`w-full px-3.5 py-2.5 bg-slate-50/50 border rounded-xl text-xs sm:text-sm font-mono uppercase text-slate-800 focus:outline-none focus:ring-2 transition-all font-bold ${
+                      createError ? 'border-rose-400 focus:ring-rose-200 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:ring-primary/20 focus:border-primary'
+                    }`}
                     value={newProgram.codigo}
-                    onChange={e => setNewProgram({ ...newProgram, codigo: e.target.value })}
+                    onChange={e => {
+                      setNewProgram({ ...newProgram, codigo: e.target.value });
+                      if (createError) setCreateError('');
+                    }}
                     required
                   />
                 </div>
