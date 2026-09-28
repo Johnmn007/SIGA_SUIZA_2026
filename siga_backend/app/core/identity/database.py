@@ -7,8 +7,12 @@ from ..config import settings
 metadata = MetaData()
 Base = declarative_base(metadata=metadata)
 
-# Engine para Identity (misma DB pero schema separado)
-engine = create_async_engine(settings.database_url, echo=settings.debug)
+engine = create_async_engine(
+    settings.database_url, 
+    echo=settings.debug,
+    pool_pre_ping=True,
+    pool_recycle=300
+)
 
 # Session local para Identity
 AsyncSessionLocal = sessionmaker(

@@ -38,9 +38,14 @@ async def get_manifest():
 
 @app.on_event("startup")
 async def startup():
-    await init_db()
+    for attempt in range(5):
+        try:
+            await init_db()
+            break
+        except Exception as e:
+            print(f"Intento {attempt + 1}/5 fallido al conectar con BD: {e}. Reintentando en 2s...")
+            await asyncio.sleep(2)
     asyncio.create_task(outbox_worker())
-    print("Tablas creadas/verificadas")
     print("Modulo de Programas de Estudio iniciado")
 
 

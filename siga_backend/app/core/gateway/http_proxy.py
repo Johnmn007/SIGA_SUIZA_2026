@@ -73,7 +73,7 @@ class HTTPGateway:
                     url=target_url,
                     headers=headers,
                     content=await request.body(),
-                    follow_redirects=False
+                    follow_redirects=True
                 )
             else:
                 response = await client.request(
@@ -81,7 +81,7 @@ class HTTPGateway:
                     url=target_url,
                     headers=headers,
                     content=await request.body(),
-                    follow_redirects=False
+                    follow_redirects=True
                 )
             
             # Si el backend del módulo envía un 5xx, lo disparamos como excepción para el circuit breaker (opcional)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, delete, text
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
@@ -54,9 +54,14 @@ async def health_check():
 # Endpoints CRUD
 @router.post("/programas", response_model=ProgramaResponse, status_code=status.HTTP_201_CREATED)
 async def crear_programa(programa: ProgramaCreate, request: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ProgramaEstudio).where(ProgramaEstudio.codigo == programa.codigo))
+    result = await db.execute(
+        select(ProgramaEstudio).where(
+            (func.lower(func.trim(ProgramaEstudio.codigo)) == func.lower(func.trim(programa.codigo))) |
+            (func.lower(func.trim(ProgramaEstudio.nombre)) == func.lower(func.trim(programa.nombre)))
+        )
+    )
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Ya existe un programa con este codigo")
+        raise HTTPException(status_code=400, detail="Este programa de estudio ya existe")
 
     db_programa = ProgramaEstudio(**programa.model_dump())
     db.add(db_programa)
@@ -206,6 +211,138 @@ async def actualizar_programa(programa_id: int, programa_data: ProgramaCreate, d
     await db.refresh(programa)
     return programa
 
+@router.delete("/programas/{programa_id}")
+async def eliminar_programa(programa_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ProgramaEstudio).where(ProgramaEstudio.id == programa_id))
+    db_programa = result.scalar_one_or_none()
+    if not db_programa:
+        raise HTTPException(status_code=404, detail="Programa no encontrado")
+
+    # Verificar si hay estudiantes vinculados
+    res_estudiantes = await db.execute(
+        select(func.count()).select_from(text("estudiantes")).where(text("programa_id = :pid")),
+        {"pid": programa_id}
+    )
+    total_estudiantes = res_estudiantes.scalar() or 0
+    if total_estudiantes > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar el programa porque tiene {total_estudiantes} estudiantes asociados. Si ya no se oferta, se recomienda cambiar su estado a 'Inactivo' o 'En liquidación'."
+        )
+
+    # Eliminar configuraciones asociadas
+    await db.execute(
+        delete(ProgramaConfiguracion).where(ProgramaConfiguracion.programa_id == programa_id)
+    )
+
+    # Eliminar requisitos asociados
+    await db.execute(
+        delete(ProgramaRequisito).where(ProgramaRequisito.programa_id == programa_id)
+    )
+
+    # Eliminar unidades de los módulos del programa
+    res_modulos = await db.execute(
+        select(ProgramaModulo.id).where(ProgramaModulo.programa_id == programa_id)
+    )
+    modulo_ids = res_modulos.scalars().all()
+    if modulo_ids:
+        await db.execute(
+            delete(ProgramaUnidad).where(ProgramaUnidad.programa_modulo_id.in_(modulo_ids))
+        )
+        await db.execute(
+            delete(ProgramaModulo).where(ProgramaModulo.id.in_(modulo_ids))
+        )
+
+    # Eliminar tutorías, horarios, planes docentes y cargas si existieran
+    await db.execute(text("DELETE FROM tutorias WHERE programa_id = :pid"), {"pid": programa_id})
+    await db.execute(text("DELETE FROM horarios_periodo WHERE programa_id = :pid"), {"pid": programa_id})
+    await db.execute(text("DELETE FROM planes_trabajo_docente WHERE programa_id = :pid"), {"pid": programa_id})
+    await db.execute(text("DELETE FROM carga_lectiva WHERE programa_id = :pid"), {"pid": programa_id})
+
+    # Eliminar el programa
+    await db.delete(db_programa)
+
+    # Registrar evento en outbox
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    event = OutboxEvent(
+        event_type="carrera.eliminada",
+        payload={
+            "id": programa_id,
+            "nombre": db_programa.nombre,
+            "codigo": db_programa.codigo,
+            "metadata": {"request_id": request_id}
+        }
+    )
+    db.add(event)
+    await db.commit()
+
+    return {"message": "Programa de estudio eliminado exitosamente", "id": programa_id}
+
+class ProgramaConfiguracionCreate(BaseModel):
+    periodo_academico: Optional[int] = 1
+    turnos: Optional[List[str]] = ["mañana", "noche"]
+    coordinador_id: Optional[int] = None
+    max_estudiantes: Optional[int] = 35
+
+@router.get("/programas/{programa_id}/configuracion")
+async def obtener_configuracion_programa(programa_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ProgramaConfiguracion)
+        .where(ProgramaConfiguracion.programa_id == programa_id)
+        .order_by(ProgramaConfiguracion.id.desc())
+    )
+    config = result.scalars().first()
+    if not config:
+        return {
+            "programa_id": programa_id,
+            "periodo_academico": 1,
+            "turnos": ["mañana", "noche"],
+            "coordinador_id": None,
+            "max_estudiantes": 35
+        }
+    turnos_list = config.turnos if isinstance(config.turnos, list) else (list(config.turnos.keys()) if isinstance(config.turnos, dict) else ["mañana"])
+    return {
+        "id": config.id,
+        "programa_id": config.programa_id,
+        "periodo_academico": config.periodo_academico,
+        "turnos": turnos_list,
+        "coordinador_id": config.coordinador_id,
+        "max_estudiantes": config.max_estudiantes
+    }
+
+@router.post("/programas/{programa_id}/configuracion")
+async def guardar_configuracion_programa(programa_id: int, config_data: ProgramaConfiguracionCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ProgramaConfiguracion)
+        .where(ProgramaConfiguracion.programa_id == programa_id)
+        .order_by(ProgramaConfiguracion.id.desc())
+    )
+    config = result.scalars().first()
+    if config:
+        config.turnos = config_data.turnos
+        config.max_estudiantes = config_data.max_estudiantes
+        config.coordinador_id = config_data.coordinador_id
+        config.periodo_academico = config_data.periodo_academico or 1
+    else:
+        config = ProgramaConfiguracion(
+            programa_id=programa_id,
+            periodo_academico=config_data.periodo_academico or 1,
+            turnos=config_data.turnos,
+            coordinador_id=config_data.coordinador_id,
+            max_estudiantes=config_data.max_estudiantes or 35
+        )
+        db.add(config)
+    await db.commit()
+    await db.refresh(config)
+    return {
+        "id": config.id,
+        "programa_id": config.programa_id,
+        "periodo_academico": config.periodo_academico,
+        "turnos": config.turnos,
+        "coordinador_id": config.coordinador_id,
+        "max_estudiantes": config.max_estudiantes
+    }
+
 @router.post("/programas/{programa_id}/modulos", status_code=status.HTTP_201_CREATED)
 async def agregar_modulo(programa_id: int, modulo_data: dict, request: Request, db: AsyncSession = Depends(get_db)):
     db_modulo = ProgramaModulo(programa_id=programa_id, **modulo_data)
@@ -247,6 +384,26 @@ async def agregar_unidad(modulo_id: int, unidad_data: dict, request: Request, db
     await db.commit()
     await db.refresh(db_unidad)
     return db_unidad
+
+@router.delete("/modulos/{modulo_id}")
+async def eliminar_modulo(modulo_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ProgramaModulo).where(ProgramaModulo.id == modulo_id))
+    modulo = result.scalar_one_or_none()
+    if not modulo:
+        raise HTTPException(status_code=404, detail="Módulo no encontrado")
+    await db.delete(modulo)
+    await db.commit()
+    return {"message": "Módulo eliminado exitosamente"}
+
+@router.delete("/unidades/{unidad_id}")
+async def eliminar_unidad(unidad_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ProgramaUnidad).where(ProgramaUnidad.id == unidad_id))
+    unidad = result.scalar_one_or_none()
+    if not unidad:
+        raise HTTPException(status_code=404, detail="Unidad didáctica no encontrada")
+    await db.delete(unidad)
+    await db.commit()
+    return {"message": "Unidad didáctica eliminada exitosamente"}
 
 @router.get("/programas/{programa_id}/malla")
 async def obtener_malla(programa_id: int, db: AsyncSession = Depends(get_db)):

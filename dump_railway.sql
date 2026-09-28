@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict qLslluifZgolBp4amgaaEFYumaB0vCNicPPrQ3QdwEF7F8MkviacfeJ7YpQ0TIG
+\restrict Ntk4JgtKhFCdPx2AFaflWdBCmqZDzzGRatb2tJ3rBRvbqNs4eOQYJ96aJJLGUVB
 
--- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
--- Dumped by pg_dump version 18.6
+-- Dumped from database version 17.6
+-- Dumped by pg_dump version 17.6
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -19,6 +19,244 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
+ALTER TABLE IF EXISTS ONLY public.unidades_plan DROP CONSTRAINT IF EXISTS unidades_plan_modulo_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.tutorias DROP CONSTRAINT IF EXISTS tutorias_programa_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.tutorias DROP CONSTRAINT IF EXISTS tutorias_periodo_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.solicitudes_tramites DROP CONSTRAINT IF EXISTS solicitudes_tramites_estudiante_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.silabos DROP CONSTRAINT IF EXISTS silabos_carga_lectiva_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.resoluciones_convalidacion DROP CONSTRAINT IF EXISTS resoluciones_convalidacion_estudiante_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.registros_practicas DROP CONSTRAINT IF EXISTS registros_practicas_estudiante_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.programa_unidades DROP CONSTRAINT IF EXISTS programa_unidades_programa_modulo_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.programa_requisitos DROP CONSTRAINT IF EXISTS programa_requisitos_programa_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.programa_modulos DROP CONSTRAINT IF EXISTS programa_modulos_programa_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.programa_configuraciones DROP CONSTRAINT IF EXISTS programa_configuraciones_programa_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.planes_trabajo_docente DROP CONSTRAINT IF EXISTS planes_trabajo_docente_programa_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.planes_trabajo_docente DROP CONSTRAINT IF EXISTS planes_trabajo_docente_periodo_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.perfiles_personal DROP CONSTRAINT IF EXISTS perfiles_personal_user_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.modulos_plan DROP CONSTRAINT IF EXISTS modulos_plan_plan_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.matriculas DROP CONSTRAINT IF EXISTS matriculas_estudiante_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.matricula_detalles DROP CONSTRAINT IF EXISTS matricula_detalles_matricula_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.horarios_periodo DROP CONSTRAINT IF EXISTS horarios_periodo_programa_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.horarios_periodo DROP CONSTRAINT IF EXISTS horarios_periodo_periodo_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.historial_academico DROP CONSTRAINT IF EXISTS historial_academico_estudiante_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.core_user_roles DROP CONSTRAINT IF EXISTS core_user_roles_user_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.core_user_roles DROP CONSTRAINT IF EXISTS core_user_roles_role_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.core_role_permissions DROP CONSTRAINT IF EXISTS core_role_permissions_role_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.core_role_permissions DROP CONSTRAINT IF EXISTS core_role_permissions_permission_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.convalidaciones_detalle DROP CONSTRAINT IF EXISTS convalidaciones_detalle_resolucion_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.carga_lectiva DROP CONSTRAINT IF EXISTS carga_lectiva_programa_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.carga_lectiva DROP CONSTRAINT IF EXISTS carga_lectiva_periodo_id_fkey;
+ALTER TABLE IF EXISTS ONLY public.beneficios_estudiante DROP CONSTRAINT IF EXISTS beneficios_estudiante_estudiante_id_fkey;
+DROP INDEX IF EXISTS public.ix_unidades_plan_id;
+DROP INDEX IF EXISTS public.ix_tutorias_id;
+DROP INDEX IF EXISTS public.ix_solicitudes_tramites_id;
+DROP INDEX IF EXISTS public.ix_solicitudes_tramites_estudiante_id;
+DROP INDEX IF EXISTS public.ix_silabos_id;
+DROP INDEX IF EXISTS public.ix_resoluciones_convalidacion_id;
+DROP INDEX IF EXISTS public.ix_resoluciones_convalidacion_estudiante_id;
+DROP INDEX IF EXISTS public.ix_registros_practicas_modulo_formativo_id;
+DROP INDEX IF EXISTS public.ix_registros_practicas_id;
+DROP INDEX IF EXISTS public.ix_registros_practicas_estudiante_id;
+DROP INDEX IF EXISTS public.ix_programas_estudio_id;
+DROP INDEX IF EXISTS public.ix_programas_estudio_codigo;
+DROP INDEX IF EXISTS public.ix_programa_unidades_id;
+DROP INDEX IF EXISTS public.ix_programa_requisitos_id;
+DROP INDEX IF EXISTS public.ix_programa_modulos_id;
+DROP INDEX IF EXISTS public.ix_programa_configuraciones_id;
+DROP INDEX IF EXISTS public.ix_planes_trabajo_docente_id;
+DROP INDEX IF EXISTS public.ix_planes_estudio_id;
+DROP INDEX IF EXISTS public.ix_planes_estudio_codigo;
+DROP INDEX IF EXISTS public.ix_periodos_academicos_id;
+DROP INDEX IF EXISTS public.ix_perfiles_personal_id;
+DROP INDEX IF EXISTS public.ix_outbox_events_published;
+DROP INDEX IF EXISTS public.ix_outbox_events_id;
+DROP INDEX IF EXISTS public.ix_modulos_plan_id;
+DROP INDEX IF EXISTS public.ix_matriculas_programa_id;
+DROP INDEX IF EXISTS public.ix_matriculas_periodo_id;
+DROP INDEX IF EXISTS public.ix_matriculas_id;
+DROP INDEX IF EXISTS public.ix_matriculas_estudiante_id;
+DROP INDEX IF EXISTS public.ix_matricula_detalles_unidad_didactica_id;
+DROP INDEX IF EXISTS public.ix_matricula_detalles_matricula_id;
+DROP INDEX IF EXISTS public.ix_matricula_detalles_id;
+DROP INDEX IF EXISTS public.ix_horarios_periodo_id;
+DROP INDEX IF EXISTS public.ix_historial_academico_periodo_id;
+DROP INDEX IF EXISTS public.ix_historial_academico_id;
+DROP INDEX IF EXISTS public.ix_historial_academico_estudiante_id;
+DROP INDEX IF EXISTS public.ix_evaluacion_registros_unidad_didactica_id;
+DROP INDEX IF EXISTS public.ix_evaluacion_registros_periodo_id;
+DROP INDEX IF EXISTS public.ix_evaluacion_registros_matricula_detalle_id;
+DROP INDEX IF EXISTS public.ix_evaluacion_registros_id;
+DROP INDEX IF EXISTS public.ix_evaluacion_registros_estudiante_id;
+DROP INDEX IF EXISTS public.ix_estudiantes_id;
+DROP INDEX IF EXISTS public.ix_estudiantes_dni;
+DROP INDEX IF EXISTS public.ix_estudiantes_codigo_estudiante;
+DROP INDEX IF EXISTS public.ix_core_users_id;
+DROP INDEX IF EXISTS public.ix_core_users_email;
+DROP INDEX IF EXISTS public.ix_core_roles_name;
+DROP INDEX IF EXISTS public.ix_core_roles_id;
+DROP INDEX IF EXISTS public.ix_core_permissions_name;
+DROP INDEX IF EXISTS public.ix_core_permissions_id;
+DROP INDEX IF EXISTS public.ix_core_modules_name;
+DROP INDEX IF EXISTS public.ix_core_modules_id;
+DROP INDEX IF EXISTS public.ix_core_audit_logs_user_id;
+DROP INDEX IF EXISTS public.ix_core_audit_logs_source;
+DROP INDEX IF EXISTS public.ix_core_audit_logs_request_id;
+DROP INDEX IF EXISTS public.ix_core_audit_logs_event_type;
+DROP INDEX IF EXISTS public.ix_core_audit_logs_event_id;
+DROP INDEX IF EXISTS public.ix_convenios_institucionales_id;
+DROP INDEX IF EXISTS public.ix_convenios_institucionales_codigo;
+DROP INDEX IF EXISTS public.ix_convalidaciones_detalle_unidad_destino_id;
+DROP INDEX IF EXISTS public.ix_convalidaciones_detalle_resolucion_id;
+DROP INDEX IF EXISTS public.ix_convalidaciones_detalle_id;
+DROP INDEX IF EXISTS public.ix_carga_lectiva_id;
+DROP INDEX IF EXISTS public.ix_beneficios_estudiante_periodo_validez_inicio_id;
+DROP INDEX IF EXISTS public.ix_beneficios_estudiante_periodo_validez_fin_id;
+DROP INDEX IF EXISTS public.ix_beneficios_estudiante_id;
+DROP INDEX IF EXISTS public.ix_beneficios_estudiante_estudiante_id;
+DROP INDEX IF EXISTS public.ix_admision_postulantes_id;
+DROP INDEX IF EXISTS public.ix_admision_postulantes_dni;
+ALTER TABLE IF EXISTS ONLY public.unidades_plan DROP CONSTRAINT IF EXISTS unidades_plan_pkey;
+ALTER TABLE IF EXISTS ONLY public.tutorias DROP CONSTRAINT IF EXISTS tutorias_pkey;
+ALTER TABLE IF EXISTS ONLY public.solicitudes_tramites DROP CONSTRAINT IF EXISTS solicitudes_tramites_pkey;
+ALTER TABLE IF EXISTS ONLY public.silabos DROP CONSTRAINT IF EXISTS silabos_pkey;
+ALTER TABLE IF EXISTS ONLY public.silabos DROP CONSTRAINT IF EXISTS silabos_carga_lectiva_id_key;
+ALTER TABLE IF EXISTS ONLY public.resoluciones_convalidacion DROP CONSTRAINT IF EXISTS resoluciones_convalidacion_pkey;
+ALTER TABLE IF EXISTS ONLY public.resoluciones_convalidacion DROP CONSTRAINT IF EXISTS resoluciones_convalidacion_numero_resolucion_key;
+ALTER TABLE IF EXISTS ONLY public.registros_practicas DROP CONSTRAINT IF EXISTS registros_practicas_pkey;
+ALTER TABLE IF EXISTS ONLY public.programas_estudio DROP CONSTRAINT IF EXISTS programas_estudio_pkey;
+ALTER TABLE IF EXISTS ONLY public.programa_unidades DROP CONSTRAINT IF EXISTS programa_unidades_pkey;
+ALTER TABLE IF EXISTS ONLY public.programa_requisitos DROP CONSTRAINT IF EXISTS programa_requisitos_pkey;
+ALTER TABLE IF EXISTS ONLY public.programa_modulos DROP CONSTRAINT IF EXISTS programa_modulos_pkey;
+ALTER TABLE IF EXISTS ONLY public.programa_configuraciones DROP CONSTRAINT IF EXISTS programa_configuraciones_pkey;
+ALTER TABLE IF EXISTS ONLY public.planes_trabajo_docente DROP CONSTRAINT IF EXISTS planes_trabajo_docente_pkey;
+ALTER TABLE IF EXISTS ONLY public.planes_estudio DROP CONSTRAINT IF EXISTS planes_estudio_pkey;
+ALTER TABLE IF EXISTS ONLY public.periodos_academicos DROP CONSTRAINT IF EXISTS periodos_academicos_pkey;
+ALTER TABLE IF EXISTS ONLY public.periodos_academicos DROP CONSTRAINT IF EXISTS periodos_academicos_codigo_key;
+ALTER TABLE IF EXISTS ONLY public.perfiles_personal DROP CONSTRAINT IF EXISTS perfiles_personal_user_id_key;
+ALTER TABLE IF EXISTS ONLY public.perfiles_personal DROP CONSTRAINT IF EXISTS perfiles_personal_pkey;
+ALTER TABLE IF EXISTS ONLY public.outbox_events DROP CONSTRAINT IF EXISTS outbox_events_pkey;
+ALTER TABLE IF EXISTS ONLY public.modulos_plan DROP CONSTRAINT IF EXISTS modulos_plan_pkey;
+ALTER TABLE IF EXISTS ONLY public.matriculas DROP CONSTRAINT IF EXISTS matriculas_pkey;
+ALTER TABLE IF EXISTS ONLY public.matricula_detalles DROP CONSTRAINT IF EXISTS matricula_detalles_pkey;
+ALTER TABLE IF EXISTS ONLY public.horarios_periodo DROP CONSTRAINT IF EXISTS horarios_periodo_pkey;
+ALTER TABLE IF EXISTS ONLY public.historial_academico DROP CONSTRAINT IF EXISTS historial_academico_pkey;
+ALTER TABLE IF EXISTS ONLY public.evaluacion_registros DROP CONSTRAINT IF EXISTS evaluacion_registros_pkey;
+ALTER TABLE IF EXISTS ONLY public.estudiantes DROP CONSTRAINT IF EXISTS estudiantes_pkey;
+ALTER TABLE IF EXISTS ONLY public.estudiantes DROP CONSTRAINT IF EXISTS estudiantes_email_institucional_key;
+ALTER TABLE IF EXISTS ONLY public.core_users DROP CONSTRAINT IF EXISTS core_users_pkey;
+ALTER TABLE IF EXISTS ONLY public.core_roles DROP CONSTRAINT IF EXISTS core_roles_pkey;
+ALTER TABLE IF EXISTS ONLY public.core_permissions DROP CONSTRAINT IF EXISTS core_permissions_pkey;
+ALTER TABLE IF EXISTS ONLY public.core_modules DROP CONSTRAINT IF EXISTS core_modules_pkey;
+ALTER TABLE IF EXISTS ONLY public.core_audit_logs DROP CONSTRAINT IF EXISTS core_audit_logs_pkey;
+ALTER TABLE IF EXISTS ONLY public.convenios_institucionales DROP CONSTRAINT IF EXISTS convenios_institucionales_pkey;
+ALTER TABLE IF EXISTS ONLY public.convalidaciones_detalle DROP CONSTRAINT IF EXISTS convalidaciones_detalle_pkey;
+ALTER TABLE IF EXISTS ONLY public.carga_lectiva DROP CONSTRAINT IF EXISTS carga_lectiva_pkey;
+ALTER TABLE IF EXISTS ONLY public.beneficios_estudiante DROP CONSTRAINT IF EXISTS beneficios_estudiante_pkey;
+ALTER TABLE IF EXISTS ONLY public.alembic_version DROP CONSTRAINT IF EXISTS alembic_version_pkc;
+ALTER TABLE IF EXISTS ONLY public.admision_postulantes DROP CONSTRAINT IF EXISTS admision_postulantes_pkey;
+ALTER TABLE IF EXISTS public.unidades_plan ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.tutorias ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.solicitudes_tramites ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.silabos ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.resoluciones_convalidacion ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.registros_practicas ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.programas_estudio ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.programa_unidades ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.programa_requisitos ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.programa_modulos ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.programa_configuraciones ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.planes_trabajo_docente ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.planes_estudio ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.periodos_academicos ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.perfiles_personal ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.outbox_events ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.modulos_plan ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.matriculas ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.matricula_detalles ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.horarios_periodo ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.historial_academico ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.evaluacion_registros ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.estudiantes ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.core_users ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.core_roles ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.core_permissions ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.core_modules ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.core_audit_logs ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.convenios_institucionales ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.convalidaciones_detalle ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.carga_lectiva ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.beneficios_estudiante ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.admision_postulantes ALTER COLUMN id DROP DEFAULT;
+DROP SEQUENCE IF EXISTS public.unidades_plan_id_seq;
+DROP TABLE IF EXISTS public.unidades_plan;
+DROP SEQUENCE IF EXISTS public.tutorias_id_seq;
+DROP TABLE IF EXISTS public.tutorias;
+DROP SEQUENCE IF EXISTS public.solicitudes_tramites_id_seq;
+DROP TABLE IF EXISTS public.solicitudes_tramites;
+DROP SEQUENCE IF EXISTS public.silabos_id_seq;
+DROP TABLE IF EXISTS public.silabos;
+DROP SEQUENCE IF EXISTS public.resoluciones_convalidacion_id_seq;
+DROP TABLE IF EXISTS public.resoluciones_convalidacion;
+DROP SEQUENCE IF EXISTS public.registros_practicas_id_seq;
+DROP TABLE IF EXISTS public.registros_practicas;
+DROP SEQUENCE IF EXISTS public.programas_estudio_id_seq;
+DROP TABLE IF EXISTS public.programas_estudio;
+DROP SEQUENCE IF EXISTS public.programa_unidades_id_seq;
+DROP TABLE IF EXISTS public.programa_unidades;
+DROP SEQUENCE IF EXISTS public.programa_requisitos_id_seq;
+DROP TABLE IF EXISTS public.programa_requisitos;
+DROP SEQUENCE IF EXISTS public.programa_modulos_id_seq;
+DROP TABLE IF EXISTS public.programa_modulos;
+DROP SEQUENCE IF EXISTS public.programa_configuraciones_id_seq;
+DROP TABLE IF EXISTS public.programa_configuraciones;
+DROP SEQUENCE IF EXISTS public.planes_trabajo_docente_id_seq;
+DROP TABLE IF EXISTS public.planes_trabajo_docente;
+DROP SEQUENCE IF EXISTS public.planes_estudio_id_seq;
+DROP TABLE IF EXISTS public.planes_estudio;
+DROP SEQUENCE IF EXISTS public.periodos_academicos_id_seq;
+DROP TABLE IF EXISTS public.periodos_academicos;
+DROP SEQUENCE IF EXISTS public.perfiles_personal_id_seq;
+DROP TABLE IF EXISTS public.perfiles_personal;
+DROP SEQUENCE IF EXISTS public.outbox_events_id_seq;
+DROP TABLE IF EXISTS public.outbox_events;
+DROP SEQUENCE IF EXISTS public.modulos_plan_id_seq;
+DROP TABLE IF EXISTS public.modulos_plan;
+DROP SEQUENCE IF EXISTS public.matriculas_id_seq;
+DROP TABLE IF EXISTS public.matriculas;
+DROP SEQUENCE IF EXISTS public.matricula_detalles_id_seq;
+DROP TABLE IF EXISTS public.matricula_detalles;
+DROP SEQUENCE IF EXISTS public.horarios_periodo_id_seq;
+DROP TABLE IF EXISTS public.horarios_periodo;
+DROP SEQUENCE IF EXISTS public.historial_academico_id_seq;
+DROP TABLE IF EXISTS public.historial_academico;
+DROP SEQUENCE IF EXISTS public.evaluacion_registros_id_seq;
+DROP TABLE IF EXISTS public.evaluacion_registros;
+DROP SEQUENCE IF EXISTS public.estudiantes_id_seq;
+DROP TABLE IF EXISTS public.estudiantes;
+DROP SEQUENCE IF EXISTS public.core_users_id_seq;
+DROP TABLE IF EXISTS public.core_users;
+DROP TABLE IF EXISTS public.core_user_roles;
+DROP SEQUENCE IF EXISTS public.core_roles_id_seq;
+DROP TABLE IF EXISTS public.core_roles;
+DROP TABLE IF EXISTS public.core_role_permissions;
+DROP SEQUENCE IF EXISTS public.core_permissions_id_seq;
+DROP TABLE IF EXISTS public.core_permissions;
+DROP SEQUENCE IF EXISTS public.core_modules_id_seq;
+DROP TABLE IF EXISTS public.core_modules;
+DROP SEQUENCE IF EXISTS public.core_audit_logs_id_seq;
+DROP TABLE IF EXISTS public.core_audit_logs;
+DROP SEQUENCE IF EXISTS public.convenios_institucionales_id_seq;
+DROP TABLE IF EXISTS public.convenios_institucionales;
+DROP SEQUENCE IF EXISTS public.convalidaciones_detalle_id_seq;
+DROP TABLE IF EXISTS public.convalidaciones_detalle;
+DROP SEQUENCE IF EXISTS public.carga_lectiva_id_seq;
+DROP TABLE IF EXISTS public.carga_lectiva;
+DROP SEQUENCE IF EXISTS public.beneficios_estudiante_id_seq;
+DROP TABLE IF EXISTS public.beneficios_estudiante;
+DROP TABLE IF EXISTS public.alembic_version;
+DROP SEQUENCE IF EXISTS public.admision_postulantes_id_seq;
+DROP TABLE IF EXISTS public.admision_postulantes;
+DROP EXTENSION IF EXISTS pgcrypto;
 --
 -- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
 --
@@ -202,19 +440,19 @@ ALTER SEQUENCE public.convalidaciones_detalle_id_seq OWNED BY public.convalidaci
 --
 
 CREATE TABLE public.convenios_institucionales (
-    codigo character varying(50) NOT NULL,
-    nombre character varying(255) NOT NULL,
-    institucion character varying(255) NOT NULL,
-    tipo_convenio character varying(100),
+    id integer NOT NULL,
+    codigo character varying NOT NULL,
+    nombre character varying NOT NULL,
+    institucion character varying NOT NULL,
+    tipo_convenio character varying,
     descuento_porcentaje double precision,
     vacantes_reservadas integer,
     programas_aplicables json,
     fecha_inicio date,
     fecha_fin date,
-    estado character varying(30),
-    contacto_referencia character varying(255),
+    estado character varying,
+    contacto_referencia character varying,
     descripcion text,
-    id integer NOT NULL,
     created_at timestamp without time zone,
     updated_at timestamp without time zone
 );
@@ -2370,55 +2608,55 @@ COPY public.convalidaciones_detalle (resolucion_id, unidad_destino_id, curso_ori
 -- Data for Name: convenios_institucionales; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.convenios_institucionales (codigo, nombre, institucion, tipo_convenio, descuento_porcentaje, vacantes_reservadas, programas_aplicables, fecha_inicio, fecha_fin, estado, contacto_referencia, descripcion, id, created_at, updated_at) FROM stdin;
-CONV-001	Convenio de Cooperación Interinstitucional GOREU	Gobierno Regional de Ucayali	Ingreso Directo / Beca Parcial	100	15	["TODOS"]	\N	\N	ACTIVO	\N	Acceso preferente para jóvenes de comunidades nativas y alto rendimiento regional.	1	2026-09-11 22:38:56.466675	2026-09-11 22:38:56.466684
-CONV-002	Alianza Educativa Municipalidad Coronel Portillo	Municipalidad Provincial de Coronel Portillo	Ingreso Directo	50	10	["TODOS"]	\N	\N	ACTIVO	\N	Beneficio para trabajadores e hijos de servidores ediles y deportistas destacados.	2	2026-09-11 22:38:56.466688	2026-09-11 22:38:56.46669
-CONV-003	Pacto por la Juventud Yarinacocha	Municipalidad Distrital de Yarinacocha	Ingreso Directo	50	8	["TODOS"]	\N	\N	ACTIVO	\N	Ingreso directo a carreras técnicas para egresados del distrito.	3	2026-09-11 22:38:56.466693	2026-09-11 22:38:56.466695
-CONV-004	Convenio de Inclusión Manantay	Municipalidad Distrital de Manantay	Ingreso Directo	50	8	["TODOS"]	\N	\N	ACTIVO	\N	Capacitación técnica e inserción laboral rápida para jóvenes vulnerables.	4	2026-09-11 22:38:56.466697	2026-09-11 22:38:56.466698
-CONV-005	Programa de Becas Integrales Beca 18	PRONABEC	Beca Integral 100%	100	30	["TODOS"]	\N	\N	ACTIVO	\N	Cobertura integral de matrícula, costos formativos y acompañamiento de permanencia.	5	2026-09-11 22:38:56.466701	2026-09-11 22:38:56.466702
-CONV-006	Convenio de Formación con Fuerzas Armadas	Marina de Guerra del Perú - Capitanía de Pucallpa	Ingreso Directo	30	5	["TODOS"]	\N	\N	ACTIVO	\N	Formación técnica a licenciados de las FF.AA.	6	2026-09-11 22:38:56.466705	2026-09-11 22:38:56.466706
-CONV-007	Convenio Ejército del Perú - BIM 65	Ejército del Perú	Ingreso Directo	30	5	["TODOS"]	\N	\N	ACTIVO	\N	Convalidación y acceso directo al término del servicio militar voluntario.	7	2026-09-11 22:38:56.466709	2026-09-11 22:38:56.46671
-CONV-008	Pacto Policial Ucayali	PNP XIII Macro Región Policial Ucayali	Descuento Arancel	25	6	["TODOS"]	\N	\N	ACTIVO	\N	Formación complementaria e hijos de miembros policiales.	8	2026-09-11 22:38:56.466712	2026-09-11 22:38:56.466714
-CONV-009	Convenio Salud y Formación Técnica	Hospital Regional de Pucallpa	Ingreso Directo / Prácticas	40	12	["TODOS"]	\N	\N	ACTIVO	\N	Prácticas preprofesionales e ingreso técnico especializado en Enfermería y Farmacia.	9	2026-09-11 22:38:56.466716	2026-09-11 22:38:56.466718
-CONV-010	Convenio Hospital Amazónico	Hospital Amazónico de Yarinacocha	Ingreso Directo / Prácticas	40	10	["TODOS"]	\N	\N	ACTIVO	\N	Desarrollo de módulos formativos en campo asistencial.	10	2026-09-11 22:38:56.46672	2026-09-11 22:38:56.466722
-CONV-011	Convenio Marco DIRESA Ucayali	Dirección Regional de Salud Ucayali	Cooperación / Ingreso Directo	35	10	["TODOS"]	\N	\N	ACTIVO	\N	Fortalecimiento de la red de salud pública regional.	11	2026-09-11 22:38:56.466724	2026-09-11 22:38:56.466726
-CONV-012	Convenio EsSalud Ucayali	Seguro Social de Salud - Red Ucayali	Ingreso Directo	30	8	["TODOS"]	\N	\N	ACTIVO	\N	Formación dual y prácticas clínicas hospitalarias.	12	2026-09-11 22:38:56.466728	2026-09-11 22:38:56.46673
-CONV-013	Convenio Productivo Cámara de Comercio	Cámara de Comercio, Industria y Turismo de Ucayali	Ingreso Directo	20	15	["TODOS"]	\N	\N	ACTIVO	\N	Vinculación directa con empresas de la selva central para egresados de DSI y Contabilidad.	13	2026-09-11 22:38:56.466732	2026-09-11 22:38:56.466734
-CONV-014	Convenio Forestal y Maderero CEMAR	Asociación de Industriales de la Madera de Ucayali	Ingreso Directo	30	10	["TODOS"]	\N	\N	ACTIVO	\N	Impulso a la producción industrial y gestión ambiental.	14	2026-09-11 22:38:56.466736	2026-09-11 22:38:56.466738
-CONV-015	Convenio Palmicultores COCEPU	Comité Central de Palmicultores de Ucayali	Ingreso Directo	30	10	["TODOS"]	\N	\N	ACTIVO	\N	Capacitación tecnológica y agroindustrial.	15	2026-09-11 22:38:56.46674	2026-09-11 22:38:56.466742
-CONV-016	Convenio Cacaotero VRAE / Ucayali	Cooperativa Agraria Cacaotera de Ucayali	Ingreso Directo	25	8	["TODOS"]	\N	\N	ACTIVO	\N	Fortalecimiento técnico de las cadenas productivas.	16	2026-09-11 22:38:56.466744	2026-09-11 22:38:56.466746
-CONV-017	Convenio Tecnológico Electro Ucayali	Electro Ucayali S.A.	Ingreso Directo	30	6	["TODOS"]	\N	\N	ACTIVO	\N	Ingreso directo a Electricidad Industrial y DSI.	17	2026-09-11 22:38:56.466748	2026-09-11 22:38:56.46675
-CONV-018	Convenio Ocho Sur Agroindustrias	Ocho Sur S.A.C.	Ingreso Directo / Beca Productiva	100	10	["TODOS"]	\N	\N	ACTIVO	\N	Becas de excelencia para Mecánica Automotriz y Mantenimiento.	18	2026-09-11 22:38:56.466752	2026-09-11 22:38:56.466754
-CONV-019	Convenio Indígena AIDESEP	Asociación Interétnica de Desarrollo de la Selva Peruana	Ingreso Directo / Inclusión	100	12	["TODOS"]	\N	\N	ACTIVO	\N	Becas integrales para líderes jóvenes de comunidades originarias.	19	2026-09-11 22:38:56.466756	2026-09-11 22:38:56.466757
-CONV-020	Convenio ORAU Pueblos Indígenas	Organización Regional AIDESEP Ucayali (ORAU)	Ingreso Directo / Inclusión	100	12	["TODOS"]	\N	\N	ACTIVO	\N	Acceso a educación tecnológica bilingüe intercultural.	20	2026-09-11 22:38:56.466759	2026-09-11 22:38:56.466761
-CONV-021	Convenio Investigación IIAP	Instituto de Investigaciones de la Amazonía Peruana	Cooperación Científica	50	5	["TODOS"]	\N	\N	ACTIVO	\N	Pasantías y desarrollo conjunto de proyectos de software e innovación.	21	2026-09-11 22:38:56.466763	2026-09-11 22:38:56.466765
-CONV-022	Convenio Articulación UNU	Universidad Nacional de Ucayali	Convalidación y Traslado	20	20	["TODOS"]	\N	\N	ACTIVO	\N	Convalidación curricular técnica para continuidad universitaria.	22	2026-09-11 22:38:56.466767	2026-09-11 22:38:56.466769
-CONV-023	Convenio Articulación UNIA	Universidad Nacional Intercultural de la Amazonía	Convalidación y Traslado	20	15	["TODOS"]	\N	\N	ACTIVO	\N	Pasarela académica y convalidación de créditos.	23	2026-09-11 22:38:56.466771	2026-09-11 22:38:56.466772
-CONV-024	Convenio Colegio de Ingenieros del Perú CD Ucayali	Colegio de Ingenieros del Perú	Capacitación / Descuento	20	5	["TODOS"]	\N	\N	ACTIVO	\N	Certificaciones conjuntas para egresados.	24	2026-09-11 22:38:56.466774	2026-09-11 22:38:56.466776
-CONV-025	Convenio Colegio de Contadores Públicos	Colegio de Contadores Públicos de Ucayali	Ingreso Directo	20	8	["TODOS"]	\N	\N	ACTIVO	\N	Beneficio formativo en Contabilidad y Finanzas.	25	2026-09-11 22:38:56.466778	2026-09-11 22:38:56.46678
-CONV-026	Convenio DREU Educación Técnica	Dirección Regional de Educación de Ucayali	Ingreso Directo	50	15	["TODOS"]	\N	\N	ACTIVO	\N	Prioridad a primeros puestos de Educación Secundaria de colegios públicos.	26	2026-09-11 22:38:56.466782	2026-09-11 22:38:56.466784
-CONV-027	Convenio Municipalidad Campo Verde	Municipalidad Distrital de Campo Verde	Ingreso Directo	40	6	["TODOS"]	\N	\N	ACTIVO	\N	Desarrollo tecnológico para la cuenca agrícola.	27	2026-09-11 22:38:56.466786	2026-09-11 22:38:56.466788
-CONV-028	Convenio Municipalidad Neshuya	Municipalidad Distrital de Neshuya	Ingreso Directo	40	6	["TODOS"]	\N	\N	ACTIVO	\N	Inserción laboral y becas de estudio.	28	2026-09-11 22:38:56.46679	2026-09-11 22:38:56.466792
-CONV-029	Convenio Municipalidad Curimaná	Municipalidad Distrital de Curimaná	Ingreso Directo	40	6	["TODOS"]	\N	\N	ACTIVO	\N	Impulso técnico para la zona extractiva y agrícola.	29	2026-09-11 22:38:56.466794	2026-09-11 22:38:56.466796
-CONV-030	Convenio Municipalidad Padre Abad - Aguaytía	Municipalidad Provincial de Padre Abad	Ingreso Directo	50	10	["TODOS"]	\N	\N	ACTIVO	\N	Acceso preferente a egresados de zonas rurales.	30	2026-09-11 22:38:56.466798	2026-09-11 22:38:56.4668
-CONV-031	Convenio Municipalidad Atalaya	Municipalidad Provincial de Atalaya	Ingreso Directo / Residencia	100	8	["TODOS"]	\N	\N	ACTIVO	\N	Apoyo a estudiantes de provincias alejadas.	31	2026-09-11 22:38:56.466802	2026-09-11 22:38:56.466804
-CONV-032	Convenio Municipalidad Purús	Municipalidad Provincial de Purús	Ingreso Directo / Beca Frontera	100	5	["TODOS"]	\N	\N	ACTIVO	\N	Beca de frontera e integración nacional.	32	2026-09-11 22:38:56.466806	2026-09-11 22:38:56.466808
-CONV-033	Convenio Telefónica del Perú / Wayra	Telefónica del Perú	Innovación / Beca Tech	30	10	["TODOS"]	\N	\N	ACTIVO	\N	Laboratorios de innovación y conectividad para estudiantes de DSI.	33	2026-09-11 22:38:56.46681	2026-09-11 22:38:56.466812
-CONV-034	Convenio Entel Conectividad Rural	Entel Perú S.A.	Ingreso Directo	25	5	["TODOS"]	\N	\N	ACTIVO	\N	Pasantías en redes y telecomunicaciones.	34	2026-09-11 22:38:56.466814	2026-09-11 22:38:56.466816
-CONV-035	Convenio Grupo Palmas del Espino	Palmas del Espino S.A.	Ingreso Directo / Dual	50	8	["TODOS"]	\N	\N	ACTIVO	\N	Programa de formación dual en planta industrial.	35	2026-09-11 22:38:56.466818	2026-09-11 22:38:56.46682
-CONV-036	Convenio Cervecería San Juan / Backus	Cervecería San Juan S.A.	Ingreso Directo / Prácticas	30	6	["TODOS"]	\N	\N	ACTIVO	\N	Inserción laboral en mantenimiento electromecánico y control de calidad.	36	2026-09-11 22:38:56.466822	2026-09-11 22:38:56.466824
-CONV-037	Convenio Coca Cola Embonor Pucallpa	Embotelladora San Miguel del Sur	Ingreso Directo	25	6	["TODOS"]	\N	\N	ACTIVO	\N	Pasantías técnicas en automatización industrial.	37	2026-09-11 22:38:56.466826	2026-09-11 22:38:56.466827
-CONV-038	Convenio Caja Municipal Maynas	Caja Municipal de Ahorro y Crédito Maynas	Ingreso Directo	20	10	["TODOS"]	\N	\N	ACTIVO	\N	Bolsa de trabajo para estudiantes de Contabilidad y DSI.	38	2026-09-11 22:38:56.466829	2026-09-11 22:38:56.466831
-CONV-039	Convenio Caja Huancayo Selva	Caja Huancayo	Ingreso Directo	20	8	["TODOS"]	\N	\N	ACTIVO	\N	Prácticas preprofesionales remuneradas.	39	2026-09-11 22:38:56.466834	2026-09-11 22:38:56.466836
-CONV-040	Convenio Cruz Roja Peruana Filial Ucayali	Cruz Roja Peruana	Cooperación y Descuento	50	6	["TODOS"]	\N	\N	ACTIVO	\N	Certificación de primeros auxilios y descuentos para voluntarios activos.	40	2026-09-11 22:38:56.466838	2026-09-11 22:38:56.46684
-CONV-041	Convenio Bomberos Voluntarios B-46 Pucallpa	Cuerpo General de Bomberos Voluntarios del Perú	Ingreso Directo / Gratuidad	100	6	["TODOS"]	\N	\N	ACTIVO	\N	Reconocimiento cívico y gratuidad de matrícula a efectivos bomberos.	41	2026-09-11 22:38:56.466842	2026-09-11 22:38:56.466844
-CONV-042	Convenio ONG Terra Nuova Amazonía	Terra Nuova	Ingreso Directo / Proyectos	40	5	["TODOS"]	\N	\N	ACTIVO	\N	Desarrollo sostenible y capacitación en gestión ambiental.	42	2026-09-11 22:38:56.466846	2026-09-11 22:38:56.466848
-CONV-043	Convenio WWF Perú Oficina Selva	Fondo Mundial para la Naturaleza (WWF)	Cooperación Técnica	30	5	["TODOS"]	\N	\N	ACTIVO	\N	Investigación y desarrollo de software de monitoreo forestal.	43	2026-09-11 22:38:56.46685	2026-09-11 22:38:56.466852
-CONV-044	Convenio Consorcio Maderero Forestal Ucayali	Consorcio Forestal Amazónico	Ingreso Directo	35	8	["TODOS"]	\N	\N	ACTIVO	\N	Formación técnica de operarios especializados.	44	2026-09-11 22:38:56.466854	2026-09-11 22:38:56.466856
-CONV-045	Convenio SENAMHI Selva Central	Servicio Nacional de Meteorología e Hidrología	Pasantías e Ingreso	25	4	["TODOS"]	\N	\N	ACTIVO	\N	Procesamiento de datos hidrometeorológicos y prácticas técnicas.	45	2026-09-11 22:38:56.466858	2026-09-11 22:38:56.46686
-CONV-046	Convenio Clínica Amazonía Pucallpa	Clínica Privada Amazonía	Ingreso Directo	30	6	["TODOS"]	\N	\N	ACTIVO	\N	Campos clínicos para Enfermería Técnica y Laboratorio.	46	2026-09-11 22:38:56.466862	2026-09-11 22:38:56.466864
-CONV-047	Convenio Automotriz Selva Motors	Selva Motors Representaciones S.A.C.	Ingreso Directo / Dual	40	8	["TODOS"]	\N	\N	ACTIVO	\N	Capacitación en diagnóstico electrónico automotriz y mecatrónica.	47	2026-09-11 22:38:56.466866	2026-09-11 22:38:56.466868
-CONV-048	Convenio Cámara Forestal Nacional	Cámara Nacional Forestal - Sede Ucayali	Ingreso Directo	30	10	["TODOS"]	\N	\N	ACTIVO	\N	Promoción del talento técnico para la transformación maderera sostenible.	48	2026-09-11 22:38:56.46687	2026-09-11 22:38:56.466872
+COPY public.convenios_institucionales (id, codigo, nombre, institucion, tipo_convenio, descuento_porcentaje, vacantes_reservadas, programas_aplicables, fecha_inicio, fecha_fin, estado, contacto_referencia, descripcion, created_at, updated_at) FROM stdin;
+1	CONV-001	Convenio de Cooperación Interinstitucional GOREU	Gobierno Regional de Ucayali	Ingreso Directo / Beca Parcial	100	15	["TODOS"]	\N	\N	ACTIVO	\N	Acceso preferente para jóvenes de comunidades nativas y alto rendimiento regional.	2026-09-11 22:38:56.466675	2026-09-11 22:38:56.466684
+2	CONV-002	Alianza Educativa Municipalidad Coronel Portillo	Municipalidad Provincial de Coronel Portillo	Ingreso Directo	50	10	["TODOS"]	\N	\N	ACTIVO	\N	Beneficio para trabajadores e hijos de servidores ediles y deportistas destacados.	2026-09-11 22:38:56.466688	2026-09-11 22:38:56.46669
+3	CONV-003	Pacto por la Juventud Yarinacocha	Municipalidad Distrital de Yarinacocha	Ingreso Directo	50	8	["TODOS"]	\N	\N	ACTIVO	\N	Ingreso directo a carreras técnicas para egresados del distrito.	2026-09-11 22:38:56.466693	2026-09-11 22:38:56.466695
+4	CONV-004	Convenio de Inclusión Manantay	Municipalidad Distrital de Manantay	Ingreso Directo	50	8	["TODOS"]	\N	\N	ACTIVO	\N	Capacitación técnica e inserción laboral rápida para jóvenes vulnerables.	2026-09-11 22:38:56.466697	2026-09-11 22:38:56.466698
+5	CONV-005	Programa de Becas Integrales Beca 18	PRONABEC	Beca Integral 100%	100	30	["TODOS"]	\N	\N	ACTIVO	\N	Cobertura integral de matrícula, costos formativos y acompañamiento de permanencia.	2026-09-11 22:38:56.466701	2026-09-11 22:38:56.466702
+6	CONV-006	Convenio de Formación con Fuerzas Armadas	Marina de Guerra del Perú - Capitanía de Pucallpa	Ingreso Directo	30	5	["TODOS"]	\N	\N	ACTIVO	\N	Formación técnica a licenciados de las FF.AA.	2026-09-11 22:38:56.466705	2026-09-11 22:38:56.466706
+7	CONV-007	Convenio Ejército del Perú - BIM 65	Ejército del Perú	Ingreso Directo	30	5	["TODOS"]	\N	\N	ACTIVO	\N	Convalidación y acceso directo al término del servicio militar voluntario.	2026-09-11 22:38:56.466709	2026-09-11 22:38:56.46671
+8	CONV-008	Pacto Policial Ucayali	PNP XIII Macro Región Policial Ucayali	Descuento Arancel	25	6	["TODOS"]	\N	\N	ACTIVO	\N	Formación complementaria e hijos de miembros policiales.	2026-09-11 22:38:56.466712	2026-09-11 22:38:56.466714
+9	CONV-009	Convenio Salud y Formación Técnica	Hospital Regional de Pucallpa	Ingreso Directo / Prácticas	40	12	["TODOS"]	\N	\N	ACTIVO	\N	Prácticas preprofesionales e ingreso técnico especializado en Enfermería y Farmacia.	2026-09-11 22:38:56.466716	2026-09-11 22:38:56.466718
+10	CONV-010	Convenio Hospital Amazónico	Hospital Amazónico de Yarinacocha	Ingreso Directo / Prácticas	40	10	["TODOS"]	\N	\N	ACTIVO	\N	Desarrollo de módulos formativos en campo asistencial.	2026-09-11 22:38:56.46672	2026-09-11 22:38:56.466722
+11	CONV-011	Convenio Marco DIRESA Ucayali	Dirección Regional de Salud Ucayali	Cooperación / Ingreso Directo	35	10	["TODOS"]	\N	\N	ACTIVO	\N	Fortalecimiento de la red de salud pública regional.	2026-09-11 22:38:56.466724	2026-09-11 22:38:56.466726
+12	CONV-012	Convenio EsSalud Ucayali	Seguro Social de Salud - Red Ucayali	Ingreso Directo	30	8	["TODOS"]	\N	\N	ACTIVO	\N	Formación dual y prácticas clínicas hospitalarias.	2026-09-11 22:38:56.466728	2026-09-11 22:38:56.46673
+13	CONV-013	Convenio Productivo Cámara de Comercio	Cámara de Comercio, Industria y Turismo de Ucayali	Ingreso Directo	20	15	["TODOS"]	\N	\N	ACTIVO	\N	Vinculación directa con empresas de la selva central para egresados de DSI y Contabilidad.	2026-09-11 22:38:56.466732	2026-09-11 22:38:56.466734
+14	CONV-014	Convenio Forestal y Maderero CEMAR	Asociación de Industriales de la Madera de Ucayali	Ingreso Directo	30	10	["TODOS"]	\N	\N	ACTIVO	\N	Impulso a la producción industrial y gestión ambiental.	2026-09-11 22:38:56.466736	2026-09-11 22:38:56.466738
+15	CONV-015	Convenio Palmicultores COCEPU	Comité Central de Palmicultores de Ucayali	Ingreso Directo	30	10	["TODOS"]	\N	\N	ACTIVO	\N	Capacitación tecnológica y agroindustrial.	2026-09-11 22:38:56.46674	2026-09-11 22:38:56.466742
+16	CONV-016	Convenio Cacaotero VRAE / Ucayali	Cooperativa Agraria Cacaotera de Ucayali	Ingreso Directo	25	8	["TODOS"]	\N	\N	ACTIVO	\N	Fortalecimiento técnico de las cadenas productivas.	2026-09-11 22:38:56.466744	2026-09-11 22:38:56.466746
+17	CONV-017	Convenio Tecnológico Electro Ucayali	Electro Ucayali S.A.	Ingreso Directo	30	6	["TODOS"]	\N	\N	ACTIVO	\N	Ingreso directo a Electricidad Industrial y DSI.	2026-09-11 22:38:56.466748	2026-09-11 22:38:56.46675
+18	CONV-018	Convenio Ocho Sur Agroindustrias	Ocho Sur S.A.C.	Ingreso Directo / Beca Productiva	100	10	["TODOS"]	\N	\N	ACTIVO	\N	Becas de excelencia para Mecánica Automotriz y Mantenimiento.	2026-09-11 22:38:56.466752	2026-09-11 22:38:56.466754
+19	CONV-019	Convenio Indígena AIDESEP	Asociación Interétnica de Desarrollo de la Selva Peruana	Ingreso Directo / Inclusión	100	12	["TODOS"]	\N	\N	ACTIVO	\N	Becas integrales para líderes jóvenes de comunidades originarias.	2026-09-11 22:38:56.466756	2026-09-11 22:38:56.466757
+20	CONV-020	Convenio ORAU Pueblos Indígenas	Organización Regional AIDESEP Ucayali (ORAU)	Ingreso Directo / Inclusión	100	12	["TODOS"]	\N	\N	ACTIVO	\N	Acceso a educación tecnológica bilingüe intercultural.	2026-09-11 22:38:56.466759	2026-09-11 22:38:56.466761
+21	CONV-021	Convenio Investigación IIAP	Instituto de Investigaciones de la Amazonía Peruana	Cooperación Científica	50	5	["TODOS"]	\N	\N	ACTIVO	\N	Pasantías y desarrollo conjunto de proyectos de software e innovación.	2026-09-11 22:38:56.466763	2026-09-11 22:38:56.466765
+22	CONV-022	Convenio Articulación UNU	Universidad Nacional de Ucayali	Convalidación y Traslado	20	20	["TODOS"]	\N	\N	ACTIVO	\N	Convalidación curricular técnica para continuidad universitaria.	2026-09-11 22:38:56.466767	2026-09-11 22:38:56.466769
+23	CONV-023	Convenio Articulación UNIA	Universidad Nacional Intercultural de la Amazonía	Convalidación y Traslado	20	15	["TODOS"]	\N	\N	ACTIVO	\N	Pasarela académica y convalidación de créditos.	2026-09-11 22:38:56.466771	2026-09-11 22:38:56.466772
+24	CONV-024	Convenio Colegio de Ingenieros del Perú CD Ucayali	Colegio de Ingenieros del Perú	Capacitación / Descuento	20	5	["TODOS"]	\N	\N	ACTIVO	\N	Certificaciones conjuntas para egresados.	2026-09-11 22:38:56.466774	2026-09-11 22:38:56.466776
+25	CONV-025	Convenio Colegio de Contadores Públicos	Colegio de Contadores Públicos de Ucayali	Ingreso Directo	20	8	["TODOS"]	\N	\N	ACTIVO	\N	Beneficio formativo en Contabilidad y Finanzas.	2026-09-11 22:38:56.466778	2026-09-11 22:38:56.46678
+26	CONV-026	Convenio DREU Educación Técnica	Dirección Regional de Educación de Ucayali	Ingreso Directo	50	15	["TODOS"]	\N	\N	ACTIVO	\N	Prioridad a primeros puestos de Educación Secundaria de colegios públicos.	2026-09-11 22:38:56.466782	2026-09-11 22:38:56.466784
+27	CONV-027	Convenio Municipalidad Campo Verde	Municipalidad Distrital de Campo Verde	Ingreso Directo	40	6	["TODOS"]	\N	\N	ACTIVO	\N	Desarrollo tecnológico para la cuenca agrícola.	2026-09-11 22:38:56.466786	2026-09-11 22:38:56.466788
+28	CONV-028	Convenio Municipalidad Neshuya	Municipalidad Distrital de Neshuya	Ingreso Directo	40	6	["TODOS"]	\N	\N	ACTIVO	\N	Inserción laboral y becas de estudio.	2026-09-11 22:38:56.46679	2026-09-11 22:38:56.466792
+29	CONV-029	Convenio Municipalidad Curimaná	Municipalidad Distrital de Curimaná	Ingreso Directo	40	6	["TODOS"]	\N	\N	ACTIVO	\N	Impulso técnico para la zona extractiva y agrícola.	2026-09-11 22:38:56.466794	2026-09-11 22:38:56.466796
+30	CONV-030	Convenio Municipalidad Padre Abad - Aguaytía	Municipalidad Provincial de Padre Abad	Ingreso Directo	50	10	["TODOS"]	\N	\N	ACTIVO	\N	Acceso preferente a egresados de zonas rurales.	2026-09-11 22:38:56.466798	2026-09-11 22:38:56.4668
+31	CONV-031	Convenio Municipalidad Atalaya	Municipalidad Provincial de Atalaya	Ingreso Directo / Residencia	100	8	["TODOS"]	\N	\N	ACTIVO	\N	Apoyo a estudiantes de provincias alejadas.	2026-09-11 22:38:56.466802	2026-09-11 22:38:56.466804
+32	CONV-032	Convenio Municipalidad Purús	Municipalidad Provincial de Purús	Ingreso Directo / Beca Frontera	100	5	["TODOS"]	\N	\N	ACTIVO	\N	Beca de frontera e integración nacional.	2026-09-11 22:38:56.466806	2026-09-11 22:38:56.466808
+33	CONV-033	Convenio Telefónica del Perú / Wayra	Telefónica del Perú	Innovación / Beca Tech	30	10	["TODOS"]	\N	\N	ACTIVO	\N	Laboratorios de innovación y conectividad para estudiantes de DSI.	2026-09-11 22:38:56.46681	2026-09-11 22:38:56.466812
+34	CONV-034	Convenio Entel Conectividad Rural	Entel Perú S.A.	Ingreso Directo	25	5	["TODOS"]	\N	\N	ACTIVO	\N	Pasantías en redes y telecomunicaciones.	2026-09-11 22:38:56.466814	2026-09-11 22:38:56.466816
+35	CONV-035	Convenio Grupo Palmas del Espino	Palmas del Espino S.A.	Ingreso Directo / Dual	50	8	["TODOS"]	\N	\N	ACTIVO	\N	Programa de formación dual en planta industrial.	2026-09-11 22:38:56.466818	2026-09-11 22:38:56.46682
+36	CONV-036	Convenio Cervecería San Juan / Backus	Cervecería San Juan S.A.	Ingreso Directo / Prácticas	30	6	["TODOS"]	\N	\N	ACTIVO	\N	Inserción laboral en mantenimiento electromecánico y control de calidad.	2026-09-11 22:38:56.466822	2026-09-11 22:38:56.466824
+37	CONV-037	Convenio Coca Cola Embonor Pucallpa	Embotelladora San Miguel del Sur	Ingreso Directo	25	6	["TODOS"]	\N	\N	ACTIVO	\N	Pasantías técnicas en automatización industrial.	2026-09-11 22:38:56.466826	2026-09-11 22:38:56.466827
+38	CONV-038	Convenio Caja Municipal Maynas	Caja Municipal de Ahorro y Crédito Maynas	Ingreso Directo	20	10	["TODOS"]	\N	\N	ACTIVO	\N	Bolsa de trabajo para estudiantes de Contabilidad y DSI.	2026-09-11 22:38:56.466829	2026-09-11 22:38:56.466831
+39	CONV-039	Convenio Caja Huancayo Selva	Caja Huancayo	Ingreso Directo	20	8	["TODOS"]	\N	\N	ACTIVO	\N	Prácticas preprofesionales remuneradas.	2026-09-11 22:38:56.466834	2026-09-11 22:38:56.466836
+40	CONV-040	Convenio Cruz Roja Peruana Filial Ucayali	Cruz Roja Peruana	Cooperación y Descuento	50	6	["TODOS"]	\N	\N	ACTIVO	\N	Certificación de primeros auxilios y descuentos para voluntarios activos.	2026-09-11 22:38:56.466838	2026-09-11 22:38:56.46684
+41	CONV-041	Convenio Bomberos Voluntarios B-46 Pucallpa	Cuerpo General de Bomberos Voluntarios del Perú	Ingreso Directo / Gratuidad	100	6	["TODOS"]	\N	\N	ACTIVO	\N	Reconocimiento cívico y gratuidad de matrícula a efectivos bomberos.	2026-09-11 22:38:56.466842	2026-09-11 22:38:56.466844
+42	CONV-042	Convenio ONG Terra Nuova Amazonía	Terra Nuova	Ingreso Directo / Proyectos	40	5	["TODOS"]	\N	\N	ACTIVO	\N	Desarrollo sostenible y capacitación en gestión ambiental.	2026-09-11 22:38:56.466846	2026-09-11 22:38:56.466848
+43	CONV-043	Convenio WWF Perú Oficina Selva	Fondo Mundial para la Naturaleza (WWF)	Cooperación Técnica	30	5	["TODOS"]	\N	\N	ACTIVO	\N	Investigación y desarrollo de software de monitoreo forestal.	2026-09-11 22:38:56.46685	2026-09-11 22:38:56.466852
+44	CONV-044	Convenio Consorcio Maderero Forestal Ucayali	Consorcio Forestal Amazónico	Ingreso Directo	35	8	["TODOS"]	\N	\N	ACTIVO	\N	Formación técnica de operarios especializados.	2026-09-11 22:38:56.466854	2026-09-11 22:38:56.466856
+45	CONV-045	Convenio SENAMHI Selva Central	Servicio Nacional de Meteorología e Hidrología	Pasantías e Ingreso	25	4	["TODOS"]	\N	\N	ACTIVO	\N	Procesamiento de datos hidrometeorológicos y prácticas técnicas.	2026-09-11 22:38:56.466858	2026-09-11 22:38:56.46686
+46	CONV-046	Convenio Clínica Amazonía Pucallpa	Clínica Privada Amazonía	Ingreso Directo	30	6	["TODOS"]	\N	\N	ACTIVO	\N	Campos clínicos para Enfermería Técnica y Laboratorio.	2026-09-11 22:38:56.466862	2026-09-11 22:38:56.466864
+47	CONV-047	Convenio Automotriz Selva Motors	Selva Motors Representaciones S.A.C.	Ingreso Directo / Dual	40	8	["TODOS"]	\N	\N	ACTIVO	\N	Capacitación en diagnóstico electrónico automotriz y mecatrónica.	2026-09-11 22:38:56.466866	2026-09-11 22:38:56.466868
+48	CONV-048	Convenio Cámara Forestal Nacional	Cámara Nacional Forestal - Sede Ucayali	Ingreso Directo	30	10	["TODOS"]	\N	\N	ACTIVO	\N	Promoción del talento técnico para la transformación maderera sostenible.	2026-09-11 22:38:56.46687	2026-09-11 22:38:56.466872
 \.
 
 
@@ -4057,13 +4295,13 @@ COPY public.core_audit_logs (id, event_id, event_type, source, payload, user_id,
 --
 
 COPY public.core_modules (id, name, version, api_version, description, endpoints, events, permissions, health_check, config, status, is_active, registered_at, last_health_check, compliance_data) FROM stdin;
-107	mod-programas-estudio	1.0.0	v1	Gestión de programas de estudio académicos	{"http": "http://mod-programas-estudio:8005"}	{"publishes": [], "subscribes": []}	["mod-programas-estudio:read", "mod-programas-estudio:write", "mod-programas-estudio:admin"]	/health	{"database": "mod_programas_estudio"}	offline	t	2026-07-01 05:49:19.257522	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T22:50:21.528193", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-programas-estudio' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-programas-estudio", "version": "1.0.0", "api_version": "v1", "description": "Gesti\\u00f3n de programas de estudio acad\\u00e9micos", "endpoints": {"http": "http://mod-programas-estudio:8005"}, "health_check": "/health", "events": {"publishes": [], "subscribes": []}, "permissions": ["mod-programas-estudio:read", "mod-programas-estudio:write", "mod-programas-estudio:admin"], "config": {"database": "mod_programas_estudio"}}}
-108	mod-usuarios	1.0.0	v1	Módulo de gestión de usuarios, roles y perfiles (RBAC)	{"http": "http://mod-usuarios:8001", "ws": "ws://mod-usuarios:8001/ws"}	{"publishes": ["usuario.creado", "usuario.actualizado", "usuario.eliminado", "rol.asignado"], "subscribes": []}	["usuarios:read", "usuarios:write", "roles:read", "roles:write"]	/health	{}	healthy	t	2026-07-01 05:49:19.320782	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T22:50:24.414268", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-usuarios' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-usuarios", "version": "1.0.0", "api_version": "v1", "description": "M\\u00f3dulo de gesti\\u00f3n de usuarios, roles y perfiles (RBAC)", "endpoints": {"http": "http://mod-usuarios:8001", "ws": "ws://mod-usuarios:8001/ws"}, "health_check": "/health", "events": {"publishes": ["usuario.creado", "usuario.actualizado", "usuario.eliminado", "rol.asignado"], "subscribes": []}, "permissions": ["usuarios:read", "usuarios:write", "roles:read", "roles:write"], "config": {}, "author": "SIGA Core Team", "dependencies": []}}
-104	mod-evaluacion	1.0.0	v1	Módulo de registro de notas, promedios y evaluación	{"http": "http://localhost:8008", "health_check": "/health"}	{"publishes": ["evaluacion.nota.registrada", "evaluacion.promedio.calculado"], "consumes": ["gestion_academica.matricula.confirmada"]}	["evaluacion:read", "evaluacion:write", "evaluacion:admin"]	/health	{}	offline	t	2026-07-01 05:49:18.705594	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T22:50:18.984274", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-evaluacion' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-evaluacion", "version": "1.0.0", "api_version": "v1", "description": "M\\u00f3dulo de registro de notas, promedios y evaluaci\\u00f3n", "endpoints": {"http": "http://localhost:8008", "health_check": "/health"}, "health_check": "/health", "events": {"publishes": ["evaluacion.nota.registrada", "evaluacion.promedio.calculado"], "consumes": ["gestion_academica.matricula.confirmada"]}, "permissions": ["evaluacion:read", "evaluacion:write", "evaluacion:admin"], "config": {}, "author": "SIGA Architecture Team", "dependencies": ["mod-gestion-academica", "mod-planes-estudio"]}}
-106	mod-planes-estudio	1.0.0	v1	Gestión de planes de estudio según estándar MINEDU	{"http": "http://mod-planes-estudio:8002"}	{"publishes": [], "subscribes": []}	["mod-planes-estudio:read", "mod-planes-estudio:write", "mod-planes-estudio:admin"]	/health	{"database": "mod_planes_estudio"}	healthy	t	2026-07-01 05:49:19.027932	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T22:50:20.667718", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-planes-estudio' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-planes-estudio", "version": "1.0.0", "api_version": "v1", "description": "Gesti\\u00f3n de planes de estudio seg\\u00fan est\\u00e1ndar MINEDU", "endpoints": {"http": "http://mod-planes-estudio:8002"}, "health_check": "/health", "events": {"publishes": [], "subscribes": []}, "permissions": ["mod-planes-estudio:read", "mod-planes-estudio:write", "mod-planes-estudio:admin"], "config": {"database": "mod_planes_estudio"}}}
-103	mod-auditoria	1.0.0	v1	Servicio pasivo de auditoría y trazabilidad	{"http": "http://mod-auditoria:8007", "ws": "ws://mod-auditoria:8007/ws"}	{"publishes": [], "subscribes": ["*.*.*"]}	["auditoria:access", "auditoria:read"]	/health	{}	healthy	t	2026-07-01 05:49:18.620919	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T22:50:18.086696", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-auditoria' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-auditoria", "version": "1.0.0", "api_version": "v1", "description": "Servicio pasivo de auditor\\u00eda y trazabilidad", "endpoints": {"http": "http://mod-auditoria:8007", "ws": "ws://mod-auditoria:8007/ws"}, "health_check": "/health", "events": {"publishes": [], "subscribes": ["*.*.*"]}, "permissions": ["auditoria:access", "auditoria:read"], "config": {}, "author": "SIGA Team", "dependencies": []}}
-109	mod-admision	1.0.0	v1	Módulo Piloto de Admisión. Expone JSON de estudiantes admitidos para ingesta.	{"http": "http://mod-admision:8009"}	{"publishes": [], "subscribes": []}	["admision:access"]	/health	{}	healthy	t	2026-09-11 22:59:44.681314	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T22:50:13.572197", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-admision' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-admision", "version": "1.0.0", "api_version": "v1", "description": "M\\u00f3dulo Piloto de Admisi\\u00f3n. Expone JSON de estudiantes admitidos para ingesta.", "endpoints": {"http": "http://mod-admision:8009"}, "health_check": "/health", "events": {"publishes": [], "subscribes": []}, "permissions": ["admision:access"], "config": {}, "author": "SIGA Team", "dependencies": []}}
-105	mod-gestion-academica	2.0.0	v1	Módulo centralizado de estudiantes y sus matrículas (Boundary Fusion).	{"http": "http://mod-gestion-academica:8006", "health": "/health", "ready": "/ready", "manifest": "/manifest"}	{"publishes": ["gestion_academica.estudiante.creado", "gestion_academica.matricula.confirmada"], "subscribes": ["core.started"]}	["mod-gestion-academica:read", "mod-gestion-academica:write", "mod-gestion-academica:admin"]	/health	{"database": {"db_name": "mod_gestion_academica", "pool_size": 5, "max_overflow": 10}, "port": 8006, "timeout": 30}	healthy	t	2026-07-01 05:49:18.872498	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T22:50:19.823664", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-gestion-academica' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-gestion-academica", "version": "2.0.0", "api_version": "v1", "description": "M\\u00f3dulo centralizado de estudiantes y sus matr\\u00edculas (Boundary Fusion).", "endpoints": {"http": "http://mod-gestion-academica:8006", "health": "/health", "ready": "/ready", "manifest": "/manifest"}, "health_check": "/health", "events": {"publishes": ["gestion_academica.estudiante.creado", "gestion_academica.matricula.confirmada"], "subscribes": ["core.started"]}, "permissions": ["mod-gestion-academica:read", "mod-gestion-academica:write", "mod-gestion-academica:admin"], "config": {"database": {"db_name": "mod_gestion_academica", "pool_size": 5, "max_overflow": 10}, "port": 8006, "timeout": 30}, "author": "Equipo SIGA", "repository": "https://github.com/siga/mod-gestion-academica", "license": "MIT", "dependencies": {"requires": ["mod-programas-estudio"], "optional": []}, "tags": ["core-data", "fase-1", "gestion-academica"]}}
+107	mod-programas-estudio	1.0.0	v1	Gestión de programas de estudio académicos	{"http": "http://mod-programas-estudio:8005"}	{"publishes": [], "subscribes": []}	["mod-programas-estudio:read", "mod-programas-estudio:write", "mod-programas-estudio:admin"]	/health	{"database": "mod_programas_estudio"}	healthy	t	2026-07-01 05:49:19.257522	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T21:37:33.622107", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-programas-estudio' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-programas-estudio", "version": "1.0.0", "api_version": "v1", "description": "Gesti\\u00f3n de programas de estudio acad\\u00e9micos", "endpoints": {"http": "http://mod-programas-estudio:8005"}, "health_check": "/health", "events": {"publishes": [], "subscribes": []}, "permissions": ["mod-programas-estudio:read", "mod-programas-estudio:write", "mod-programas-estudio:admin"], "config": {"database": "mod_programas_estudio"}}}
+108	mod-usuarios	1.0.0	v1	Módulo de gestión de usuarios, roles y perfiles (RBAC)	{"http": "http://mod-usuarios:8001", "ws": "ws://mod-usuarios:8001/ws"}	{"publishes": ["usuario.creado", "usuario.actualizado", "usuario.eliminado", "rol.asignado"], "subscribes": []}	["usuarios:read", "usuarios:write", "roles:read", "roles:write"]	/health	{}	healthy	t	2026-07-01 05:49:19.320782	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T21:37:34.976941", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-usuarios' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-usuarios", "version": "1.0.0", "api_version": "v1", "description": "M\\u00f3dulo de gesti\\u00f3n de usuarios, roles y perfiles (RBAC)", "endpoints": {"http": "http://mod-usuarios:8001", "ws": "ws://mod-usuarios:8001/ws"}, "health_check": "/health", "events": {"publishes": ["usuario.creado", "usuario.actualizado", "usuario.eliminado", "rol.asignado"], "subscribes": []}, "permissions": ["usuarios:read", "usuarios:write", "roles:read", "roles:write"], "config": {}, "author": "SIGA Core Team", "dependencies": []}}
+104	mod-evaluacion	1.0.0	v1	Módulo de registro de notas, promedios y evaluación	{"http": "http://localhost:8008", "health_check": "/health"}	{"publishes": ["evaluacion.nota.registrada", "evaluacion.promedio.calculado"], "consumes": ["gestion_academica.matricula.confirmada"]}	["evaluacion:read", "evaluacion:write", "evaluacion:admin"]	/health	{}	offline	t	2026-07-01 05:49:18.705594	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T21:37:30.162696", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-evaluacion' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-evaluacion", "version": "1.0.0", "api_version": "v1", "description": "M\\u00f3dulo de registro de notas, promedios y evaluaci\\u00f3n", "endpoints": {"http": "http://localhost:8008", "health_check": "/health"}, "health_check": "/health", "events": {"publishes": ["evaluacion.nota.registrada", "evaluacion.promedio.calculado"], "consumes": ["gestion_academica.matricula.confirmada"]}, "permissions": ["evaluacion:read", "evaluacion:write", "evaluacion:admin"], "config": {}, "author": "SIGA Architecture Team", "dependencies": ["mod-gestion-academica", "mod-planes-estudio"]}}
+106	mod-planes-estudio	1.0.0	v1	Gestión de planes de estudio según estándar MINEDU	{"http": "http://mod-planes-estudio:8002"}	{"publishes": [], "subscribes": []}	["mod-planes-estudio:read", "mod-planes-estudio:write", "mod-planes-estudio:admin"]	/health	{"database": "mod_planes_estudio"}	healthy	t	2026-07-01 05:49:19.027932	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T21:37:32.267208", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-planes-estudio' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-planes-estudio", "version": "1.0.0", "api_version": "v1", "description": "Gesti\\u00f3n de planes de estudio seg\\u00fan est\\u00e1ndar MINEDU", "endpoints": {"http": "http://mod-planes-estudio:8002"}, "health_check": "/health", "events": {"publishes": [], "subscribes": []}, "permissions": ["mod-planes-estudio:read", "mod-planes-estudio:write", "mod-planes-estudio:admin"], "config": {"database": "mod_planes_estudio"}}}
+103	mod-auditoria	1.0.0	v1	Servicio pasivo de auditoría y trazabilidad	{"http": "http://mod-auditoria:8007", "ws": "ws://mod-auditoria:8007/ws"}	{"publishes": [], "subscribes": ["*.*.*"]}	["auditoria:access", "auditoria:read"]	/health	{}	healthy	t	2026-07-01 05:49:18.620919	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T21:37:29.321532", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-auditoria' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-auditoria", "version": "1.0.0", "api_version": "v1", "description": "Servicio pasivo de auditor\\u00eda y trazabilidad", "endpoints": {"http": "http://mod-auditoria:8007", "ws": "ws://mod-auditoria:8007/ws"}, "health_check": "/health", "events": {"publishes": [], "subscribes": ["*.*.*"]}, "permissions": ["auditoria:access", "auditoria:read"], "config": {}, "author": "SIGA Team", "dependencies": []}}
+109	mod-admision	1.0.0	v1	Módulo Piloto de Admisión. Expone JSON de estudiantes admitidos para ingesta.	{"http": "http://mod-admision:8009"}	{"publishes": [], "subscribes": []}	["admision:access"]	/health	{}	healthy	t	2026-09-11 22:59:44.681314	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T21:37:24.862707", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-admision' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-admision", "version": "1.0.0", "api_version": "v1", "description": "M\\u00f3dulo Piloto de Admisi\\u00f3n. Expone JSON de estudiantes admitidos para ingesta.", "endpoints": {"http": "http://mod-admision:8009"}, "health_check": "/health", "events": {"publishes": [], "subscribes": []}, "permissions": ["admision:access"], "config": {}, "author": "SIGA Team", "dependencies": []}}
+105	mod-gestion-academica	2.0.0	v1	Módulo centralizado de estudiantes y sus matrículas (Boundary Fusion).	{"http": "http://mod-gestion-academica:8006", "health": "/health", "ready": "/ready", "manifest": "/manifest"}	{"publishes": ["gestion_academica.estudiante.creado", "gestion_academica.matricula.confirmada"], "subscribes": ["core.started"]}	["mod-gestion-academica:read", "mod-gestion-academica:write", "mod-gestion-academica:admin"]	/health	{"database": {"db_name": "mod_gestion_academica", "pool_size": 5, "max_overflow": 10}, "port": 8006, "timeout": 30}	healthy	t	2026-07-01 05:49:18.872498	\N	{"compliant": true, "standard_version": "1.0", "validation_date": "2026-09-25T21:37:30.960504", "summary": {"passed": 5, "total": 5, "percentage": 100.0}, "steps": [{"step": "schema_validation", "valid": true, "details": "Esquema Pydantic v\\u00e1lido"}, {"step": "name_validation", "valid": true, "details": "Nombre 'mod-gestion-academica' v\\u00e1lido"}, {"step": "folder_structure", "valid": true, "details": "main.py encontrado"}, {"step": "health_check", "valid": true, "details": "Health check deshabilitado temporalmente"}, {"step": "availability", "valid": true, "details": "Validaci\\u00f3n de disponibilidad deshabilitada temporalmente"}], "manifest": {"name": "mod-gestion-academica", "version": "2.0.0", "api_version": "v1", "description": "M\\u00f3dulo centralizado de estudiantes y sus matr\\u00edculas (Boundary Fusion).", "endpoints": {"http": "http://mod-gestion-academica:8006", "health": "/health", "ready": "/ready", "manifest": "/manifest"}, "health_check": "/health", "events": {"publishes": ["gestion_academica.estudiante.creado", "gestion_academica.matricula.confirmada"], "subscribes": ["core.started"]}, "permissions": ["mod-gestion-academica:read", "mod-gestion-academica:write", "mod-gestion-academica:admin"], "config": {"database": {"db_name": "mod_gestion_academica", "pool_size": 5, "max_overflow": 10}, "port": 8006, "timeout": 30}, "author": "Equipo SIGA", "repository": "https://github.com/siga/mod-gestion-academica", "license": "MIT", "dependencies": {"requires": ["mod-programas-estudio"], "optional": []}, "tags": ["core-data", "fase-1", "gestion-academica"]}}
 \.
 
 
@@ -4072,15 +4310,15 @@ COPY public.core_modules (id, name, version, api_version, description, endpoints
 --
 
 COPY public.core_permissions (id, name, description, created_at) FROM stdin;
-1	mod-programas-estudio:read	Lectura de Programas y Periodos	2026-07-01 05:21:33.60917+00
-2	mod-programas-estudio:write	Escritura de Programas y Periodos	2026-07-01 05:21:33.60917+00
-3	mod-usuarios:read	Lectura de Usuarios	2026-07-01 05:21:33.60917+00
-4	mod-evaluacion:read	Lectura Evaluaciones	2026-07-01 05:21:33.60917+00
-5	mod-evaluacion:write	Escritura Evaluaciones	2026-07-01 05:21:33.60917+00
-6	mod-gestion-academica:read	Lectura Gestion Academica	2026-07-01 05:21:33.60917+00
-7	mod-gestion-academica:write	Escritura Gestion Academica	2026-07-01 05:21:33.60917+00
-8	mod-planes-estudio:read	Lectura Planes Estudio	2026-07-01 05:21:33.60917+00
-9	mod-planes-estudio:write	Escritura Planes Estudio	2026-07-01 05:21:33.60917+00
+1	mod-programas-estudio:read	Lectura de Programas y Periodos	2026-07-01 00:21:33.60917-05
+2	mod-programas-estudio:write	Escritura de Programas y Periodos	2026-07-01 00:21:33.60917-05
+3	mod-usuarios:read	Lectura de Usuarios	2026-07-01 00:21:33.60917-05
+4	mod-evaluacion:read	Lectura Evaluaciones	2026-07-01 00:21:33.60917-05
+5	mod-evaluacion:write	Escritura Evaluaciones	2026-07-01 00:21:33.60917-05
+6	mod-gestion-academica:read	Lectura Gestion Academica	2026-07-01 00:21:33.60917-05
+7	mod-gestion-academica:write	Escritura Gestion Academica	2026-07-01 00:21:33.60917-05
+8	mod-planes-estudio:read	Lectura Planes Estudio	2026-07-01 00:21:33.60917-05
+9	mod-planes-estudio:write	Escritura Planes Estudio	2026-07-01 00:21:33.60917-05
 \.
 
 
@@ -4123,14 +4361,14 @@ COPY public.core_role_permissions (role_id, permission_id) FROM stdin;
 --
 
 COPY public.core_roles (id, name, description, created_at) FROM stdin;
-1	superadmin	Super Administrador del Sistema	2026-07-01 05:21:33.546007+00
-2	caja_tesoreria	Caja y Tesorería	2026-07-01 05:21:33.546007+00
-3	secretaria_academica	Secretaría Académica	2026-07-01 05:21:33.546007+00
-4	coordinador_programa	Coordinador Programa	2026-07-01 05:21:33.546007+00
-5	oficina_admision	Oficina Admisión	2026-07-01 05:21:33.546007+00
-6	docente	Docente	2026-07-01 05:21:33.546007+00
-7	estudiante	Estudiante	2026-07-01 05:21:33.546007+00
-8	secretaria_programa	Secretaría de Programa	2026-07-01 05:21:33.546007+00
+1	superadmin	Super Administrador del Sistema	2026-07-01 00:21:33.546007-05
+2	caja_tesoreria	Caja y Tesorería	2026-07-01 00:21:33.546007-05
+3	secretaria_academica	Secretaría Académica	2026-07-01 00:21:33.546007-05
+4	coordinador_programa	Coordinador Programa	2026-07-01 00:21:33.546007-05
+5	oficina_admision	Oficina Admisión	2026-07-01 00:21:33.546007-05
+6	docente	Docente	2026-07-01 00:21:33.546007-05
+7	estudiante	Estudiante	2026-07-01 00:21:33.546007-05
+8	secretaria_programa	Secretaría de Programa	2026-07-01 00:21:33.546007-05
 \.
 
 
@@ -4161,19 +4399,19 @@ COPY public.core_user_roles (user_id, role_id) FROM stdin;
 --
 
 COPY public.core_users (id, email, full_name, hashed_password, is_active, is_superuser, created_at, updated_at) FROM stdin;
-1	admin@siga.edu	Super Admin	$2a$06$RWiQEGz19q2Pl5UAXhevleW3rEB/q2bYxR2Hacd.rQfKZWFnDGwgC	t	t	2026-07-01 05:21:33.551993+00	\N
-2	tesoreria@siga.edu	Caja y Tesorería	$2a$06$Y5YAIQ5KT4tXvAqFdEQwi.n/XZArCqYXEwOjNdK.PuxYW6G16bCRG	t	f	2026-07-01 05:21:33.551993+00	\N
-3	secretaria@siga.edu	Secretaría Académica	$2a$06$plvGVFZkF32qnG2m/nw79.Xg6nVZn9pqja0/.Y5TRnpRIzcAqof0m	t	f	2026-07-01 05:21:33.551993+00	\N
-4	coordinador@siga.edu	Coordinador Programa	$2a$06$87ieuScdTJ/.F0WqAhbrxeTMDlXrc0j4MULmvvNjGmguNYGXFvg9q	t	f	2026-07-01 05:21:33.551993+00	\N
-5	admision@siga.edu	Oficina Admisión	$2a$06$q4QoRA2vOuqRV8Ss5UaW/ODjS4ONjSVvBw1lARB2/lscovRtb7nx6	t	f	2026-07-01 05:21:33.551993+00	\N
-6	docente@siga.edu	Docente	$2a$06$jhBeY0Lkg6Rmg7IXCYD11.b6ocjxcv2cwoGcNlcuBZUkNdw1CtSdW	t	f	2026-07-01 05:21:33.551993+00	\N
-7	estudiante@siga.edu	Estudiante	$2a$06$TdlTIRc6VM5b17h5aA7OiuWCoAsTPNuyGixlt..Vwe1Ggg4XP40ie	t	f	2026-07-01 05:21:33.551993+00	\N
-8	secretaria_prog@siga.edu	Secretaría de Programa	$2a$06$OFXdRO0mpRf914OXzdAiGufU69QZ/sGsufevx9P1ltWv.ZBrfbaf6	t	f	2026-07-01 05:21:33.551993+00	\N
-10	lisy@siga.edu	lisaniri tuanama severiano	$2b$12$fl4LCeUTOeGBEklQLXSSj.SfF77viL1yKs2VKX61XEkkXUJ8bx5Ae	t	f	2026-07-01 06:02:52.50197+00	\N
-11	john@siga.edu	John Saboya Fulca	$2b$12$.B0wC07gl10iv9u/Bf6Aoui5978Cca.etPRVXsthOwiMgpWAH6eHC	t	f	2026-07-01 06:03:32.293311+00	\N
-12	ruber@siga.edu	Ruber Torres Arevalo	$2b$12$iDbPiNrrlAUiz0Jl.yICaeH5x3Pk1lMdTL00BkuwgvIcemnHBmlE.	t	f	2026-07-02 18:32:36.900121+00	\N
-9	gil@siga.edu	Gil Torres Arevalo	$2b$12$icQ943iBShlrEzknPiMAI.jTqQprjGFywQnMVj0f12Nd5PmcOUGdO	t	f	2026-07-01 06:02:09.120907+00	2026-09-10 20:24:08.295709+00
-13	luis@siga.edu	Luis Enrique Ruiz Salas	$2b$12$xPaG4CYvwbUk1N0zesXKPeX/z/1j6GxTp37TrsW3rXMQYbbPmHwvO	t	f	2026-09-24 21:00:27.091626+00	\N
+1	admin@siga.edu	Super Admin	$2a$06$RWiQEGz19q2Pl5UAXhevleW3rEB/q2bYxR2Hacd.rQfKZWFnDGwgC	t	t	2026-07-01 00:21:33.551993-05	\N
+2	tesoreria@siga.edu	Caja y Tesorería	$2a$06$Y5YAIQ5KT4tXvAqFdEQwi.n/XZArCqYXEwOjNdK.PuxYW6G16bCRG	t	f	2026-07-01 00:21:33.551993-05	\N
+3	secretaria@siga.edu	Secretaría Académica	$2a$06$plvGVFZkF32qnG2m/nw79.Xg6nVZn9pqja0/.Y5TRnpRIzcAqof0m	t	f	2026-07-01 00:21:33.551993-05	\N
+4	coordinador@siga.edu	Coordinador Programa	$2a$06$87ieuScdTJ/.F0WqAhbrxeTMDlXrc0j4MULmvvNjGmguNYGXFvg9q	t	f	2026-07-01 00:21:33.551993-05	\N
+5	admision@siga.edu	Oficina Admisión	$2a$06$q4QoRA2vOuqRV8Ss5UaW/ODjS4ONjSVvBw1lARB2/lscovRtb7nx6	t	f	2026-07-01 00:21:33.551993-05	\N
+6	docente@siga.edu	Docente	$2a$06$jhBeY0Lkg6Rmg7IXCYD11.b6ocjxcv2cwoGcNlcuBZUkNdw1CtSdW	t	f	2026-07-01 00:21:33.551993-05	\N
+7	estudiante@siga.edu	Estudiante	$2a$06$TdlTIRc6VM5b17h5aA7OiuWCoAsTPNuyGixlt..Vwe1Ggg4XP40ie	t	f	2026-07-01 00:21:33.551993-05	\N
+8	secretaria_prog@siga.edu	Secretaría de Programa	$2a$06$OFXdRO0mpRf914OXzdAiGufU69QZ/sGsufevx9P1ltWv.ZBrfbaf6	t	f	2026-07-01 00:21:33.551993-05	\N
+10	lisy@siga.edu	lisaniri tuanama severiano	$2b$12$fl4LCeUTOeGBEklQLXSSj.SfF77viL1yKs2VKX61XEkkXUJ8bx5Ae	t	f	2026-07-01 01:02:52.50197-05	\N
+11	john@siga.edu	John Saboya Fulca	$2b$12$.B0wC07gl10iv9u/Bf6Aoui5978Cca.etPRVXsthOwiMgpWAH6eHC	t	f	2026-07-01 01:03:32.293311-05	\N
+12	ruber@siga.edu	Ruber Torres Arevalo	$2b$12$iDbPiNrrlAUiz0Jl.yICaeH5x3Pk1lMdTL00BkuwgvIcemnHBmlE.	t	f	2026-07-02 13:32:36.900121-05	\N
+9	gil@siga.edu	Gil Torres Arevalo	$2b$12$icQ943iBShlrEzknPiMAI.jTqQprjGFywQnMVj0f12Nd5PmcOUGdO	t	f	2026-07-01 01:02:09.120907-05	2026-09-10 15:24:08.295709-05
+13	luis@siga.edu	Luis Enrique Ruiz Salas	$2b$12$xPaG4CYvwbUk1N0zesXKPeX/z/1j6GxTp37TrsW3rXMQYbbPmHwvO	t	f	2026-09-24 16:00:27.091626-05	\N
 \.
 
 
@@ -7033,7 +7271,7 @@ SELECT pg_catalog.setval('public.admision_postulantes_id_seq', 2343, true);
 -- Name: beneficios_estudiante_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.beneficios_estudiante_id_seq', 1, false);
+SELECT pg_catalog.setval('public.beneficios_estudiante_id_seq', 1, true);
 
 
 --
@@ -7047,7 +7285,7 @@ SELECT pg_catalog.setval('public.carga_lectiva_id_seq', 15, true);
 -- Name: convalidaciones_detalle_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.convalidaciones_detalle_id_seq', 1, false);
+SELECT pg_catalog.setval('public.convalidaciones_detalle_id_seq', 1, true);
 
 
 --
@@ -7110,14 +7348,14 @@ SELECT pg_catalog.setval('public.evaluacion_registros_id_seq', 7, true);
 -- Name: historial_academico_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.historial_academico_id_seq', 1, false);
+SELECT pg_catalog.setval('public.historial_academico_id_seq', 1, true);
 
 
 --
 -- Name: horarios_periodo_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.horarios_periodo_id_seq', 1, false);
+SELECT pg_catalog.setval('public.horarios_periodo_id_seq', 1, true);
 
 
 --
@@ -7173,14 +7411,14 @@ SELECT pg_catalog.setval('public.planes_estudio_id_seq', 9, true);
 -- Name: planes_trabajo_docente_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.planes_trabajo_docente_id_seq', 1, false);
+SELECT pg_catalog.setval('public.planes_trabajo_docente_id_seq', 1, true);
 
 
 --
 -- Name: programa_configuraciones_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.programa_configuraciones_id_seq', 1, false);
+SELECT pg_catalog.setval('public.programa_configuraciones_id_seq', 1, true);
 
 
 --
@@ -7194,7 +7432,7 @@ SELECT pg_catalog.setval('public.programa_modulos_id_seq', 54, true);
 -- Name: programa_requisitos_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.programa_requisitos_id_seq', 1, false);
+SELECT pg_catalog.setval('public.programa_requisitos_id_seq', 1, true);
 
 
 --
@@ -7215,35 +7453,35 @@ SELECT pg_catalog.setval('public.programas_estudio_id_seq', 16, true);
 -- Name: registros_practicas_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.registros_practicas_id_seq', 1, false);
+SELECT pg_catalog.setval('public.registros_practicas_id_seq', 1, true);
 
 
 --
 -- Name: resoluciones_convalidacion_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.resoluciones_convalidacion_id_seq', 1, false);
+SELECT pg_catalog.setval('public.resoluciones_convalidacion_id_seq', 1, true);
 
 
 --
 -- Name: silabos_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.silabos_id_seq', 1, false);
+SELECT pg_catalog.setval('public.silabos_id_seq', 1, true);
 
 
 --
 -- Name: solicitudes_tramites_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.solicitudes_tramites_id_seq', 1, false);
+SELECT pg_catalog.setval('public.solicitudes_tramites_id_seq', 1, true);
 
 
 --
 -- Name: tutorias_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.tutorias_id_seq', 1, false);
+SELECT pg_catalog.setval('public.tutorias_id_seq', 1, true);
 
 
 --
@@ -8269,5 +8507,5 @@ ALTER TABLE ONLY public.unidades_plan
 -- PostgreSQL database dump complete
 --
 
-\unrestrict qLslluifZgolBp4amgaaEFYumaB0vCNicPPrQ3QdwEF7F8MkviacfeJ7YpQ0TIG
+\unrestrict Ntk4JgtKhFCdPx2AFaflWdBCmqZDzzGRatb2tJ3rBRvbqNs4eOQYJ96aJJLGUVB
 

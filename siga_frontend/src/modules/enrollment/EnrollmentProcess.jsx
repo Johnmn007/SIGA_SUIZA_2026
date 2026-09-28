@@ -20,21 +20,28 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
   const [malla, setMalla] = useState([]);
   const [selectedUDs, setSelectedUDs] = useState({}); // { [ud_id]: true/false }
 
-  // 1. Buscar Estudiante Maestro
+  const [cachedStudents, setCachedStudents] = useState([]);
+
+  // 1. Buscar Estudiante Maestro Optimizado (Caché en cliente para búsqueda instantánea)
   const searchStudent = async (val) => {
     setSearchTerm(val);
-    if (val.length < 3) return;
+    if (!val || val.trim().length < 2) {
+      setStudents([]);
+      return;
+    }
+    const term = val.trim().toLowerCase();
     try {
-      // Obtenemos el usuario de localStorage para saber el rol
-      let url = 'estudiantes/';
-      
-      const data = await apiClient.callModule('mod-gestion-academica', url);
-      const dataArray = Array.isArray(data) ? data : [];
-      const filtered = dataArray.filter(s => 
-        s.dni.includes(val) || 
-        s.nombres.toLowerCase().includes(val.toLowerCase()) || 
-        s.apellidos.toLowerCase().includes(val.toLowerCase()) || 
-        s.codigo_estudiante.includes(val)
+      let pool = cachedStudents;
+      if (pool.length === 0) {
+        const data = await apiClient.callModule('mod-gestion-academica', 'estudiantes/');
+        pool = Array.isArray(data) ? data : [];
+        setCachedStudents(pool);
+      }
+      const filtered = pool.filter(s => 
+        (s.dni && s.dni.includes(term)) || 
+        (s.nombres && s.nombres.toLowerCase().includes(term)) || 
+        (s.apellidos && s.apellidos.toLowerCase().includes(term)) || 
+        (s.codigo_estudiante && s.codigo_estudiante.toLowerCase().includes(term))
       );
       setStudents(filtered);
     } catch (e) { 

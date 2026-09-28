@@ -1,15 +1,22 @@
-# ==============================================
-# Stack SIGA — Core Gateway + Microservicios + Frontend
-#
-# La base de datos NO se levanta en Docker: se consume la instancia
-# desplegada en Railway. Las credenciales viven en el archivo .env
-# de la raiz (NO versionado, ver .gitignore / .env.example).
-# ==============================================
-
-x-db-env-file: &db-env-file
-  - .env
-
 services:
+  # Base de datos local comentada: la aplicacion consume Railway
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: "john.007"
+  #     POSTGRES_DB: siga_core
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./dump_railway.sql:/docker-entrypoint-initdb.d/init.sql:ro
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+
   nats:
     image: nats:2.9-alpine
     ports:
@@ -39,8 +46,13 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    env_file: *db-env-file
     environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
     volumes:
@@ -51,7 +63,7 @@ services:
       redis:
         condition: service_healthy
 
-  # ====== MICROSERVICIOS ======
+  # ====== MICROSERVICES ======
   mod-usuarios:
     build: 
       context: ./siga_backend
@@ -59,8 +71,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-usuarios && uvicorn main:app --host 0.0.0.0 --port 8001 --reload"]
     ports:
       - "8001:8001"
-    env_file: *db-env-file
     environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8001
       - SKIP_MIGRATIONS=true
@@ -74,8 +91,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-planes-estudio && uvicorn main:app --host 0.0.0.0 --port 8002 --reload"]
     ports:
       - "8002:8002"
-    env_file: *db-env-file
     environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8002
       - SKIP_MIGRATIONS=true
@@ -89,8 +111,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-programas-estudio && uvicorn main:app --host 0.0.0.0 --port 8005 --reload"]
     ports:
       - "8005:8005"
-    env_file: *db-env-file
     environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8005
       - SKIP_MIGRATIONS=true
@@ -104,8 +131,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-gestion-academica && uvicorn main:app --host 0.0.0.0 --port 8006 --reload"]
     ports:
       - "8006:8006"
-    env_file: *db-env-file
     environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8006
       - SKIP_MIGRATIONS=true
@@ -119,8 +151,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-auditoria && uvicorn main:app --host 0.0.0.0 --port 8007 --reload"]
     ports:
       - "8007:8007"
-    env_file: *db-env-file
     environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8007
       - SKIP_MIGRATIONS=true
@@ -134,8 +171,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-evaluacion && uvicorn main:app --host 0.0.0.0 --port 8008 --reload"]
     ports:
       - "8008:8008"
-    env_file: *db-env-file
     environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8008
       - SKIP_MIGRATIONS=true
@@ -149,8 +191,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-admision && uvicorn main:app --host 0.0.0.0 --port 8009 --reload"]
     ports:
       - "8009:8009"
-    env_file: *db-env-file
     environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
+      - DB_HOST=reseau.proxy.rlwy.net
+      - DB_PORT=10791
+      - DB_NAME=railway
+      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
       - NATS_URL=nats://nats:4222
       - PORT=8009
       - SKIP_MIGRATIONS=true
@@ -177,4 +224,5 @@ services:
       - siga-core
 
 volumes:
+  # postgres_data:
   frontend_node_modules:
