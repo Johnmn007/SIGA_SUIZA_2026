@@ -18,11 +18,25 @@ db_url = os.getenv("DB_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
 
-# SSL para conexiones externas
+# SSL solo para BDs remotas con TLS (Railway, etc.).
+# El PostgreSQL local corre con ssl=off, asi que se omite el upgrade a TLS.
 ssl_ctx = ssl.create_default_context()
 ssl_ctx.check_hostname = False
 ssl_ctx.verify_mode = ssl.CERT_NONE
-connect_args = {"ssl": ssl_ctx}
+
+_SSL_EXEMPT_HOSTS = ("localhost", "127.0.0.1", "::1", "host.docker.internal")
+
+
+def _url_host(url: str) -> str:
+    try:
+        authority = url.split("://", 1)[1].split("/", 1)[0]
+        return authority.rsplit("@", 1)[-1].split(":", 1)[0]
+    except (IndexError, AttributeError):
+        return ""
+
+
+_target_host = os.getenv("DB_HOST") or _url_host(db_url or config.get_main_option("sqlalchemy.url") or "")
+connect_args = {"ssl": ssl_ctx} if _target_host not in _SSL_EXEMPT_HOSTS else {}
 
 # Interpretar el archivo de config para logging
 if config.config_file_name is not None:
