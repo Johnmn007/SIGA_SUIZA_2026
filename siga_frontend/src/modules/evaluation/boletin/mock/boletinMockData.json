@@ -1,0 +1,969 @@
+{
+  "meta": {
+    "descripcion": "Datos simulados para la vista de Boletin de Notas del estudiante.",
+    "motivo": "El endpoint /api/mod-evaluacion/boletin/estudiante/{id}/periodo/{id} aun no existe en mod-evaluacion y la tabla evaluacion_registros esta vacia, por lo que el menu no puede mostrar notas reales.",
+    "escala": "Vigesimal (0 - 20)",
+    "nota_minima_aprobatoria": 13,
+    "asistencia_minima": 80,
+    "generado_el": "2026-06-29T14:20:00"
+  },
+  "periodos": [
+    {
+      "id": 15,
+      "codigo": "2026-I",
+      "estado": "ACTIVO",
+      "fecha_inicio": "2026-01-05",
+      "fecha_fin": "2026-07-31"
+    },
+    {
+      "id": 12,
+      "codigo": "2025-II",
+      "estado": "CERRADO",
+      "fecha_inicio": "2025-08-04",
+      "fecha_fin": "2025-12-19"
+    },
+    {
+      "id": 11,
+      "codigo": "2025-I",
+      "estado": "CERRADO",
+      "fecha_inicio": "2025-03-17",
+      "fecha_fin": "2025-07-11"
+    }
+  ],
+  "estudiantes": [
+    {
+      "id": 2315,
+      "codigo_estudiante": "EST-72720844",
+      "dni": "72720844",
+      "nombres": "Luis Enrique",
+      "apellidos": "Ruiz Salas",
+      "email_institucional": "estudiante@siga.edu",
+      "email_personal": "luis.ruiz@correo.com",
+      "celular": "987654321",
+      "programa_id": 15,
+      "programa": "Desarrollo de Sistemas de Informacion",
+      "estado_academico": "cursando",
+      "ciclo_actual": 5
+    },
+    {
+      "id": 2313,
+      "codigo_estudiante": "2025-60832237",
+      "dni": "60832237",
+      "nombres": "Ricardo",
+      "apellidos": "Arevalo Villacorta",
+      "email_institucional": "ricardo.arevalo@siga.edu",
+      "email_personal": "ricardo.av@correo.com",
+      "celular": "976543210",
+      "programa_id": 15,
+      "programa": "Desarrollo de Sistemas de Informacion",
+      "estado_academico": "cursando",
+      "ciclo_actual": 5
+    },
+    {
+      "id": 2314,
+      "codigo_estudiante": "2024-77648746",
+      "dni": "77648746",
+      "nombres": "Leonardo",
+      "apellidos": "Cahuana Tello",
+      "email_institucional": "leonardo.cahuana@siga.edu",
+      "email_personal": "leonardo.ct@correo.com",
+      "celular": "965432109",
+      "programa_id": 15,
+      "programa": "Desarrollo de Sistemas de Informacion",
+      "estado_academico": "irregular",
+      "ciclo_actual": 5
+    }
+  ],
+  "boletines": [
+    {
+      "estudiante_id": 2315,
+      "periodo_id": 15,
+      "estado_matricula": "pendiente",
+      "estudiante": {
+        "id": 2315,
+        "codigo_estudiante": "EST-72720844",
+        "dni": "72720844",
+        "nombres": "Luis Enrique",
+        "apellidos": "Ruiz Salas",
+        "programa": "Desarrollo de Sistemas de Informacion",
+        "ciclo_actual": 5
+      },
+      "periodo": {
+        "id": 15,
+        "codigo": "2026-I",
+        "estado": "ACTIVO",
+        "fecha_inicio": "2026-01-05",
+        "fecha_fin": "2026-07-31"
+      },
+      "kpis": {
+        "ppp": 14.17,
+        "ppa": 15.06,
+        "creditos_aprobados": 10,
+        "creditos_cursados": 20,
+        "materias_aprobadas": 3,
+        "materias_total": 7,
+        "materias_en_riesgo": 1,
+        "materias_desaprobadas": 1,
+        "materias_cursando": 2,
+        "merito": {
+          "merito": "Quinto Superior",
+          "escala": "PPA 15.06 - top 20% del periodo",
+          "color": "purple"
+        }
+      },
+      "materias": [
+        {
+          "matricula_detalle_id": 121,
+          "codigo": "UD-C05-01",
+          "nombre": "Gestion y Administracion Web",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 3,
+          "docente": "Ing. Martha Quispe Alva",
+          "nota_final": 17,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 96,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 17, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 16, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 18, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 17, "peso": 25 }
+          ],
+          "retroalimentacion": "Manejo solido de consultas SQL y separacion de capas en el patron MVC. Se recomienda practicar la version responsive del panel de administracion antes del siguiente ciclo.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 122,
+          "codigo": "UD-C05-02",
+          "nombre": "Animacion Grafica",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 3,
+          "docente": "Lic. Diego Ramirez Luna",
+          "nota_final": 15,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 91,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 14, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 15, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 16, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 16, "peso": 25 }
+          ],
+          "retroalimentacion": "Buen uso de la linea de tiempo y de curvas de interpolacion. Mejorar el criterio al optimizar el peso de los archivos exportados.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 123,
+          "codigo": "UD-C05-03",
+          "nombre": "Diseño Web",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 4,
+          "docente": "Dis. Carla Ramirez Nunez",
+          "nota_final": 13,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 82,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 13, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 12, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 14, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 14, "peso": 25 }
+          ],
+          "retroalimentacion": "Aplicaste correctamente los principios de jerarquia visual. El parcial 2 bajo por no respetar la grilla del sistema de diseno; repasa los tokens de espaciado del index.css.",
+          "alertas": [
+            {
+              "tipo": "advertencia",
+              "mensaje": "Asistencia al limite: 82%. Una inasistencia mas en este periodo habilita la evaluacion de riesgo academico."
+            }
+          ]
+        },
+        {
+          "matricula_detalle_id": 124,
+          "codigo": "UD-C05-04",
+          "nombre": "Desarrollo de Aplicaciones Moviles",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 4,
+          "docente": "Ing. Pedro Ccahuana Rojas",
+          "nota_final": null,
+          "estado": "cursando",
+          "porcentaje_asistencia": 90,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 12, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 14, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": null, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": null, "peso": 25 }
+          ],
+          "retroalimentacion": "Buen dominio de la persistencia local. Falta consolidation del patron repository para el taller final.",
+          "alertas": [
+            {
+              "tipo": "info",
+              "mensaje": "PC3 y examen final aun no fueron registrados por el docente. El promedio se calcula al publicar las notas."
+            }
+          ]
+        },
+        {
+          "matricula_detalle_id": 125,
+          "codigo": "UD-C05-05",
+          "nombre": "Fundamentos de innovacion",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 2,
+          "docente": "Mg. Rosa Huaman Tito",
+          "nota_final": null,
+          "estado": "en_riesgo",
+          "porcentaje_asistencia": 64,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 11, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 10, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 12, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": null, "peso": 25 }
+          ],
+          "retroalimentacion": "El taller de ideacion se entrego incompleto y sin validacion con usuarios. Repasa el caso de estudio de la semana 4 antes del cierre del periodo.",
+          "alertas": [
+            {
+              "tipo": "peligro",
+              "mensaje": "Asistencia acumulada de 64%, por debajo del minimo exigido (80%). Si no se regulariza antes del cierre, la unidad se registra como desaprobada por inasistencia."
+            }
+          ]
+        },
+        {
+          "matricula_detalle_id": 126,
+          "codigo": "UD-C05-06",
+          "nombre": "Oportunidades de negocio",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 2,
+          "docente": "Lic. Fernando Mamani Vilca",
+          "nota_final": 11,
+          "estado": "desaprobado",
+          "porcentaje_asistencia": 81,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 11, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 12, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 10, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 9, "peso": 25 }
+          ],
+          "retroalimentacion": "El plan de ventas no incluye proyeccion de costos ni analisis de sensibilidad. Repasa la unidad 3 antes de la evaluacion de recuperacion.",
+          "alertas": [
+            {
+              "tipo": "peligro",
+              "mensaje": "Nota final 11, inferior al minimo aprobatorio (13). Corresponde calendario de recuperacion y la unidad suma a tu deuda academica del ciclo."
+            }
+          ]
+        },
+        {
+          "matricula_detalle_id": 127,
+          "codigo": "UD-C05-EFSRT",
+          "nombre": "Experiencias Formativas en Situaciones Reales de Trabajo V",
+          "modulo": "Formacion en Empresa",
+          "ciclo": 5,
+          "creditos": 2,
+          "docente": "Coord. Academico",
+          "nota_final": null,
+          "estado": "cursando",
+          "porcentaje_asistencia": 100,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Informe 1", "nota": 16, "peso": 50 },
+            { "nombre": "PC2", "label": "Informe 2", "nota": 17, "peso": 50 }
+          ],
+          "retroalimentacion": "Desempeño destacado en el centro de practicas. El reporte de horas sigue pendiente de firma por parte del tutor de la empresa.",
+          "alertas": [
+            {
+              "tipo": "info",
+              "mensaje": "Registro de horas acumulados pendiente de firma. Al firmarse, la unidad pasa a estado aprobado."
+            }
+          ]
+        }
+      ],
+      "generado_el": "2026-06-29T14:20:00"
+    },
+    {
+      "estudiante_id": 2315,
+      "periodo_id": 12,
+      "estado_matricula": "matriculado",
+      "estudiante": {
+        "id": 2315,
+        "codigo_estudiante": "EST-72720844",
+        "dni": "72720844",
+        "nombres": "Luis Enrique",
+        "apellidos": "Ruiz Salas",
+        "programa": "Desarrollo de Sistemas de Informacion",
+        "ciclo_actual": 5
+      },
+      "periodo": {
+        "id": 12,
+        "codigo": "2025-II",
+        "estado": "CERRADO",
+        "fecha_inicio": "2025-08-04",
+        "fecha_fin": "2025-12-19"
+      },
+      "kpis": {
+        "ppp": 15.55,
+        "ppa": 15.55,
+        "creditos_aprobados": 22,
+        "creditos_cursados": 22,
+        "materias_aprobadas": 7,
+        "materias_total": 7,
+        "materias_en_riesgo": 0,
+        "materias_desaprobadas": 0,
+        "materias_cursando": 0,
+        "merito": {
+          "merito": "Tercio Superior",
+          "escala": "PPP 15.55 - top 35% del periodo",
+          "color": "blue"
+        }
+      },
+      "materias": [
+        {
+          "matricula_detalle_id": 81,
+          "codigo": "UD-C04-01",
+          "nombre": "Implementacion de estructuras de Base Datos",
+          "modulo": "Base de Datos y Servidores",
+          "ciclo": 4,
+          "creditos": 4,
+          "docente": "Ing. Martha Quispe Alva",
+          "nota_final": 16,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 94,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 15, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 16, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 16, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 17, "peso": 20 }
+          ],
+          "retroalimentacion": "Dominio solido de normalizacion y de indices. Continua con la practica de tuning de consultas.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 82,
+          "codigo": "UD-C04-02",
+          "nombre": "Deasarrollo de software colaborativo",
+          "modulo": "Ingenieria de Software",
+          "ciclo": 4,
+          "creditos": 4,
+          "docente": "Ing. Pedro Ccahuana Rojas",
+          "nota_final": 15,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 88,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 16, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 14, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 15, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 15, "peso": 20 }
+          ],
+          "retroalimentacion": "Buen uso de control de versiones y resolucion de conflictos. Mejorar los mensajes de commit.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 83,
+          "codigo": "UD-C04-03",
+          "nombre": "Seguridad Informatica",
+          "modulo": "Base de Datos y Servidores",
+          "ciclo": 4,
+          "creditos": 4,
+          "docente": "Ing. Carlos Yupanqui Ayala",
+          "nota_final": 14,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 86,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 14, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 13, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 15, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 14, "peso": 20 }
+          ],
+          "retroalimentacion": "Correcta identificacion de vulnerabilidades web. Reforzar el analisis de riesgo y los controles de acceso.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 84,
+          "codigo": "UD-C04-04",
+          "nombre": "Diseño de soluciones gráficas",
+          "modulo": "Ingenieria de Software",
+          "ciclo": 4,
+          "creditos": 4,
+          "docente": "Dis. Carla Ramirez Nunez",
+          "nota_final": 17,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 97,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 17, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 16, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 18, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 17, "peso": 20 }
+          ],
+          "retroalimentacion": "Excelente dominio de teoria del color y composicion. Se distingue en elAssembler de prototipos.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 85,
+          "codigo": "UD-C04-05",
+          "nombre": "Comprension y redaccion en ingles",
+          "modulo": "Formacion Basica",
+          "ciclo": 4,
+          "creditos": 2,
+          "docente": "Lic. Ana Lucia Rojas Meza",
+          "nota_final": 15,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 92,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 14, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 15, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 16, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 15, "peso": 20 }
+          ],
+          "retroalimentacion": "Lectura tecnica comprensible y redaccion clara. Practica la escucha para los examenes orales.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 86,
+          "codigo": "UD-C04-06",
+          "nombre": "Estrategias para la resolucion de problemas",
+          "modulo": "Formacion Basica",
+          "ciclo": 4,
+          "creditos": 2,
+          "docente": "Mg. Rosa Huaman Tito",
+          "nota_final": 16,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 95,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 15, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 17, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 16, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 16, "peso": 20 }
+          ],
+          "retroalimentacion": "Muy buen razonamiento algoritmico y justificacion de decisiones. Continua con problemas de combinatoria.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 87,
+          "codigo": "UD-C04-EFSRT",
+          "nombre": "Experiencias Formativas en Situaciones Reales de Trabajo IV",
+          "modulo": "Formacion en Empresa",
+          "ciclo": 4,
+          "creditos": 2,
+          "docente": "Coord. Academico",
+          "nota_final": 16,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 100,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Informe 1", "nota": 16, "peso": 50 },
+            { "nombre": "PC2", "label": "Informe 2", "nota": 16, "peso": 50 }
+          ],
+          "retroalimentacion": "Cumplimiento pleno de las horas y buena evaluacion del tutor de la empresa.",
+          "alertas": []
+        }
+      ],
+      "generado_el": "2026-06-29T14:20:00"
+    },
+    {
+      "estudiante_id": 2313,
+      "periodo_id": 15,
+      "estado_matricula": "matriculado",
+      "estudiante": {
+        "id": 2313,
+        "codigo_estudiante": "2025-60832237",
+        "dni": "60832237",
+        "nombres": "Ricardo",
+        "apellidos": "Arevalo Villacorta",
+        "programa": "Desarrollo de Sistemas de Informacion",
+        "ciclo_actual": 5
+      },
+      "periodo": {
+        "id": 15,
+        "codigo": "2026-I",
+        "estado": "ACTIVO",
+        "fecha_inicio": "2026-01-05",
+        "fecha_fin": "2026-07-31"
+      },
+      "kpis": {
+        "ppp": 18.93,
+        "ppa": 18.25,
+        "creditos_aprobados": 14,
+        "creditos_cursados": 16,
+        "materias_aprobadas": 4,
+        "materias_total": 5,
+        "materias_en_riesgo": 0,
+        "materias_desaprobadas": 0,
+        "materias_cursando": 1,
+        "merito": {
+          "merito": "Quinto Superior",
+          "escala": "PPA 18.25 - top 5% del periodo",
+          "color": "purple"
+        }
+      },
+      "materias": [
+        {
+          "matricula_detalle_id": 201,
+          "codigo": "UD-C05-01",
+          "nombre": "Gestion y Administracion Web",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 3,
+          "docente": "Ing. Martha Quispe Alva",
+          "nota_final": 20,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 98,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 19, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 19, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 20, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 20, "peso": 25 }
+          ],
+          "retroalimentacion": "Dominio excelente del patron MVC y de la seguridad de sesiones. Se recomienda usar sus aportes como referencia en el taller grupal.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 202,
+          "codigo": "UD-C05-02",
+          "nombre": "Animacion Grafica",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 3,
+          "docente": "Lic. Diego Ramirez Luna",
+          "nota_final": 19,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 95,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 18, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 18, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 19, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 19, "peso": 25 }
+          ],
+          "retroalimentacion": "Excelente control de tiempos y uso de curvas de-bezier. Propuesta de motion muy cuidada.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 203,
+          "codigo": "UD-C05-03",
+          "nombre": "Diseño Web",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 4,
+          "docente": "Dis. Carla Ramirez Nunez",
+          "nota_final": 19,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 97,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 18, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 19, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 19, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 20, "peso": 25 }
+          ],
+          "retroalimentacion": "Aplicacion consistente del sistema de diseno y excelente accesibilidad. Sirve de referencia para el curso.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 204,
+          "codigo": "UD-C05-04",
+          "nombre": "Desarrollo de Aplicaciones Moviles",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 4,
+          "docente": "Ing. Pedro Ccahuana Rojas",
+          "nota_final": 18,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 93,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 17, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 18, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 18, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 18, "peso": 25 }
+          ],
+          "retroalimentacion": "Arquitectura offline-first bien resuelta. Optimizar el consumo de bateria del sincronizador.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 205,
+          "codigo": "UD-C05-05",
+          "nombre": "Fundamentos de innovacion",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 2,
+          "docente": "Mg. Rosa Huaman Tito",
+          "nota_final": null,
+          "estado": "cursando",
+          "porcentaje_asistencia": 92,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 16, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 17, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": null, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": null, "peso": 25 }
+          ],
+          "retroalimentacion": "Idea de negocio solida con validacion real. Falta definir la estrategia de monetizacion.",
+          "alertas": [
+            {
+              "tipo": "info",
+              "mensaje": "PC3 y examen final pendientes de registro. El promedio final se calcula al publicar las notas."
+            }
+          ]
+        }
+      ],
+      "generado_el": "2026-06-29T14:20:00"
+    },
+    {
+      "estudiante_id": 2313,
+      "periodo_id": 12,
+      "estado_matricula": "matriculado",
+      "estudiante": {
+        "id": 2313,
+        "codigo_estudiante": "2025-60832237",
+        "dni": "60832237",
+        "nombres": "Ricardo",
+        "apellidos": "Arevalo Villacorta",
+        "programa": "Desarrollo de Sistemas de Informacion",
+        "ciclo_actual": 5
+      },
+      "periodo": {
+        "id": 12,
+        "codigo": "2025-II",
+        "estado": "CERRADO",
+        "fecha_inicio": "2025-08-04",
+        "fecha_fin": "2025-12-19"
+      },
+      "kpis": {
+        "ppp": 17.82,
+        "ppa": 17.82,
+        "creditos_aprobados": 22,
+        "creditos_cursados": 22,
+        "materias_aprobadas": 7,
+        "materias_total": 7,
+        "materias_en_riesgo": 0,
+        "materias_desaprobadas": 0,
+        "materias_cursando": 0,
+        "merito": {
+          "merito": "Quinto Superior",
+          "escala": "PPP 17.82 - top 5% del periodo",
+          "color": "purple"
+        }
+      },
+      "materias": [
+        {
+          "matricula_detalle_id": 211,
+          "codigo": "UD-C04-01",
+          "nombre": "Implementacion de estructuras de Base Datos",
+          "modulo": "Base de Datos y Servidores",
+          "ciclo": 4,
+          "creditos": 4,
+          "docente": "Ing. Martha Quispe Alva",
+          "nota_final": 18,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 99,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 18, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 18, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 18, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 18, "peso": 20 }
+          ],
+          "retroalimentacion": "Dominio outstanding del modelado y la normalizacion. Excelente criterio para definir indices.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 212,
+          "codigo": "UD-C04-02",
+          "nombre": "Deasarrollo de software colaborativo",
+          "modulo": "Ingenieria de Software",
+          "ciclo": 4,
+          "creditos": 4,
+          "docente": "Ing. Pedro Ccahuana Rojas",
+          "nota_final": 17,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 94,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 18, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 16, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 17, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 17, "peso": 20 }
+          ],
+          "retroalimentacion": "Liderazgo tecnico en el equipo. Buen uso de integracion continua.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 213,
+          "codigo": "UD-C04-03",
+          "nombre": "Seguridad Informatica",
+          "modulo": "Base de Datos y Servidores",
+          "ciclo": 4,
+          "creditos": 4,
+          "docente": "Ing. Carlos Yupanqui Ayala",
+          "nota_final": 18,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 96,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 17, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 18, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 19, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 18, "peso": 20 }
+          ],
+          "retroalimentacion": "Analisis de riesgo sobrio y buena comprension de los controles de acceso.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 214,
+          "codigo": "UD-C04-04",
+          "nombre": "Diseño de soluciones gráficas",
+          "modulo": "Ingenieria de Software",
+          "ciclo": 4,
+          "creditos": 4,
+          "docente": "Dis. Carla Ramirez Nunez",
+          "nota_final": 19,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 98,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 19, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 19, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 19, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 19, "peso": 20 }
+          ],
+          "retroalimentacion": "Nivel outstanding en teoria del color y en diseno de interfaces.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 215,
+          "codigo": "UD-C04-05",
+          "nombre": "Comprension y redaccion en ingles",
+          "modulo": "Formacion Basica",
+          "ciclo": 4,
+          "creditos": 2,
+          "docente": "Lic. Ana Lucia Rojas Meza",
+          "nota_final": 16,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 90,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 15, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 16, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 16, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 17, "peso": 20 }
+          ],
+          "retroalimentacion": "Redaccion academica fluida. Participa con seguridad en las sesiones de discusion.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 216,
+          "codigo": "UD-C04-06",
+          "nombre": "Estrategias para la resolucion de problemas",
+          "modulo": "Formacion Basica",
+          "ciclo": 4,
+          "creditos": 2,
+          "docente": "Mg. Rosa Huaman Tito",
+          "nota_final": 18,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 96,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 17, "peso": 30 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 19, "peso": 30 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 18, "peso": 20 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 18, "peso": 20 }
+          ],
+          "retroalimentacion": "Resolucion optima y clara justificacion de cada paso del algoritmo.",
+          "alertas": []
+        },
+        {
+          "matricula_detalle_id": 217,
+          "codigo": "UD-C04-EFSRT",
+          "nombre": "Experiencias Formativas en Situaciones Reales de Trabajo IV",
+          "modulo": "Formacion en Empresa",
+          "ciclo": 4,
+          "creditos": 2,
+          "docente": "Coord. Academico",
+          "nota_final": 18,
+          "estado": "aprobado",
+          "porcentaje_asistencia": 100,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Informe 1", "nota": 18, "peso": 50 },
+            { "nombre": "PC2", "label": "Informe 2", "nota": 18, "peso": 50 }
+          ],
+          "retroalimentacion": "Excelente evaluacion del tutor de la empresa. Se le considerara para contratos de practicas.",
+          "alertas": []
+        }
+      ],
+      "generado_el": "2026-06-29T14:20:00"
+    },
+    {
+      "estudiante_id": 2314,
+      "periodo_id": 15,
+      "estado_matricula": "pendiente",
+      "estudiante": {
+        "id": 2314,
+        "codigo_estudiante": "2024-77648746",
+        "dni": "77648746",
+        "nombres": "Leonardo",
+        "apellidos": "Cahuana Tello",
+        "programa": "Desarrollo de Sistemas de Informacion",
+        "ciclo_actual": 5
+      },
+      "periodo": {
+        "id": 15,
+        "codigo": "2026-I",
+        "estado": "ACTIVO",
+        "fecha_inicio": "2026-01-05",
+        "fecha_fin": "2026-07-31"
+      },
+      "kpis": {
+        "ppp": 10.1,
+        "ppa": 10.1,
+        "creditos_aprobados": 0,
+        "creditos_cursados": 18,
+        "materias_aprobadas": 0,
+        "materias_total": 6,
+        "materias_en_riesgo": 2,
+        "materias_desaprobadas": 3,
+        "materias_cursando": 1,
+        "merito": null
+      },
+      "materias": [
+        {
+          "matricula_detalle_id": 301,
+          "codigo": "UD-C05-01",
+          "nombre": "Gestion y Administracion Web",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 3,
+          "docente": "Ing. Martha Quispe Alva",
+          "nota_final": 9,
+          "estado": "desaprobado",
+          "porcentaje_asistencia": 55,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 9, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 10, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 8, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 8, "peso": 25 }
+          ],
+          "retroalimentacion": "No se entregues los laboratorios 3 y 4. El desarrollo no conecta con la base de datos en ningun punto del proyecto.",
+          "alertas": [
+            {
+              "tipo": "peligro",
+              "mensaje": "Nota final 9 y asistencia de 55%. La unidad suma 3 creditos a tu deuda academica y habilita evaluacion de permanencia."
+            }
+          ]
+        },
+        {
+          "matricula_detalle_id": 302,
+          "codigo": "UD-C05-02",
+          "nombre": "Animacion Grafica",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 3,
+          "docente": "Lic. Diego Ramirez Luna",
+          "nota_final": 10,
+          "estado": "desaprobado",
+          "porcentaje_asistencia": 62,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 10, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 9, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 11, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 10, "peso": 25 }
+          ],
+          "retroalimentacion": "El archivo entregado no contiene la linea de tiempo exportada. Revisa el formato de entrega de la semana 6.",
+          "alertas": [
+            {
+              "tipo": "peligro",
+              "mensaje": "Nota final 10, inferior al minimo aprobatorio (13). Requiere recuperacion."
+            }
+          ]
+        },
+        {
+          "matricula_detalle_id": 303,
+          "codigo": "UD-C05-03",
+          "nombre": "Diseño Web",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 4,
+          "docente": "Dis. Carla Ramirez Nunez",
+          "nota_final": 11,
+          "estado": "desaprobado",
+          "porcentaje_asistencia": 70,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 11, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 10, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 12, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": 11, "peso": 25 }
+          ],
+          "retroalimentacion": "El diseno cumple la estructura solicitada pero incumple la guia de accesibilidad en contraste y navegacion por teclado.",
+          "alertas": [
+            {
+              "tipo": "peligro",
+              "mensaje": "Nota final 11, inferior al minimo aprobatorio (13). Requiere recuperacion."
+            }
+          ]
+        },
+        {
+          "matricula_detalle_id": 304,
+          "codigo": "UD-C05-04",
+          "nombre": "Desarrollo de Aplicaciones Moviles",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 4,
+          "docente": "Ing. Pedro Ccahuana Rojas",
+          "nota_final": null,
+          "estado": "cursando",
+          "porcentaje_asistencia": 74,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 12, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 11, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": null, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": null, "peso": 25 }
+          ],
+          "retroalimentacion": "Avanza con dificultad la parte de integracion con la API. Se recomienda repasar los talleres 1 y 2 y completar los tutoriales de Kotlin.",
+          "alertas": [
+            {
+              "tipo": "advertencia",
+              "mensaje": "Asistencia de 74%, por debajo del minimo exigido (80%). Regulariza antes del cierre del periodo."
+            }
+          ]
+        },
+        {
+          "matricula_detalle_id": 305,
+          "codigo": "UD-C05-05",
+          "nombre": "Fundamentos de innovacion",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 2,
+          "docente": "Mg. Rosa Huaman Tito",
+          "nota_final": null,
+          "estado": "en_riesgo",
+          "porcentaje_asistencia": 58,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 10, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 12, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": 11, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": null, "peso": 25 }
+          ],
+          "retroalimentacion": "Las tarjetas de sostenibilidad no consideran el modelo de negocio. Repasa los criterios de la rubrica antes de reentregar.",
+          "alertas": [
+            {
+              "tipo": "peligro",
+              "mensaje": "Asistencia acumulada de 58% y PC3 en 11. El riesgo de perder la unidad por inasistencia es alto."
+            }
+          ]
+        },
+        {
+          "matricula_detalle_id": 306,
+          "codigo": "UD-C05-06",
+          "nombre": "Oportunidades de negocio",
+          "modulo": "Desarrollo Web y Sistemas",
+          "ciclo": 5,
+          "creditos": 2,
+          "docente": "Lic. Fernando Mamani Vilca",
+          "nota_final": null,
+          "estado": "en_riesgo",
+          "porcentaje_asistencia": 66,
+          "evaluaciones": [
+            { "nombre": "PC1", "label": "Parcial 1", "nota": 11, "peso": 25 },
+            { "nombre": "PC2", "label": "Parcial 2", "nota": 10, "peso": 25 },
+            { "nombre": "PC3", "label": "Parcial 3", "nota": null, "peso": 25 },
+            { "nombre": "EXAMEN", "label": "Examen Final", "nota": null, "peso": 25 }
+          ],
+          "retroalimentacion": "El mercado elegido no tiene TAM estimado. Completa el lienzo canvas y el modelo de costos.",
+          "alertas": [
+            {
+              "tipo": "advertencia",
+              "mensaje": "PC3 sin registrar y asistencia de 66%. La unidad esta en riesgo de desaprobacion por inasistencia."
+            }
+          ]
+        }
+      ],
+      "generado_el": "2026-06-29T14:20:00"
+    }
+  ]
+}
