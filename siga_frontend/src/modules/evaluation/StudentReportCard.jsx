@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
+import mockEvaluacion from './mockEvaluacion.json';
 
 const SECTION_TITLE = "text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em]";
 
@@ -136,7 +137,12 @@ export function StudentReportCard() {
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.detail || 'No se pudo cargar el boletín');
         }
-        setData(await res.json());
+        const real = await res.json();
+        const evaluacion = mockEvaluacion.evaluaciones.find(
+          e => e.codigo_estudiante === real.estudiante.codigo_estudiante
+            && e.periodo === real.estudiante.periodo_codigo
+        );
+        setData(evaluacion ? { ...real, ...evaluacion } : real);
       } catch (e) { setError(e.message); }
       setLoading(false);
     };
