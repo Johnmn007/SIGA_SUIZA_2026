@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE } from '../../core/api/client';
+import { Pencil, X } from 'lucide-react';
 
 export function EditStudentModal({ student, onClose, onUpdated }) {
   const [form, setForm] = useState(null);
@@ -48,6 +49,7 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
       }
     } catch (err) {
       setError("Error de conexión");
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -55,24 +57,24 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh]">
+      <div className="glass-card w-full max-w-2xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] bg-white/95 shadow-2xl">
         
-        <div className="bg-primary px-6 py-4 flex justify-between items-center">
+        <div className="bg-gradient-to-r from-primary to-secondary px-6 py-4 flex justify-between items-center">
           <h3 className="text-lg font-bold text-white flex items-center">
-            <span className="mr-2">✏️</span> Editar Datos: {student.nombres} {student.apellidos}
+            <Pencil size={18} className="mr-2" /> Editar Datos: {student.nombres} {student.apellidos}
           </h3>
-          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors" aria-label="Cerrar">
+            <X size={20} />
           </button>
         </div>
 
         <div className="p-6 overflow-y-auto custom-scrollbar">
           {error && (
-            <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100 font-medium">
+            <div className="mb-4 bg-red-50 text-red-700 p-3 rounded-lg text-sm border border-red-100 font-medium">
               {error}
             </div>
           )}
-          <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 text-sm text-blue-800">
+          <div className="bg-primary-soft border border-primary/20 p-4 rounded-xl mb-6 text-sm text-primary-dark">
             <strong>Nota:</strong> Esta función es para corregir errores de tipeo (Fase 3 - MVP). Si el cambio de nombre es por <strong>Mandato Legal</strong>, esto deberá tramitarse por mesa de partes (Fase 4 - Casuísticas).
           </div>
           
@@ -167,11 +169,11 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
           </form>
         </div>
 
-        <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-end space-x-3">
+        <div className="bg-slate-light px-6 py-4 border-t border-slate-200 flex justify-end space-x-3">
           <button 
             type="button" 
             onClick={onClose}
-            className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors"
+            className="btn-ghost"
           >
             Cancelar
           </button>
@@ -179,7 +181,7 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
             type="submit" 
             form="edit-student-form"
             disabled={loading}
-            className="px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-dark shadow-lg shadow-primary/30 transition-colors disabled:opacity-50"
+            className="btn-primary disabled:opacity-50"
           >
             {loading ? 'Guardando...' : 'Guardar Cambios'}
           </button>

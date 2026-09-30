@@ -1,6 +1,6 @@
 # Plan de Negocio - SIGA
 
-> **Versión:** 1.0 | **Última actualización:** Junio 2026 | **Estado:** Borrador
+> **Versión:** 1.1 | **Última actualización:** 2026-08-29 | **Estado:** Borrador
 
 ---
 
@@ -76,7 +76,7 @@ SIGA es un sistema integral de gestión académica que cubre todo el ciclo de vi
 |-----------|-------------|------------|
 | **Core** | Autenticación, autorización, gateway, registro de módulos, health monitoring | FastAPI (Python 3.12+) |
 | **Módulos** | Funcionalidad independiente: planes, programas, estudiantes, matrícula, evaluación | FastAPI (cada módulo) |
-| **Frontend** | Interfaz de usuario unificada para todos los roles | React 18 + Vite + Tailwind |
+| **Frontend** | Interfaz de usuario unificada para todos los roles | React 19 + Vite 7 + Fetch API nativa (sin Axios) |
 | **Base de Datos** | Almacenamiento persistente de datos académicos | PostgreSQL 16+ |
 | **Cache** | Caché distribuido para sesiones y datos frecuentes | Redis 7+ |
 | **Bus de Eventos** | Comunicación asíncrona entre módulos | NATS |
@@ -256,11 +256,13 @@ SIGA sigue un modelo **Open Core** con servicios profesionales:
 
 | Año | IESTP Implementados | Ingresos Implementación | Ingresos Recurrentes | Ingresos Totales | Costos | Utilidad |
 |-----|-------------------|------------------------|---------------------|-----------------|--------|----------|
-| 1 | 2 | S/ 45,000 | S/ 3,000 | S/ 48,000 | S/ 60,000 | -S/ 12,000 |
+| 1 | 2 | S/ 45,000 | S/ 3,000 | S/ 48,000 | S/ 107,040 | -S/ 59,040 |
 | 2 | 5 (3 nuevos) | S/ 60,000 | S/ 12,000 | S/ 72,000 | S/ 60,000 | S/ 12,000 |
 | 3 | 10 (5 nuevos) | S/ 100,000 | S/ 30,000 | S/ 130,000 | S/ 80,000 | S/ 50,000 |
 
-*Supuestos: Costo de desarrollo en año 1 (no capitalizado), crecimiento de ingresos recurrentes por renovaciones y nuevos clientes.*
+*Supuestos: en el **año 1** el costo total anual es **S/ 107,040** (estructura §6.4, incluye desarrollo de 2 personas); los ingresos del año 1 son S/ 48,000, por lo que **el año 1 queda en pérdida (inversión)**, algo esperado en una etapa de inversión inicial. El resultado neto de los años 2 y 3 es positivo con desarrollo a un solo equipo.*
+
+> **Nota de alineación (año 1 en inversión):** el año 1 se considera **año de inversión** dado que el costo operativo anual (S/ 107,040) supera los ingresos (S/ 48,000). Esta situación es esperada y se cubre en §9.1 como CAPEX de desarrollo.
 
 ### 6.4 Estructura de Costos
 
@@ -284,11 +286,14 @@ Para un IESTP típico con 1,000 estudiantes, 11 programas y 6 ciclos activos:
 |---------|--------------------|----------------------|--------------------|--------------------|------------------|
 | Matrícula (inscripción, verificación, registro) | 200 h | 20 h | 180 h | 360 h | S/ 10,800 |
 | Procesamiento de notas (registro, cálculo, revisión) | 150 h | 10 h | 140 h | 280 h | S/ 8,400 |
-| Generación de reportes (MINEDU, dirección) | 100 h | 5 h | 95 h | 190 h | S/ 5,700 |
 | Resolución de errores (notas mal calculadas, datos duplicados) | 50 h | 5 h | 45 h | 90 h | S/ 2,700 |
+| **Subtotal MVP** | **400 h** | **35 h** | **365 h** | **730 h** | **S/ 21,900** |
+| Generación de reportes (MINEDU, dirección) — **POST-MVP** | 100 h | 5 h | 95 h | 190 h | S/ 5,700 |
 | **Total** | **500 h** | **40 h** | **460 h** | **920 h** | **S/ 27,600** |
 
 *\*Basado en S/ 30/hora costo de personal administrativo.*
+
+> **Nota de alineación (MVP vs. POST-MVP):** el ahorro de **Reportes MINEDU (190 h/año, S/ 5,700)** corresponde al módulo `mod-reportes`, que es **POST-MVP**. El ahorro atribuible al **MVP** (matrícula, notas, trámites/errores) es de **S/ 21,900/año**.
 
 ### 7.2 Beneficios Cualitativos
 
@@ -302,19 +307,25 @@ Para un IESTP típico con 1,000 estudiantes, 11 programas y 6 ciclos activos:
 | **Toma de decisiones** | Datos consolidados para dirección académica | Gestión basada en evidencia |
 | **Imagen institucional** | Modernización de procesos, percepción de calidad | Atracción de estudiantes |
 
-### 7.3 Cálculo de Payback
+### 7.3 Cálculo de Payback y ROI
 
 ```
-Inversión inicial (implementación): S/ 25,000
-Ahorro anual:                      S/ 27,600
+ROI para la INSTITUCIÓN (solo MVP, excluye reportes MINEDU):
+  Inversión inicial (implementación): S/ 25,000
+  Ahorro anual MVP:                   S/ 21,900   (excluye reportes, post-MVP)
+  Ahorro anual total (con post-MVP):  S/ 27,600
 
-Payback simple: 25,000 / 27,600 = 0.91 años ≈ 11 meses
-
-ROI a 3 años:
-  Inversión: S/ 25,000
-  Beneficio: S/ 27,600 × 3 = S/ 82,800
-  ROI: (82,800 - 25,000) / 25,000 = 231%
+  Payback simple (MVP): 25,000 / 21,900 = 1.14 años ≈ 14 meses
+  ROI a 3 años (MVP):
+    Inversión: S/ 25,000
+    Beneficio: S/ 21,900 × 3 = S/ 65,700
+    ROI: (65,700 - 25,000) / 25,000 = 163%
 ```
+
+> **[REVISADO] base operativa: S/ 107,040/año (estructura §6.4, equipo de 2 personas).**
+> **Payback y ROI revisados:** sobre el ahorro **MVP** (S/ 21,900/año, sin reportes MINEDU), el payback simple de la implementación es **≈ 14 meses** y el ROI a 3 años es **≈ 163%**. Los valores previos (231% y 11 meses) se calculaban con el ahorro total incluyendo reportes MINEDU (S/ 27,600) y con la cifra de desarrollo no alineada.
+>
+> **A nivel de NEGOCIO:** con la base operativa real (S/ 107,040/año) y los ingresos de §6.2/§6.3, el **año 1 opera en pérdida (inversión)**: ingresos S/ 48,000 − costo S/ 107,040 = **−S/ 59,040**. El punto de equilibrio del negocio se alcanza hacia el **año 3** (utilidad acumulada ≈ S/ 2,960). El ROI/payback de la institución (arriba) y la rentabilidad del negocio (aquí) son dos lecturas distintas y deben distinguirse.
 
 ---
 
@@ -323,53 +334,68 @@ ROI a 3 años:
 ### 8.1 Timeline General
 
 ```
-Año 1
-├── Q1 (Meses 1-3):   Fase 1 - Fundación
-│   ├── Core + Socket
-│   ├── mod-planes-estudio + mod-programas-estudio
-│   ├── Frontend: login, dashboard
-│   └── 1 programa piloto
+Año 1 — MVP (decisión v1.1)
+├── Q1 (Meses 1-3):   Fundación
+│   ├── Core + Socket + infraestructura
+│   ├── Frontend: login, dashboard, apiClient
+│   └── Configuración de las 11 carreras (planes y programas)
 │
-├── Q2 (Meses 4-6):   Fase 2 - Operación
-│   ├── mod-estudiantes + mod-matricula
-│   ├── Frontend: módulos funcionales
-│   └── 3 programas
+├── Q2 (Meses 4-6):   MVP — 7 módulos sobre 11 carreras
+│   ├── Despliegue de los 7 módulos del MVP a la vez:
+│   │   gestion-academica, programas-estudio, planes-estudio,
+│   │   evaluacion, usuarios, auditoria, admision (externa :8009)
+│   │   sobre las 11 carreras (sin rollout 1→3→6→11)
+│   ├── Frontend: módulos funcionales, matrícula → admisión
+│   └── Smoke de arranque
 │
-├── Q3 (Meses 7-9):   Fase 3 - Evaluación
-│   ├── mod-evaluacion
-│   ├── Boletines y reportes
-│   └── 6 programas
+├── Q3 (Meses 7-9):   Flujo crítico
+│   ├── E2E flujo matrícula → admisión
+│   ├── Boletines y actas de evaluación
+│   └── Correcciones y validación con datos reales
 │
-└── Q4 (Meses 10-12): Fase 4 - Expansión
-    ├── mod-convalidaciones, mod-traslados, mod-reingresos
-    ├── Reportes MINEDU
-    └── 11 programas
+└── Q4 (Meses 10-12): Hardening y cierre del MVP
+    ├── Estabilización, seguridad, auditoría operativa
+    └── Preparación del despliegue completo en producción
 
-Año 2
-└── Fase 5 - Madurez
+Año 2 — POST-MVP
+└── Fase de madurez (módulos adicionales, fuera del MVP)
+    ├── mod-convalidaciones / mod-traslados / mod-reingresos
+    ├── Reportes MINEDU (mod-reportes)
     ├── Dashboard de gobierno académico
     ├── Integraciones (biblioteca, financiero)
     ├── App móvil
     └── Optimización y escalabilidad
 ```
 
-### 8.2 Dependencias entre Módulos
+> **Nota de alineación (MVP v1.1):** el **MVP despliega los 7 módulos sobre las 11 carreras a la vez** — no hay rollout progresivo de programas ("1→3→6→11"). Convalidaciones, traslados, reingresos, Reportes MINEDU, dashboard de gobierno, App móvil e integraciones son **POST-MVP**.
+
+### 8.2 Dependencias entre Módulos (MVP + post-MVP)
 
 ```
-Fase 1                    Fase 2                    Fase 3              Fase 4
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────┐    ┌────────────────┐
-│ mod-planes-est.  │───>│ mod-estudiantes  │───>│mod-evaluacion│───>│mod-convalidac. │
-└──────────────────┘    └──────────────────┘    └──────────────┘    └────────────────┘
-         │                      │                                          │
-         v                      v                                          v
-┌──────────────────┐    ┌──────────────────┐                       ┌────────────────┐
-│mod-programas-est.│───>│ mod-matricula    │                       │mod-traslados   │
-└──────────────────┘    └──────────────────┘                       └────────────────┘
-                                                                          │
-                                                                          v
-                                                                   ┌────────────────┐
-                                                                   │mod-reingresos  │
-                                                                   └────────────────┘
+MVP                                                
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────┐
+│ mod-planes-est.  │───>│ gestion-acad.    │───>│mod-evaluacion│
+└──────────────────┘    └──────────────────┘    └──────────────┘
+         │                      │
+         v                      v
+┌──────────────────┐    ┌──────────────────┐
+│mod-programas-est.│───>│ mod-admision (ex) │  ──┐  (-> matrícula → admisión)
+└──────────────────┘    └──────────────────┘    │
+                                                v
+                                    ┌──────────────────┐
+                                    │ mod-usuarios /   │
+                                    │ mod-auditoria    │
+                                    └──────────────────┘
+
+POST-MVP (adicionales, fuera del MVP)
+┌────────────────┐   ┌──────────────┐
+│mod-convalidac. │   │mod-traslados │
+└────────────────┘   └──────────────┘
+        │                   │
+        v                   v
+┌────────────────────────────────────┐
+│ mod-reingresos + mod-reportes (MINEDU) │
+└────────────────────────────────────┘
 ```
 
 ### 8.3 Hitos por Fase
@@ -377,12 +403,13 @@ Fase 1                    Fase 2                    Fase 3              Fase 4
 | Fase | Hito | Criterio de Aceptación |
 |------|------|----------------------|
 | **F1** | Core funcional | Login, registro de módulos, proxy funcionando |
-| **F1** | 2 módulos base | CRUD de planes y programas operativos |
-| **F2** | MVP funcional | 1 programa con ciclo completo de matrícula |
+| **F1** | Configuración | 11 carreras configuradas (planes y programas) |
+| **F2** | MVP operativo | Los 7 módulos desplegados sobre las 11 carreras (no rollout 1→3→6→11) |
 | **F2** | Matrícula operativa | Estudiante se matricula, validación de reglas funciona |
+| **F3** | Flujo crítico E2E | Flujo matrícula → admisión validado de extremo a extremo |
 | **F3** | Evaluación completa | Docente registra notas, sistema calcula promedios |
-| **F4** | 11 programas | Todos los programas configurados y operativos |
-| **F5** | Producción madura | 99.9% uptime, <500ms respuestas, 100 usuarios concurrentes |
+| **F4** | Producción | Despliegue completo del MVP en producción |
+| **POST-MVP** | Madurez | Convalidaciones, traslados, reingresos, Reportes MINEDU, dashboard, App móvil |
 
 ---
 
@@ -395,7 +422,9 @@ Fase 1                    Fase 2                    Fase 3              Fase 4
 | Arquitecto/Backend Senior | Full-time | 1-12 | 7,000 | 84,000 |
 | Backend Developer | Full-time | 1-12 | 5,000 | 60,000 |
 | Frontend Developer | Full-time | 2-12 | 5,000 | 55,000 |
-| **Subtotal** | | | | **199,000** |
+| **Subtotal (CAPEX desarrollo, 1 año)** | | | | **199,000** |
+
+> **Nota de alineación (CAPEX vs. OPEX):** este **S/ 199,000 es el CAPEX de desarrollo (1 año)** con una dotación ampliada de 3 perfiles. **NO** es el gasto operativo anual del proyecto, que es de **S/ 107,040/año** (estructura §6.4, equipo real de 2 personas). Al consolidar los números del plan se debe distinguir ambas cifras: el CAPEX de desarrollo inicial frente al costo operativo recurrente.
 
 ### 9.2 Equipo Ampliado (Fase 3-4)
 
@@ -412,7 +441,7 @@ Fase 1                    Fase 2                    Fase 3              Fase 4
 |-----|-------------------|----------------------|
 | **Arquitecto/Backend Senior** | Arquitectura del sistema, Core, estándares, revisión de código, decisiones técnicas | FastAPI, PostgreSQL, Redis, NATS, Docker, patrones de microservicios |
 | **Backend Developer** | Desarrollo de módulos, APIs, integración con Core, pruebas | Python, FastAPI, SQLAlchemy, pytest, Git |
-| **Frontend Developer** | Interfaz de usuario, consumo de APIs, experiencia de usuario | React, TypeScript, Vite, Tailwind CSS, React Query |
+| **Frontend Developer** | Interfaz de usuario, consumo de APIs, experiencia de usuario | React, TypeScript, Vite, Fetch API, utilidades CSS (tipo Tailwind) |
 | **DevOps Engineer** | CI/CD, Docker, infraestructura, monitoreo, backups | Docker, GitHub Actions, Linux, PostgreSQL, nginx |
 | **Tester QA** | Pruebas funcionales, de integración, de regresión, documentación de bugs | pytest, Playwright, Postman, reporting |
 | **Product Owner** | Priorización, contacto con stakeholders, definición de requisitos, validación | Gestión de productos, conocimiento de procesos académicos |
@@ -452,7 +481,7 @@ Fase 1                    Fase 2                    Fase 3              Fase 4
 
 | KPI | Target | Medición |
 |-----|--------|----------|
-| ROI a 3 años (institución) | > 200% | (Ahorros - Inversión) / Inversión |
+| ROI a 3 años (institución) | ~163% (MVP) | (Ahorros - Inversión) / Inversión |
 | Payback (institución) | < 18 meses | Tiempo en recuperar inversión |
 | Costo por estudiante (SIGA) | < S/ 5/año | Costo total / número de estudiantes |
 
@@ -490,11 +519,15 @@ Hoy (2026):               Año 3 (2029):             Año 5+ (2031+):
 │ FastAPI  │              │ FastAPI  │              │ FastAPI +  │
 │ React    │              │ React    │              │ K8s        │
 │ PostgreSQL│              │ PostgreSQL│              │ React Native│
-│ Monolito │              │ Micro-serv│              │ Multi-tenant│
-│ modular  │              │ NATS     │              │ GraphQL    │
-│ On-premise│              │ Docker   │              │ Cloud-native│
-└──────────┘              └──────────┘              └────────────┘
+│ Micro-serv│              │ Micro-serv│              │ Multi-tenant│
+│ (Core + 7 │             │ NATS     │              │ GraphQL    │
+│ módulos,  │              │ Docker   │              │ Cloud-native│
+│ 1 BD)     │              │ Cloud    │              │            │
+│ On-premise│              └──────────┘              └────────────┘
+└──────────┘
 ```
+
+> **Nota de alineación (MVP v1.1):** la etiqueta HOY se corrige de "Monolito modular" a **Microservicios (Core + 7 módulos) sobre 1 BD única (pragmática)**, en línea con ADR-011 (Admisión como módulo externo en `:8009`).
 
 ---
 
@@ -586,5 +619,6 @@ Fase 4 - Escalamiento (Año 4+):
 | Fecha | Versión | Autor | Cambios |
 |-------|---------|-------|---------|
 | 2026-06-26 | 1.0 | Arquitecto SIGA | Versión inicial del plan de negocio |
+| 2026-08-29 | 1.1 | Mesa de trabajo (planificación) | Alineación MVP v1.1: stack React 19 + Vite 7 + Fetch nativa; costos reconciliados (S/ 107,040/año, año 1 en inversión, §9.1 como CAPEX); ROI/payback revisados (163%, ~14 meses MVP, sin Reportes MINEDU post-MVP); cronograma MVP de 7 módulos sobre 11 carreras a la vez; post-MVP traslados/convalidaciones/reingresos/Reportes/dashboard/App móvil; arquitectura HOY corregida a Microservicios sobre 1 BD |
 
 ---
