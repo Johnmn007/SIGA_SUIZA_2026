@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { EnrollmentProcess } from './EnrollmentProcess';
+import { EnrollmentFlowDiagram } from './EnrollmentFlowDiagram';
 import ExtraordinaryEnrollmentModal from './ExtraordinaryEnrollmentModal';
 
 export function EnrollmentDashboard() {
@@ -12,7 +13,7 @@ export function EnrollmentDashboard() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [view, setView] = useState('list'); // 'list' or 'process'
+  const [view, setView] = useState('list'); // 'list', 'process' or 'diagram'
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPrograma, setCurrentPrograma] = useState('ALL');
@@ -77,25 +78,53 @@ export function EnrollmentDashboard() {
     );
   }
 
+  const tabs = [
+    { id: 'list', label: 'Estudiantes' },
+    { id: 'diagram', label: 'Diagrama de flujo' },
+  ];
+
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
           <h3 className="text-3xl font-bold tracking-tight text-slate-800">
             Gestión de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Matrícula Académica</span>
           </h3>
           <p className="text-slate-500 text-sm mt-1">Control de procesos de matrícula para estudiantes registrados</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 transition-all active:scale-95 flex items-center"
-        >
-          <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-          Matrícula Extraordinaria
-        </button>
+        {view !== 'diagram' && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 transition-all active:scale-95 flex items-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+            Matrícula Extraordinaria
+          </button>
+        )}
       </div>
 
+      <div className="glass-card p-1.5 mb-6 inline-flex gap-1.5">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setView(tab.id)}
+            aria-current={view === tab.id}
+            className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
+              view === tab.id
+                ? 'bg-primary text-white shadow-md shadow-primary/25'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'diagram' ? (
+        <EnrollmentFlowDiagram />
+      ) : (
+        <>
       <div className="glass-card p-2 mb-8 flex items-center max-w-3xl gap-2">
         {['superadmin', 'admin'].includes(userRole) && (
           <select 
@@ -183,8 +212,8 @@ export function EnrollmentDashboard() {
           </table>
         </div>
       </div>
-      
-      <ExtraordinaryEnrollmentModal 
+
+      <ExtraordinaryEnrollmentModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         currentPrograma={currentPrograma}
@@ -193,6 +222,8 @@ export function EnrollmentDashboard() {
           handleEnrollClick(student);
         }}
       />
+        </>
+      )}
     </div>
   );
 }
