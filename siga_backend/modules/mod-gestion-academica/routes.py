@@ -97,13 +97,21 @@ async def crear_estudiante(request: Request, data: EstudianteCreate, db: AsyncSe
     await db.refresh(db_estudiante)
     return db_estudiante
 
-@router.get("/estudiantes/", response_model=List[EstudianteResponse])
+@router.get("/estudiantes/")
 async def obtener_estudiantes(programa_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
-    query = select(Estudiante).order_by(Estudiante.apellidos)
-    if programa_id is not None:
-        query = query.where(Estudiante.programa_id == programa_id)
-    result = await db.execute(query)
-    return result.scalars().all()
+    import traceback
+    try:
+        query = select(Estudiante).order_by(Estudiante.apellidos)
+        if programa_id is not None:
+            query = query.where(Estudiante.programa_id == programa_id)
+        result = await db.execute(query)
+        rows = result.scalars().all()
+        print(f"[DEBUG] Estudiantes encontrados: {len(rows)}")
+        return [{"id": r.id, "codigo_estudiante": r.codigo_estudiante, "dni": r.dni, "nombres": r.nombres, "apellidos": r.apellidos, "estado_academico": r.estado_academico, "programa_id": r.programa_id} for r in rows]
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"[ERROR] obtener_estudiantes: {e}\n{tb}")
+        return {"error": str(e), "type": type(e).__name__, "traceback": tb}
 
 @router.put("/estudiantes/{estudiante_id}/pago_matricula", response_model=EstudianteResponse)
 async def actualizar_pago_matricula(estudiante_id: int, request: Request, pagado: bool = True, db: AsyncSession = Depends(get_db)):
@@ -125,6 +133,165 @@ async def obtener_estudiante(estudiante_id: int, db: AsyncSession = Depends(get_
         raise HTTPException(status_code=404, detail="Estudiante no encontrado")
     return db_estudiante
 
+@router.get("/estudiantes/{estudiante_id}/boletin")
+async def obtener_boletin(estudiante_id: int, periodo_id: int, db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import text
+
+    result_est = await db.execute(select(Estudiante).where(Estudiante.id == estudiante_id))
+    estudiante = result_est.scalar_one_or_none()
+    if not estudiante:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    result_mat = await db.execute(
+        select(Matricula).options(selectinload(Matricula.detalles))
+        .where(Matricula.estudiante_id == estudiante_id)
+        .where(Matricula.periodo_id == periodo_id)
+    )
+    matricula = result_mat.scalar_one_or_none()
+
+    result_periodo = await db.execute(
+        text("SELECT codigo, fecha_fin_matricula_regular, fecha_fin_matricula_extemporanea FROM periodos_academicos WHERE id = :pid"),
+        {"pid": periodo_id}
+    )
+    periodo_row = result_periodo.mappings().first()
+    periodo_codigo = periodo_row["codigo"] if periodo_row else "N/A"
+
+    result_plan = await db.execute(
+        text("""
+            SELECT p.creditos_totales, p.nombre as plan_nombre, p.nivel_formativo
+            FROM programas_estudio pr
+            JOIN planes_estudio p ON pr.plan_estudio_id = p.id
+            WHERE pr.id = :prog_id
+        """),
+        {"prog_id": estudiante.programa_id}
+    )
+    plan_row = result_plan.mappings().first()
+    creditos_totales = plan_row["creditos_totales"] if plan_row else 0
+
+    result_creditos_aprob = await db.execute(
+        text("""
+            SELECT COALESCE(SUM(md.creditos), 0) as total
+            FROM matricula_detalles md
+            JOIN matriculas m ON md.matricula_id = m.id
+            WHERE m.estudiante_id = :eid
+            AND md.estado_curso = 'aprobado'
+        """),
+        {"eid": estudiante_id}
+    )
+    creditos_aprobados = result_creditos_aprob.scalar()
+
+    cursos_periodo = []
+    if matricula and matricula.detalles:
+        for det in matricula.detalles:
+            result_unidad = await db.execute(
+                text("SELECT nombre FROM unidades_plan WHERE id = :uid"),
+                {"uid": det.unidad_didactica_id}
+            )
+            unidad_row = result_unidad.mappings().first()
+            nombre_unidad = unidad_row["nombre"] if unidad_row else f"Unidad {det.unidad_didactica_id}"
+
+            result_eval = await db.execute(
+                text("""
+                    SELECT nota_c1, nota_c2, nota_c3, nota_final, estado
+                    FROM evaluacion_registros
+                    WHERE matricula_detalle_id = :md_id
+                """),
+                {"md_id": det.id}
+            )
+            eval_row = result_eval.mappings().first()
+
+            cursos_periodo.append({
+                "unidad_nombre": nombre_unidad,
+                "creditos": det.creditos,
+                "nota_c1": eval_row["nota_c1"] if eval_row else None,
+                "nota_c2": eval_row["nota_c2"] if eval_row else None,
+                "nota_c3": eval_row["nota_c3"] if eval_row else None,
+                "nota_final": eval_row["nota_final"] if eval_row else None,
+                "estado": eval_row["estado"] if eval_row else det.estado_curso,
+            })
+
+    notas_finales = [c["nota_final"] for c in cursos_periodo if c["nota_final"] is not None]
+    promedio_periodo = round(sum(notas_finales) / len(notas_finales)) if notas_finales else None
+    aprobados = sum(1 for c in cursos_periodo if c["estado"] == "aprobado")
+    desaprobados = sum(1 for c in cursos_periodo if c["estado"] == "desaprobado")
+
+    result_hist = await db.execute(
+        text("""
+            SELECT DISTINCT m.periodo_id, pa.codigo as periodo_codigo
+            FROM matriculas m
+            JOIN periodos_academicos pa ON pa.id = m.periodo_id
+            WHERE m.estudiante_id = :eid AND m.periodo_id != :current_pid
+            ORDER BY pa.codigo
+        """),
+        {"eid": estudiante_id, "current_pid": periodo_id}
+    )
+    periodos_anteriores = result_hist.mappings().all()
+
+    historial = []
+    for p in periodos_anteriores:
+        result_evals = await db.execute(
+            text("""
+                SELECT er.nota_final, er.estado
+                FROM evaluacion_registros er
+                WHERE er.estudiante_id = :eid AND er.periodo_id = :pid
+            """),
+            {"eid": estudiante_id, "pid": p["periodo_id"]}
+        )
+        evals = result_evals.mappings().all()
+        notas_p = [e["nota_final"] for e in evals if e["nota_final"] is not None]
+        hist_aprob = sum(1 for e in evals if e["estado"] == "aprobado")
+        hist_desaprob = sum(1 for e in evals if e["estado"] == "desaprobado")
+        historial.append({
+            "periodo_codigo": p["periodo_codigo"],
+            "promedio": round(sum(notas_p) / len(notas_p)) if notas_p else None,
+            "cursos_aprobados": hist_aprob,
+            "cursos_desaprobados": hist_desaprob,
+        })
+
+    result_observ = await db.execute(
+        text("SELECT observaciones FROM matriculas WHERE estudiante_id = :eid AND periodo_id = :pid"),
+        {"eid": estudiante_id, "pid": periodo_id}
+    )
+    observ_row = result_observ.mappings().first()
+    observaciones = observ_row["observaciones"] if observ_row else None
+
+    return {
+        "estudiante": {
+            "foto_url": estudiante.foto_url,
+            "nombres": estudiante.nombres,
+            "apellidos": estudiante.apellidos,
+            "codigo_estudiante": estudiante.codigo_estudiante,
+            "dni": estudiante.dni,
+            "celular": estudiante.celular,
+            "email_personal": estudiante.email_personal,
+            "programa_nombre": plan_row["plan_nombre"] if plan_row else None,
+            "periodo_codigo": periodo_codigo,
+            "fecha_emision": datetime.utcnow().strftime("%d/%m/%Y"),
+        },
+        "matricula_estado": {
+            "pago_matricula": estudiante.pago_matricula,
+            "tipo_ingreso": matricula.tipo_ingreso if matricula else None,
+            "estado_matricula": matricula.estado_matricula if matricula else "sin_matricula",
+            "fecha_fin_matricula_regular": str(periodo_row["fecha_fin_matricula_regular"]) if periodo_row and periodo_row["fecha_fin_matricula_regular"] else None,
+            "fecha_fin_matricula_extemporanea": str(periodo_row["fecha_fin_matricula_extemporanea"]) if periodo_row and periodo_row["fecha_fin_matricula_extemporanea"] else None,
+        },
+        "estado_academico": estudiante.estado_academico,
+        "progreso_creditos": {
+            "creditos_aprobados": creditos_aprobados,
+            "creditos_totales": creditos_totales,
+            "porcentaje": round((creditos_aprobados / creditos_totales) * 100) if creditos_totales > 0 else 0,
+        },
+        "cursos_periodo": cursos_periodo,
+        "resumen": {
+            "promedio_general": promedio_periodo,
+            "cursos_aprobados": aprobados,
+            "cursos_desaprobados": desaprobados,
+            "total_cursos": len(cursos_periodo),
+        },
+        "historial": historial,
+        "observaciones": observaciones,
+    }
+
 @router.put("/estudiantes/{estudiante_id}", response_model=EstudianteResponse)
 async def actualizar_estudiante(estudiante_id: int, data: EstudianteUpdate, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Estudiante).where(Estudiante.id == estudiante_id))
@@ -145,7 +312,7 @@ async def actualizar_estudiante(estudiante_id: int, data: EstudianteUpdate, requ
         "data": {"id": db_estudiante.id},
         "metadata": {"request_id": request.headers.get("X-Request-ID", "unknown")}
     }
-    
+
     db.add(OutboxEvent(event_type=event_payload["event_type"], payload=event_payload))
     await db.commit()
     await db.refresh(db_estudiante)

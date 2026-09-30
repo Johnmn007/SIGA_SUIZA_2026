@@ -1,170 +1,745 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../../core/api/client';
-import { GraduationCap, BarChart3, FileText } from 'lucide-react';
+import { useAuth } from '../../core/auth/useAuth';
+import mockEvaluacion from './mockEvaluacion.json';
+
+const SECTION_TITLE = "text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em]";
 
 export function StudentReportCard() {
-  const [loading, setLoading] = useState(false);
-  const [studentId, setStudentId] = useState('1'); // Mock: Asumimos estudiante con ID 1
-  const [period, setPeriod] = useState('2026-I');
-  
-  const [studentInfo, setStudentInfo] = useState(null);
-  const [grades, setGrades] = useState([]);
+  const { user } = useAuth();
+  const userRoles = user?.roles ? user.roles.map(r => typeof r === 'string' ? r : r.nombre || r.name) : [];
+  const primaryRole = user?.is_superuser ? 'superadmin' : (userRoles.length > 0 ? userRoles[0] : (user?.role || 'invitado'));
+  const isAdmin = primaryRole !== 'estudiante';
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [data, setData] = useState(null);
+  const [periodoId, setPeriodoId] = useState('');
+  const [periodos, setPeriodos] = useState([]);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [allStudents, setAllStudents] = useState([]);
+  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [selectedStudentName, setSelectedStudentName] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef(null);
+
+  const [recentStudents, setRecentStudents] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('boletin_recent') || '[]'); } catch { return []; }
+  });
 
   useEffect(() => {
-    const fetchReportCard = async () => {
-      setLoading(true);
+    const fetchPeriodos = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const headers = { 'Authorization': `Bearer ${token}` };
-        
-        // 1. Obtener info del estudiante
-        const estRes = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${studentId}`, { headers });
-        if (estRes.ok) {
-          setStudentInfo(await estRes.json());
+        const res = await fetch(`${API_BASE}/api/mod-programas-estudio/periodos`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (res.ok) {
+          const perData = await res.json();
+          setPeriodos(perData);
+          const activo = perData.find(p => p.estado === 'en_curso' || p.estado === 'matricula_abierta');
+          if (activo) setPeriodoId(String(activo.id));
+          else if (perData.length > 0) setPeriodoId(String(perData[0].id));
         }
-        
-        // 2. Obtener las notas consolidadas (Aún no hay endpoint para esto, lo simularemos cruzando matrículas y notas)
-        // Obtener matrículas del estudiante
-        const matRes = await fetch(`${API_BASE}/api/mod-gestion-academica/matriculas/estudiante/${studentId}`, { headers });
-        let enrolledUnits = [];
-        if (matRes.ok) {
-          const matriculas = await matRes.json();
-          // Filtrar por periodo activo (esto requeriría join con Periodo en backend real, aquí filtramos mock)
-          // Asumimos que la primera matrícula es la actual
-          if (matriculas.length > 0) {
-            enrolledUnits = matriculas[0].detalles || [];
-          }
+      } catch (e) { console.error('Error fetching periodos', e); }
+    };
+    fetchPeriodos();
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const fetchStudents = async () => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAllStudents(Array.isArray(data) ? data : []);
         }
-        
-        // Para cada unidad matriculada, intentar buscar su nota (Simulación de lo que haría un endpoint de consolidado)
-        // En producción el backend mod-evaluacion debería tener: GET /registros/estudiante/{id}/periodo/{periodo_id}
-        const consolidatedGrades = [];
-        
-        for (const det of enrolledUnits) {
-          const unitId = det.unidad_didactica_id;
-          // Esto es ineficiente, pero sirve como mock hasta crear el endpoint consolidado
-          const gRes = await fetch(`${API_BASE}/api/mod-evaluacion/registros/unidad/${unitId}/periodo/1`, { headers });
-          if (gRes.ok) {
-            const allGrades = await gRes.json();
-            const myGrade = allGrades.find(g => g.estudiante_id === parseInt(studentId));
-            
-            consolidatedGrades.push({
-              unidad_id: unitId,
-              nombre: `Unidad Didáctica ${unitId}`, // En prod vendría del join con mod-programas-estudio
-              creditos: det.creditos,
-              c1: myGrade?.nota_c1 ?? '-',
-              c2: myGrade?.nota_c2 ?? '-',
-              c3: myGrade?.nota_c3 ?? '-'
-            });
-          }
-        }
-        
-        setGrades(consolidatedGrades);
-        
-      } catch (error) {
-        console.error("Error fetching report card:", error);
+      } catch (e) { console.error('Error fetching students', e); }
+      setSearchLoading(false);
+    };
+    fetchStudents();
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (searchTerm.length >= 3) {
+      const val = searchTerm.toLowerCase();
+      const filtered = allStudents.filter(s =>
+        (s.dni && s.dni.includes(searchTerm)) ||
+        (s.nombres && s.nombres.toLowerCase().includes(val)) ||
+        (s.apellidos && s.apellidos.toLowerCase().includes(val)) ||
+        (s.codigo_estudiante && s.codigo_estudiante.toLowerCase().includes(val))
+      );
+      setFilteredStudents(filtered);
+      setShowDropdown(true);
+    } else {
+      setFilteredStudents([]);
+      setShowDropdown(false);
+    }
+  }, [searchTerm, allStudents]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setShowDropdown(false);
       }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectStudent = (student) => {
+    setSelectedStudentId(student.id);
+    setSelectedStudentName(`${student.apellidos}, ${student.nombres}`);
+    setSearchTerm('');
+    setShowDropdown(false);
+    setData(null);
+    setError(null);
+
+    const entry = { id: student.id, nombres: student.nombres, apellidos: student.apellidos, codigo_estudiante: student.codigo_estudiante };
+    setRecentStudents(prev => {
+      const filtered = prev.filter(s => s.id !== student.id);
+      const updated = [entry, ...filtered].slice(0, 5);
+      localStorage.setItem('boletin_recent', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedStudentId(null);
+    setSelectedStudentName('');
+    setSearchTerm('');
+    setData(null);
+    setError(null);
+  };
+
+  const effectiveStudentId = isAdmin ? selectedStudentId : user?.id;
+
+  useEffect(() => {
+    if (!periodoId || !effectiveStudentId) {
+      setLoading(false);
+      return;
+    }
+    const fetchBoletin = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin?periodo_id=${periodoId}`,
+          { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
+        );
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'No se pudo cargar el boletín');
+        }
+        const real = await res.json();
+        const evaluacion = mockEvaluacion.evaluaciones.find(
+          e => e.codigo_estudiante === real.estudiante.codigo_estudiante
+            && e.periodo === real.estudiante.periodo_codigo
+        );
+        setData(evaluacion ? { ...real, ...evaluacion } : real);
+      } catch (e) { setError(e.message); }
       setLoading(false);
     };
-    
-    fetchReportCard();
-  }, [studentId]);
-  
-  const calculateAverage = (g) => {
-    const vals = [g.c1, g.c2, g.c3].filter(v => v !== '-' && v !== null);
-    if (vals.length === 0) return '-';
-    return Math.round(vals.reduce((a, b) => a + parseInt(b), 0) / vals.length);
-  };
-  
-  const getGradeColor = (val) => {
-    if (val === '-' || val === null) return 'text-slate-500';
-    const num = parseInt(val);
-    return num >= 13 ? 'text-blue-600 font-bold' : 'text-red-600 font-bold';
-  };
+    fetchBoletin();
+  }, [periodoId, effectiveStudentId]);
 
-  return (
-    <div className="animate-fade-in max-w-4xl mx-auto">
-      <div className="mb-8 text-center">
-        <h3 className="text-4xl font-extrabold tracking-tight text-slate-text mb-2">
-          Boletín de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Notas</span>
-        </h3>
-        <p className="text-slate-500 font-medium">Periodo Académico {period}</p>
+  const Membrete = () => (
+    <div className="text-center mb-8">
+      <div className="flex items-center justify-center gap-3 mb-2">
+        <span className="text-3xl">🎓</span>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-primary tracking-wide">SIGA</h1>
       </div>
+      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-4">Sistema de Gestión Académica</p>
+      <div className="w-full h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent mb-4"></div>
+      <h2 className="text-sm font-bold text-slate-700 uppercase tracking-[0.2em]">Boletín de Notas Oficial</h2>
+      <div className="w-16 h-0.5 bg-primary mx-auto mt-3"></div>
+    </div>
+  );
 
-      {studentInfo && (
-        <div className="glass-card p-6 mb-8 border-l-4 border-l-primary flex flex-col md:flex-row items-center gap-6">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary-soft to-slate-light flex items-center justify-center border-2 border-white">
-            <GraduationCap className="w-12 h-12 text-primary" />
-          </div>
-          <div className="flex-1">
-            <h2 className="text-2xl font-bold text-slate-text">{studentInfo.apellidos}, {studentInfo.nombres}</h2>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div>
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Código</p>
-                <p className="font-semibold text-slate-text">{studentInfo.codigo_estudiante}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">DNI</p>
-                <p className="font-semibold text-slate-text">{studentInfo.dni}</p>
+  if (loading) {
+    return (
+      <div className="animate-fade-in max-w-4xl mx-auto">
+        <Membrete />
+        <div className="space-y-5">
+          {/* Skeleton: Datos del estudiante */}
+          <div className="bg-white border border-slate-200 rounded-md p-6">
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="w-20 h-20 rounded-full bg-slate-100 animate-pulse flex-shrink-0"></div>
+              <div className="flex-1 text-center md:text-left space-y-3">
+                <div className="h-6 bg-slate-100 rounded w-64 mx-auto md:mx-0 animate-pulse"></div>
+                <div className="h-4 bg-slate-100 rounded w-48 mx-auto md:mx-0 animate-pulse"></div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="h-2.5 bg-slate-100 rounded w-14 mx-auto md:mx-0 animate-pulse"></div>
+                      <div className="h-3.5 bg-slate-100 rounded w-20 mx-auto md:mx-0 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-          <div className="bg-slate-light p-4 rounded-xl text-center min-w-[120px] shadow-sm border border-slate-100">
-            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Estado</p>
-            <span className="badge badge-green">Regular</span>
+          {/* Skeleton: Estado de matrícula */}
+          <div className="bg-white border border-slate-200 rounded-md p-5">
+            <div className="flex items-start gap-4">
+              <div className="w-9 h-9 rounded bg-slate-100 animate-pulse flex-shrink-0"></div>
+              <div className="flex-1 space-y-3">
+                <div className="h-4 bg-slate-100 rounded w-36 animate-pulse"></div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="h-2.5 bg-slate-100 rounded w-12 animate-pulse"></div>
+                      <div className="h-3.5 bg-slate-100 rounded w-20 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
+          {/* Skeleton: Progreso */}
+          <div className="bg-white border border-slate-200 rounded-md p-5">
+            <div className="flex items-center gap-4 mb-3">
+              <div className="w-9 h-9 rounded bg-slate-100 animate-pulse flex-shrink-0"></div>
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-slate-100 rounded w-40 animate-pulse"></div>
+                <div className="h-3 bg-slate-100 rounded w-56 animate-pulse"></div>
+              </div>
+              <div className="h-7 bg-slate-100 rounded w-14 animate-pulse"></div>
+            </div>
+            <div className="w-full bg-slate-100 rounded h-2 animate-pulse"></div>
+          </div>
+          {/* Skeleton: Tabla */}
+          <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
+            <div className="bg-slate-50 border-b border-slate-200 p-4">
+              <div className="h-4 bg-slate-200 rounded w-36 animate-pulse"></div>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3">
+                  <div className="h-3.5 bg-slate-100 rounded flex-1 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-4 bg-slate-100 rounded w-12 animate-pulse"></div>
+                  <div className="h-5 bg-slate-100 rounded-full w-16 animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Skeleton: Resumen */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-md p-5 text-center space-y-2">
+                <div className="h-2.5 bg-slate-100 rounded w-24 mx-auto animate-pulse"></div>
+                <div className="h-9 bg-slate-100 rounded w-14 mx-auto animate-pulse"></div>
+                <div className="h-2.5 bg-slate-100 rounded w-20 mx-auto animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="animate-fade-in max-w-4xl mx-auto">
+        <Membrete />
+        {isAdmin && (
+          <div className="mb-6" ref={searchRef}>
+            <StudentSearchBar
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              filteredStudents={filteredStudents}
+              showDropdown={showDropdown}
+              onSelect={handleSelectStudent}
+              searchLoading={searchLoading}
+              recentStudents={recentStudents}
+            />
+          </div>
+        )}
+        <div className="bg-white border border-slate-200 rounded-md py-16 text-center">
+          <div className="text-4xl mb-3">⚠️</div>
+          <p className="text-slate-700 font-semibold">{error}</p>
+          <p className="text-slate-400 text-sm mt-2">Verifica que existan matrículas y evaluaciones registradas para este periodo.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAdmin && !selectedStudentId) {
+    return (
+      <div className="animate-fade-in max-w-4xl mx-auto">
+        <Membrete />
+        <div ref={searchRef} className="mb-6">
+          <StudentSearchBar
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filteredStudents={filteredStudents}
+            showDropdown={showDropdown}
+            onSelect={handleSelectStudent}
+            searchLoading={searchLoading}
+            recentStudents={recentStudents}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="animate-fade-in max-w-4xl mx-auto">
+        <Membrete />
+        {isAdmin && (
+          <div className="mb-6" ref={searchRef}>
+            <StudentSearchBar
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              filteredStudents={filteredStudents}
+              showDropdown={showDropdown}
+              onSelect={handleSelectStudent}
+              searchLoading={searchLoading}
+              recentStudents={recentStudents}
+            />
+          </div>
+        )}
+        <div className="bg-white border border-slate-200 rounded-md py-16 text-center">
+          <div className="text-4xl mb-3 opacity-30">📄</div>
+          <p className="text-slate-600 font-medium">No hay información disponible.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { estudiante, matricula_estado, estado_academico, progreso_creditos, cursos_periodo, resumen, historial, observaciones } = data;
+
+  const getGradeColor = (val) => {
+    if (val === null || val === undefined) return 'text-slate-400';
+    return val >= 13 ? 'text-emerald-700 font-bold' : 'text-red-600 font-bold';
+  };
+
+  const getBadgeColor = (estado) => {
+    if (estado === 'aprobado') return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+    if (estado === 'desaprobado') return 'bg-red-50 text-red-700 border border-red-200';
+    return 'bg-slate-50 text-slate-600 border border-slate-200';
+  };
+
+  const handlePrint = () => window.print();
+
+  return (
+    <div className="animate-fade-in max-w-4xl mx-auto boletin-container">
+
+      {/* Print-only header */}
+      <div className="boletin-header-print print-only">
+        <div>
+          <p className="text-sm font-bold text-slate-800">SIGA — Sistema de Gestión Académica</p>
+          <p className="text-xs text-slate-500">Boletín de Notas Oficial</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-slate-500">Emisión: {estudiante?.fecha_emision}</p>
+          <p className="text-xs text-slate-500">Periodo: {estudiante?.periodo_codigo}</p>
+        </div>
+      </div>
+
+      {/* Membrete */}
+      <Membrete />
+
+      {isAdmin && selectedStudentName && (
+        <div className="no-print mb-6 bg-white border border-slate-200 rounded-md px-4 py-2.5 flex items-center justify-between">
+          <p className="text-sm text-slate-600">
+            Viendo boletín de: <span className="font-semibold text-slate-900">{selectedStudentName}</span>
+          </p>
+          <button
+            onClick={handleClearSelection}
+            className="text-xs font-semibold text-primary hover:text-primary-dark underline cursor-pointer ml-4 whitespace-nowrap"
+          >
+            Cambiar estudiante
+          </button>
         </div>
       )}
 
-      <div className="glass-card overflow-hidden">
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white p-4 flex justify-between items-center">
-          <h4 className="font-bold flex items-center text-lg">
-            <BarChart3 className="w-6 h-6 mr-2" /> Resumen Académico
-          </h4>
+      {isAdmin && !selectedStudentName && (
+        <div ref={searchRef} className="no-print mb-6">
+          <StudentSearchBar
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filteredStudents={filteredStudents}
+            showDropdown={showDropdown}
+            onSelect={handleSelectStudent}
+            searchLoading={searchLoading}
+            recentStudents={recentStudents}
+          />
         </div>
-        
-        {loading ? (
-          <div className="py-20 text-center">
-            <div className="inline-block w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4"></div>
-            <p className="text-slate-500">Generando boletín...</p>
+      )}
+
+      {/* Selector de Periodo + Botón Imprimir */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 no-print">
+        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em]">Periodo:</label>
+        <select
+          className="input-field py-2 text-sm min-w-[160px]"
+          value={periodoId}
+          onChange={(e) => setPeriodoId(e.target.value)}
+        >
+          {periodos.map(p => (
+            <option key={p.id} value={p.id}>{p.codigo}</option>
+          ))}
+        </select>
+        <button onClick={handlePrint} className="btn-primary text-sm px-4 py-2 flex items-center gap-2 ml-auto">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+          Imprimir Boletín
+        </button>
+      </div>
+
+      {/* SECCION 1: Datos del Estudiante */}
+      <div className="bg-white border border-slate-200 border-l-4 border-l-primary rounded-md p-6 mb-5 boletin-section">
+        <p className={`${SECTION_TITLE} mb-4 pb-2 border-b border-slate-100`}>Datos del Estudiante</p>
+        <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center text-3xl flex-shrink-0">
+            {estudiante.foto_url ? (
+              <img src={estudiante.foto_url} alt="Foto" className="w-full h-full rounded-full object-cover" />
+            ) : '🎓'}
           </div>
-        ) : grades.length === 0 ? (
-          <div className="py-16 text-center">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-primary-soft flex items-center justify-center text-primary"><FileText className="w-10 h-10" /></div>
-            <p className="text-slate-500 font-medium text-lg">No se encontraron calificaciones para este periodo.</p>
+          <div className="flex-1 text-center md:text-left">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{estudiante.apellidos}, {estudiante.nombres}</h2>
+            <p className="text-slate-500 text-sm mt-0.5">{estudiante.programa_nombre}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 mt-4">
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Código</p>
+                <p className="font-semibold text-slate-800 text-sm">{estudiante.codigo_estudiante}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">DNI</p>
+                <p className="font-semibold text-slate-800 text-sm">{estudiante.dni}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Celular</p>
+                <p className="font-semibold text-slate-800 text-sm">{estudiante.celular || '-'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Email</p>
+                <p className="font-semibold text-slate-800 text-sm truncate" title={estudiante.email_personal}>{estudiante.email_personal || '-'}</p>
+              </div>
+            </div>
+          </div>
+          <div className="text-center min-w-[130px] flex-shrink-0 border-l border-slate-200 pl-6">
+            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-1">Periodo</p>
+            <p className="text-lg font-extrabold text-slate-900">{estudiante.periodo_codigo}</p>
+            <p className="text-[10px] text-slate-400 mt-1.5">Emisión: {estudiante.fecha_emision}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* RESUMEN EN LENGUAJE NATURAL (solo Admin) */}
+      {isAdmin && (
+        <div className="bg-primary/5 border border-primary/20 rounded-md px-5 py-4 mb-5 boletin-section">
+          <p className="text-sm text-slate-700 leading-relaxed">
+            <span className="font-bold text-slate-900">{estudiante.apellidos}, {estudiante.nombres}</span>
+            {cursos_periodo.length === 0 ? (
+              <> aún no tiene notas registradas para este periodo.</>
+            ) : (
+              <>
+                {' '}lleva <span className="font-bold text-primary">{progreso_creditos.creditos_aprobados}</span> de <span className="font-bold">{progreso_creditos.creditos_totales}</span> créditos aprobados (<span className="font-bold text-primary">{progreso_creditos.porcentaje}%</span>).
+                Este periodo tiene <span className="font-bold text-emerald-700">{resumen.cursos_aprobados}</span> curso{resumen.cursos_aprobados !== 1 ? 's' : ''} aprobado{resumen.cursos_aprobados !== 1 ? 's' : ''} y <span className="font-bold text-red-600">{resumen.cursos_desaprobados}</span> desaprobado{resumen.cursos_desaprobados !== 1 ? 's' : ''}, con un promedio de <span className="font-bold">{resumen.promedio_general ?? '-'}</span>.
+                {' '}Su matrícula está{' '}
+                {matricula_estado.pago_matricula ? (
+                  <span className="font-bold text-emerald-700">pagada</span>
+                ) : (
+                  <span className="font-bold text-amber-600">pendiente de pago</span>
+                )}.
+                {resumen.cursos_desaprobados > 0 && (
+                  <span className="block mt-2 text-amber-700 font-semibold">⚠️ Requiere seguimiento por cursos desaprobados.</span>
+                )}
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* SECCION 2: Estado de Matrícula */}
+      <div className={`bg-white border rounded-md p-5 mb-5 boletin-section ${matricula_estado.pago_matricula ? 'border-emerald-200' : 'border-amber-200'}`}>
+        <div className="flex items-start gap-4">
+          <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 text-sm font-bold ${matricula_estado.pago_matricula ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+            {matricula_estado.pago_matricula ? '✓' : '⚠'}
+          </div>
+          <div className="flex-1">
+            <p className={`${SECTION_TITLE} mb-3`}>Estado de Matrícula</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm">
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Pago</p>
+                <p className={`font-semibold ${matricula_estado.pago_matricula ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {matricula_estado.pago_matricula ? 'Pagado' : 'Pendiente'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Tipo Ingreso</p>
+                <p className="font-semibold text-slate-800">{matricula_estado.tipo_ingreso || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Estado</p>
+                <p className="font-semibold text-slate-800 capitalize">{matricula_estado.estado_matricula}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Fin Mat. Regular</p>
+                <p className="font-semibold text-slate-800 text-xs">{matricula_estado.fecha_fin_matricula_regular ? new Date(matricula_estado.fecha_fin_matricula_regular).toLocaleDateString() : 'N/A'}</p>
+              </div>
+            </div>
+            {!matricula_estado.pago_matricula && (
+              <p className="text-amber-700 text-xs mt-3 font-medium bg-amber-50 border border-amber-200 px-3 py-1.5 rounded inline-block">
+                La matrícula tiene pagos pendientes.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* SECCION 3: Estado Académico */}
+      <div className="bg-white border border-slate-200 border-l-4 border-l-blue-500 rounded-md p-5 mb-5 boletin-section">
+        <div className="flex items-center gap-4">
+          <div className="w-9 h-9 rounded bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center flex-shrink-0 text-sm">📋</div>
+          <div>
+            <p className={`${SECTION_TITLE}`}>Estado Académico</p>
+            <p className="text-sm text-slate-700 capitalize mt-0.5 font-semibold">{estado_academico}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* SECCION 4: Progreso de Créditos */}
+      <div className="bg-white border border-slate-200 border-l-4 border-l-purple-500 rounded-md p-5 mb-5 boletin-section">
+        <div className="flex items-center gap-4 mb-3">
+          <div className="w-9 h-9 rounded bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center flex-shrink-0 text-sm">📊</div>
+          <div className="flex-1">
+            <p className={`${SECTION_TITLE}`}>Progreso de Créditos</p>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {progreso_creditos.creditos_aprobados} de {progreso_creditos.creditos_totales} créditos aprobados
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="text-2xl font-extrabold text-purple-600">{progreso_creditos.porcentaje}<span className="text-sm font-bold text-purple-400">%</span></span>
+          </div>
+        </div>
+        <div className="w-full bg-slate-100 rounded h-2 overflow-hidden progress-bar-print-hide">
+          <div
+            className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded transition-all duration-500"
+            style={{ width: `${progreso_creditos.porcentaje}%` }}
+          ></div>
+        </div>
+        <p className="text-sm text-slate-600 font-semibold progress-text-print">
+          {progreso_creditos.creditos_aprobados} de {progreso_creditos.creditos_totales} créditos aprobados ({progreso_creditos.porcentaje}%)
+        </p>
+      </div>
+
+      {/* SECCION 5: Notas por Curso */}
+      <div className="bg-white border border-slate-200 rounded-md overflow-hidden mb-5 boletin-section">
+        <div className="bg-slate-800 text-white px-5 py-3.5 flex justify-between items-center">
+          <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
+            <span className="mr-2">📚</span> Notas del Periodo
+          </h4>
+          <span className="text-xs text-slate-300 font-medium">{cursos_periodo.length} cursos</span>
+        </div>
+        {cursos_periodo.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-slate-400 font-medium text-sm">No hay cursos registrados para este periodo.</p>
           </div>
         ) : (
-          <table className="data-table w-full text-left">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200">
-                <th className="py-4 px-6 font-bold text-slate-500 uppercase text-xs tracking-wider">Unidad Didáctica</th>
-                <th className="py-4 px-4 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Créditos</th>
-                <th className="py-4 px-4 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Cap. 1</th>
-                <th className="py-4 px-4 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Cap. 2</th>
-                <th className="py-4 px-4 font-bold text-slate-500 uppercase text-xs tracking-wider text-center">Cap. 3</th>
-                <th className="py-4 px-6 font-extrabold text-slate-text uppercase text-xs tracking-wider text-center bg-slate-100/50">Promedio</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {grades.map((g, idx) => {
-                const avg = calculateAverage(g);
-                return (
-                  <tr key={idx} className="hover:bg-primary-soft/40 transition-colors">
-                    <td className="py-4 px-6 font-semibold text-slate-text">{g.nombre}</td>
-                    <td className="py-4 px-4 text-center font-medium text-slate-500">{g.creditos}</td>
-                    <td className={`py-4 px-4 text-center text-lg ${getGradeColor(g.c1)}`}>{g.c1}</td>
-                    <td className={`py-4 px-4 text-center text-lg ${getGradeColor(g.c2)}`}>{g.c2}</td>
-                    <td className={`py-4 px-4 text-center text-lg ${getGradeColor(g.c3)}`}>{g.c3}</td>
-                    <td className={`py-4 px-6 text-center text-2xl bg-slate-50/50 ${getGradeColor(avg)}`}>
-                      {avg}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left boletin-table">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="py-2.5 px-4 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em]">Curso / Unidad Didáctica</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Créditos</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 1</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 2</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 3</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase text-[10px] tracking-[0.15em] text-center bg-slate-100">Final</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {cursos_periodo.map((curso, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-2.5 px-4 font-medium text-slate-800 text-sm">{curso.unidad_nombre}</td>
+                    <td className="py-2.5 px-3 text-center text-slate-500 text-sm">{curso.creditos}</td>
+                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c1)}`}>
+                      {curso.nota_c1 ?? '-'}
+                    </td>
+                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c2)}`}>
+                      {curso.nota_c2 ?? '-'}
+                    </td>
+                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c3)}`}>
+                      {curso.nota_c3 ?? '-'}
+                    </td>
+                    <td className={`py-2.5 px-3 text-center text-base bg-slate-50/80 font-bold ${getGradeColor(curso.nota_final)}`}>
+                      {curso.nota_final ?? '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${getBadgeColor(curso.estado)}`}>
+                        {curso.estado}
+                      </span>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
+
+      {/* SECCION 6: Resumen del Rendimiento */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5 boletin-section">
+        <div className="bg-white border border-slate-200 border-t-4 border-t-primary rounded-md p-5 text-center">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Promedio General</p>
+          <p className={`text-4xl font-extrabold ${getGradeColor(resumen.promedio_general)}`}>
+            {resumen.promedio_general ?? '-'}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de 20 puntos</p>
+        </div>
+        <div className="bg-white border border-slate-200 border-t-4 border-t-emerald-500 rounded-md p-5 text-center">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Aprobados</p>
+          <p className="text-4xl font-extrabold text-emerald-700">{resumen.cursos_aprobados}</p>
+          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de {resumen.total_cursos} cursos</p>
+        </div>
+        <div className="bg-white border border-slate-200 border-t-4 border-t-red-500 rounded-md p-5 text-center">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Desaprobados</p>
+          <p className="text-4xl font-extrabold text-red-600">{resumen.cursos_desaprobados}</p>
+          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de {resumen.total_cursos} cursos</p>
+        </div>
+      </div>
+
+      {/* SECCION 7: Historial + Observaciones */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8 boletin-section">
+        {/* Historial */}
+        <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
+          <div className="bg-slate-800 text-white px-5 py-3">
+            <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
+              <span className="mr-2">📅</span> Historial de Periodos
+            </h4>
+          </div>
+          {historial.length === 0 ? (
+            <div className="py-10 text-center">
+              <p className="text-slate-400 text-sm">Sin periodos anteriores registrados.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {historial.map((h, idx) => (
+                <div key={idx} className="px-5 py-3 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-slate-800 text-sm">{h.periodo_codigo}</span>
+                    <span className={`text-lg font-extrabold ${getGradeColor(h.promedio)}`}>
+                      {h.promedio ?? '-'}
+                    </span>
+                  </div>
+                  <div className="flex gap-4 text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+                    <span className="text-emerald-700">✓ {h.cursos_aprobados} aprobados</span>
+                    <span className="text-red-600">✗ {h.cursos_desaprobados} desaprobados</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Observaciones */}
+        <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
+          <div className="bg-slate-800 text-white px-5 py-3">
+            <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
+              <span className="mr-2">📝</span> Observaciones
+            </h4>
+          </div>
+          <div className="p-5">
+            {observaciones ? (
+              <p className="text-sm text-slate-600 leading-relaxed">{observaciones}</p>
+            ) : (
+              <p className="text-slate-400 text-sm text-center py-6">Sin observaciones registradas.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* PIE DE PÁGINA */}
+      <div className="border-t border-slate-300 pt-6 pb-4 mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+          <div>
+            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-1">Secretaría Académica</p>
+            <div className="w-48 border-b border-slate-400 mb-1"></div>
+            <p className="text-[10px] text-slate-400">Firma y sello</p>
+          </div>
+          <p className="text-[10px] text-slate-400 text-right">
+            Documento generado el {estudiante.fecha_emision} por el Sistema SIGA
+          </p>
+        </div>
+      </div>
+
+      {/* Print-only footer */}
+      <div className="boletin-footer-print print-only">
+        <p>Documento generado por SIGA — Sistema de Gestión Académica</p>
+        <p>Este boletín es un documento informativo. Para versiones oficiales, consulte con la institución.</p>
+      </div>
+
+    </div>
+  );
+}
+
+function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDropdown, onSelect, searchLoading, recentStudents }) {
+  const showRecent = showDropdown && searchTerm.length === 0 && recentStudents.length > 0;
+  const showResults = showDropdown && searchTerm.length >= 3;
+
+  return (
+    <div className="relative">
+      <div className="bg-white border border-slate-200 rounded-md flex items-center gap-2 px-4 py-2 shadow-sm">
+        <span className="px-1 text-slate-400 text-lg">🔍</span>
+        <input
+          type="text"
+          className="w-full bg-transparent border-none focus:ring-0 py-1.5 text-slate-700 placeholder-slate-400 outline-none text-sm"
+          placeholder="Buscar estudiante por DNI, nombre, apellido o código..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onFocus={() => setShowDropdown(true)}
+        />
+        {searchLoading && <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin"></div>}
+      </div>
+
+      {showRecent && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg">
+          <p className="px-4 pt-3 pb-1 text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Consultados recientemente</p>
+          {recentStudents.map((student) => (
+            <button
+              key={student.id}
+              onClick={() => onSelect(student)}
+              className="w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 cursor-pointer"
+            >
+              <p className="font-semibold text-slate-800 text-sm">{student.apellidos}, {student.nombres}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Cód: {student.codigo_estudiante}</p>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {showResults && filteredStudents.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+          {filteredStudents.map((student) => (
+            <button
+              key={student.id}
+              onClick={() => onSelect(student)}
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 cursor-pointer"
+            >
+              <p className="font-semibold text-slate-800 text-sm">{student.apellidos}, {student.nombres}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Cód: {student.codigo_estudiante} · DNI: {student.dni}</p>
+            </button>
+          ))}
+        </div>
+      )}
+      {showResults && searchTerm.length >= 3 && filteredStudents.length === 0 && !searchLoading && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg p-4 text-center">
+          <p className="text-slate-400 text-sm">No se encontraron estudiantes con "{searchTerm}"</p>
+        </div>
+      )}
     </div>
   );
 }
