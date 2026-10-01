@@ -1,194 +1,248 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
+import mockEvaluacion from './mockEvaluacion.json';
 
-const calcularPromedio = (c1, c2, c3) => {
-  const notas = [c1, c2, c3].filter(n => n !== null && n !== undefined);
-  if (notas.length === 0) return null;
-  return Math.round(notas.reduce((a, b) => a + b, 0) / notas.length);
-};
-
-const getEstado = (promedio) => {
-  if (promedio === null) return { label: 'Cursando', color: 'bg-slate-100 text-slate-600' };
-  if (promedio >= 14) return { label: 'Aprobado', color: 'bg-emerald-100 text-emerald-700' };
-  if (promedio >= 11) return { label: 'Por Recuperar', color: 'bg-amber-100 text-amber-700' };
-  return { label: 'Desaprobado', color: 'bg-red-100 text-red-700' };
-};
-
-const getNotaColor = (nota) => {
-  if (nota === null || nota === undefined) return 'text-slate-400';
-  if (nota >= 14) return 'text-emerald-600 font-semibold';
-  if (nota >= 11) return 'text-amber-600 font-semibold';
-  return 'text-red-600 font-semibold';
-};
-
-const getTendencia = (actual, anterior) => {
-  if (anterior === null || actual === null) return null;
-  const diff = actual - anterior;
-  if (diff > 0) return { icon: '↑', color: 'text-emerald-500', text: `+${diff}` };
-  if (diff < 0) return { icon: '↓', color: 'text-red-500', text: `${diff}` };
-  return { icon: '→', color: 'text-slate-400', text: '=' };
-};
+const SECTION_TITLE = "text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em]";
 
 export function StudentReportCard() {
   const { user } = useAuth();
+  const userRoles = user?.roles ? user.roles.map(r => typeof r === 'string' ? r : r.nombre || r.name) : [];
+  const primaryRole = user?.is_superuser ? 'superadmin' : (userRoles.length > 0 ? userRoles[0] : (user?.role || 'invitado'));
+  const isAdmin = primaryRole !== 'estudiante';
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [studentInfo, setStudentInfo] = useState(null);
-  const [matriculas, setMatriculas] = useState([]);
-  const [grades, setGrades] = useState([]);
-  const [selectedPeriod, setSelectedPeriod] = useState(null);
-  const [showDetail, setShowDetail] = useState(null);
-  const [activeTab, setActiveTab] = useState('actual');
-  const [tramiteModal, setTramiteModal] = useState(null);
-  const [tramiteForm, setTramiteForm] = useState({ motivo: '', detalles: '' });
-  const [tramiteConfirmado, setTramiteConfirmado] = useState(false);
+  const [data, setData] = useState(null);
+  const [periodoId, setPeriodoId] = useState('');
+  const [periodos, setPeriodos] = useState([]);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [allStudents, setAllStudents] = useState([]);
+  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [selectedStudentName, setSelectedStudentName] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef(null);
+
+  const [recentStudents, setRecentStudents] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('boletin_recent') || '[]'); } catch { return []; }
+  });
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchPeriodos = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/mod-programas-estudio/periodos`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (res.ok) {
+          const perData = await res.json();
+          setPeriodos(perData);
+          const activo = perData.find(p => p.estado === 'en_curso' || p.estado === 'matricula_abierta');
+          if (activo) setPeriodoId(String(activo.id));
+          else if (perData.length > 0) setPeriodoId(String(perData[0].id));
+        }
+      } catch (e) { console.error('Error fetching periodos', e); }
+    };
+    fetchPeriodos();
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const fetchStudents = async () => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAllStudents(Array.isArray(data) ? data : []);
+        }
+      } catch (e) { console.error('Error fetching students', e); }
+      setSearchLoading(false);
+    };
+    fetchStudents();
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (searchTerm.length >= 3) {
+      const val = searchTerm.toLowerCase();
+      const filtered = allStudents.filter(s =>
+        (s.dni && s.dni.includes(searchTerm)) ||
+        (s.nombres && s.nombres.toLowerCase().includes(val)) ||
+        (s.apellidos && s.apellidos.toLowerCase().includes(val)) ||
+        (s.codigo_estudiante && s.codigo_estudiante.toLowerCase().includes(val))
+      );
+      setFilteredStudents(filtered);
+      setShowDropdown(true);
+    } else {
+      setFilteredStudents([]);
+      setShowDropdown(false);
+    }
+  }, [searchTerm, allStudents]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectStudent = (student) => {
+    setSelectedStudentId(student.id);
+    setSelectedStudentName(`${student.apellidos}, ${student.nombres}`);
+    setSearchTerm('');
+    setShowDropdown(false);
+    setData(null);
+    setError(null);
+
+    const entry = { id: student.id, nombres: student.nombres, apellidos: student.apellidos, codigo_estudiante: student.codigo_estudiante };
+    setRecentStudents(prev => {
+      const filtered = prev.filter(s => s.id !== student.id);
+      const updated = [entry, ...filtered].slice(0, 5);
+      localStorage.setItem('boletin_recent', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedStudentId(null);
+    setSelectedStudentName('');
+    setSearchTerm('');
+    setData(null);
+    setError(null);
+  };
+
+  const effectiveStudentId = isAdmin ? selectedStudentId : user?.id;
+
+  useEffect(() => {
+    if (!periodoId || !effectiveStudentId) {
+      setLoading(false);
+      return;
+    }
+    const fetchBoletin = async () => {
       setLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem('token');
-        const headers = { 'Authorization': `Bearer ${token}` };
-
-        // Get student ID from user context or use test ID
-        const studentId = user?.id || 2315;
-
-        // Fetch student info
-        const estRes = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${studentId}`, { headers });
-        if (estRes.ok) {
-          const estData = await estRes.json();
-          setStudentInfo(estData);
+        const res = await fetch(
+          `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin?periodo_id=${periodoId}`,
+          { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
+        );
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'No se pudo cargar el boletín');
         }
-
-        // Fetch matriculas
-        const matRes = await fetch(`${API_BASE}/api/mod-gestion-academica/matriculas/estudiante/${studentId}`, { headers });
-        if (matRes.ok) {
-          const matData = await matRes.json();
-          setMatriculas(matData);
-          if (matData.length > 0) {
-            setSelectedPeriod(matData[0].periodo_id);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        setError('Error al cargar los datos');
-      }
+        const real = await res.json();
+        const evaluacion = mockEvaluacion.evaluaciones.find(
+          e => e.codigo_estudiante === real.estudiante.codigo_estudiante
+            && e.periodo === real.estudiante.periodo_codigo
+        );
+        setData(evaluacion ? { ...real, ...evaluacion } : real);
+      } catch (e) { setError(e.message); }
       setLoading(false);
     };
+    fetchBoletin();
+  }, [periodoId, effectiveStudentId]);
 
-    fetchData();
-  }, [user]);
-
-  useEffect(() => {
-    const fetchGrades = async () => {
-      if (!selectedPeriod || matriculas.length === 0) return;
-
-      const token = localStorage.getItem('token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-
-      const currentMatricula = matriculas.find(m => m.periodo_id === selectedPeriod) || matriculas[0];
-      if (!currentMatricula) return;
-
-      const allGrades = [];
-      for (const det of currentMatricula.detalles) {
-        try {
-          const gRes = await fetch(
-            `${API_BASE}/api/mod-evaluacion/registros/unidad/${det.unidad_didactica_id}/periodo/${selectedPeriod}`,
-            { headers }
-          );
-          if (gRes.ok) {
-            const gData = await gRes.json();
-            if (gData.length > 0) {
-              allGrades.push({
-                ...gData[0],
-                creditos: det.creditos,
-                unidad_didactica_id: det.unidad_didactica_id,
-              });
-            }
-          }
-        } catch (err) {
-          console.error('Error fetching grades:', err);
-        }
-      }
-      setGrades(allGrades);
-    };
-
-    fetchGrades();
-  }, [selectedPeriod, matriculas]);
-
-  const gradesWithAvg = useMemo(() =>
-    grades.map(g => ({
-      ...g,
-      promedio: g.nota_final || calcularPromedio(g.nota_c1, g.nota_c2, g.nota_c3),
-    })),
-    [grades]
+  const Membrete = () => (
+    <div className="text-center mb-8">
+      <div className="flex items-center justify-center gap-3 mb-2">
+        <span className="text-3xl">🎓</span>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-primary tracking-wide">SIGA</h1>
+      </div>
+      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-4">Sistema de Gestión Académica</p>
+      <div className="w-full h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent mb-4"></div>
+      <h2 className="text-sm font-bold text-slate-700 uppercase tracking-[0.2em]">Boletín de Notas Oficial</h2>
+      <div className="w-16 h-0.5 bg-primary mx-auto mt-3"></div>
+    </div>
   );
-
-  const stats = useMemo(() => {
-    const promedios = gradesWithAvg.map(g => g.promedio).filter(p => p !== null);
-    const promedioGeneral = promedios.length > 0
-      ? Math.round(promedios.reduce((a, b) => a + b, 0) / promedios.length)
-      : 0;
-    const aprobados = gradesWithAvg.filter(g => g.promedio >= 14).length;
-    const desaprobados = gradesWithAvg.filter(g => g.promedio !== null && g.promedio < 11).length;
-    const porRecuperar = gradesWithAvg.filter(g => g.promedio >= 11 && g.promedio < 14).length;
-    const totalCreditos = gradesWithAvg.reduce((sum, g) => sum + (g.creditos || 0), 0);
-    const creditosAprobados = gradesWithAvg.filter(g => g.promedio >= 14).reduce((sum, g) => sum + (g.creditos || 0), 0);
-    return { promedioGeneral, aprobados, desaprobados, porRecuperar, totalCreditos, creditosAprobados };
-  }, [gradesWithAvg]);
-
-  const ranking = useMemo(() => {
-    const seed = selectedPeriod * 7 + (studentInfo?.id || 0);
-    const pos = (seed % 28) + 3;
-    return { posicion: pos, total: 35 };
-  }, [selectedPeriod, studentInfo]);
-
-  const getBarHeight = (nota) => {
-    if (nota === null) return 0;
-    return (nota / 20) * 100;
-  };
-
-  const handleTramite = (tipo) => {
-    setTramiteModal(tipo);
-    setTramiteForm({ motivo: '', detalles: '' });
-    setTramiteConfirmado(false);
-  };
-
-  const submitTramite = () => {
-    setTramiteConfirmado(true);
-    setTimeout(() => {
-      setTramiteModal(null);
-      setTramiteConfirmado(false);
-    }, 2000);
-  };
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="h-8 w-48 bg-slate-200 rounded animate-pulse"></div>
-            <div className="h-4 w-32 bg-slate-200 rounded animate-pulse mt-2"></div>
-          </div>
-        </div>
-        <div className="glass-card p-6">
-          <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-full bg-slate-200 animate-pulse"></div>
-            <div className="flex-1 space-y-3">
-              <div className="h-4 w-32 bg-slate-200 rounded animate-pulse"></div>
-              <div className="h-4 w-48 bg-slate-200 rounded animate-pulse"></div>
+      <div className="animate-fade-in max-w-4xl mx-auto">
+        <Membrete />
+        <div className="space-y-5">
+          {/* Skeleton: Datos del estudiante */}
+          <div className="bg-white border border-slate-200 rounded-md p-6">
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="w-20 h-20 rounded-full bg-slate-100 animate-pulse flex-shrink-0"></div>
+              <div className="flex-1 text-center md:text-left space-y-3">
+                <div className="h-6 bg-slate-100 rounded w-64 mx-auto md:mx-0 animate-pulse"></div>
+                <div className="h-4 bg-slate-100 rounded w-48 mx-auto md:mx-0 animate-pulse"></div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="h-2.5 bg-slate-100 rounded w-14 mx-auto md:mx-0 animate-pulse"></div>
+                      <div className="h-3.5 bg-slate-100 rounded w-20 mx-auto md:mx-0 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="glass-card p-4">
-              <div className="h-3 w-20 bg-slate-200 rounded animate-pulse"></div>
-              <div className="h-8 w-12 bg-slate-200 rounded animate-pulse mt-2"></div>
+          {/* Skeleton: Estado de matrícula */}
+          <div className="bg-white border border-slate-200 rounded-md p-5">
+            <div className="flex items-start gap-4">
+              <div className="w-9 h-9 rounded bg-slate-100 animate-pulse flex-shrink-0"></div>
+              <div className="flex-1 space-y-3">
+                <div className="h-4 bg-slate-100 rounded w-36 animate-pulse"></div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="h-2.5 bg-slate-100 rounded w-12 animate-pulse"></div>
+                      <div className="h-3.5 bg-slate-100 rounded w-20 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          ))}
+          </div>
+          {/* Skeleton: Progreso */}
+          <div className="bg-white border border-slate-200 rounded-md p-5">
+            <div className="flex items-center gap-4 mb-3">
+              <div className="w-9 h-9 rounded bg-slate-100 animate-pulse flex-shrink-0"></div>
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-slate-100 rounded w-40 animate-pulse"></div>
+                <div className="h-3 bg-slate-100 rounded w-56 animate-pulse"></div>
+              </div>
+              <div className="h-7 bg-slate-100 rounded w-14 animate-pulse"></div>
+            </div>
+            <div className="w-full bg-slate-100 rounded h-2 animate-pulse"></div>
+          </div>
+          {/* Skeleton: Tabla */}
+          <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
+            <div className="bg-slate-50 border-b border-slate-200 p-4">
+              <div className="h-4 bg-slate-200 rounded w-36 animate-pulse"></div>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3">
+                  <div className="h-3.5 bg-slate-100 rounded flex-1 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
+                  <div className="h-4 bg-slate-100 rounded w-12 animate-pulse"></div>
+                  <div className="h-5 bg-slate-100 rounded-full w-16 animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Skeleton: Resumen */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-md p-5 text-center space-y-2">
+                <div className="h-2.5 bg-slate-100 rounded w-24 mx-auto animate-pulse"></div>
+                <div className="h-9 bg-slate-100 rounded w-14 mx-auto animate-pulse"></div>
+                <div className="h-2.5 bg-slate-100 rounded w-20 mx-auto animate-pulse"></div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -196,455 +250,496 @@ export function StudentReportCard() {
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto">
-        <div className="glass-card p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+      <div className="animate-fade-in max-w-4xl mx-auto">
+        <Membrete />
+        {isAdmin && (
+          <div className="mb-6" ref={searchRef}>
+            <StudentSearchBar
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              filteredStudents={filteredStudents}
+              showDropdown={showDropdown}
+              onSelect={handleSelectStudent}
+              searchLoading={searchLoading}
+              recentStudents={recentStudents}
+            />
           </div>
-          <h3 className="font-semibold text-slate-800 mb-2">Error al cargar datos</h3>
-          <p className="text-slate-500">{error}</p>
+        )}
+        <div className="bg-white border border-slate-200 rounded-md py-16 text-center">
+          <div className="text-4xl mb-3">⚠️</div>
+          <p className="text-slate-700 font-semibold">{error}</p>
+          <p className="text-slate-400 text-sm mt-2">Verifica que existan matrículas y evaluaciones registradas para este periodo.</p>
         </div>
       </div>
     );
   }
 
-  const currentMatricula = matriculas.find(m => m.periodo_id === selectedPeriod) || matriculas[0];
+  if (isAdmin && !selectedStudentId) {
+    return (
+      <div className="animate-fade-in max-w-4xl mx-auto">
+        <Membrete />
+        <div ref={searchRef} className="mb-6">
+          <StudentSearchBar
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filteredStudents={filteredStudents}
+            showDropdown={showDropdown}
+            onSelect={handleSelectStudent}
+            searchLoading={searchLoading}
+            recentStudents={recentStudents}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="animate-fade-in max-w-4xl mx-auto">
+        <Membrete />
+        {isAdmin && (
+          <div className="mb-6" ref={searchRef}>
+            <StudentSearchBar
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              filteredStudents={filteredStudents}
+              showDropdown={showDropdown}
+              onSelect={handleSelectStudent}
+              searchLoading={searchLoading}
+              recentStudents={recentStudents}
+            />
+          </div>
+        )}
+        <div className="bg-white border border-slate-200 rounded-md py-16 text-center">
+          <div className="text-4xl mb-3 opacity-30">📄</div>
+          <p className="text-slate-600 font-medium">No hay información disponible.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { estudiante, matricula_estado, estado_academico, progreso_creditos, cursos_periodo, resumen, historial, observaciones } = data;
+
+  const getGradeColor = (val) => {
+    if (val === null || val === undefined) return 'text-slate-400';
+    return val >= 13 ? 'text-emerald-700 font-bold' : 'text-red-600 font-bold';
+  };
+
+  const getBadgeColor = (estado) => {
+    if (estado === 'aprobado') return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+    if (estado === 'desaprobado') return 'bg-red-50 text-red-700 border border-red-200';
+    return 'bg-slate-50 text-slate-600 border border-slate-200';
+  };
+
+  const handlePrint = () => window.print();
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="animate-fade-in max-w-4xl mx-auto boletin-container">
+
+      {/* Print-only header */}
+      <div className="boletin-header-print print-only">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Boletin de Notas</h1>
-          <p className="text-slate-500 text-sm mt-1">Consulta tu rendimiento academico</p>
+          <p className="text-sm font-bold text-slate-800">SIGA — Sistema de Gestión Académica</p>
+          <p className="text-xs text-slate-500">Boletín de Notas Oficial</p>
         </div>
-        <div className="flex items-center gap-3">
-          <select
-            value={selectedPeriod || ''}
-            onChange={(e) => setSelectedPeriod(Number(e.target.value))}
-            className="input-field w-auto text-sm"
+        <div className="text-right">
+          <p className="text-xs text-slate-500">Emisión: {estudiante?.fecha_emision}</p>
+          <p className="text-xs text-slate-500">Periodo: {estudiante?.periodo_codigo}</p>
+        </div>
+      </div>
+
+      {/* Membrete */}
+      <Membrete />
+
+      {isAdmin && selectedStudentName && (
+        <div className="no-print mb-6 bg-white border border-slate-200 rounded-md px-4 py-2.5 flex items-center justify-between">
+          <p className="text-sm text-slate-600">
+            Viendo boletín de: <span className="font-semibold text-slate-900">{selectedStudentName}</span>
+          </p>
+          <button
+            onClick={handleClearSelection}
+            className="text-xs font-semibold text-primary hover:text-primary-dark underline cursor-pointer ml-4 whitespace-nowrap"
           >
-            {matriculas.map(m => (
-              <option key={m.id} value={m.periodo_id}>Periodo {m.periodo_id}</option>
-            ))}
-          </select>
-          <button className="btn-primary text-sm flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            PDF
+            Cambiar estudiante
           </button>
         </div>
-      </div>
+      )}
 
-      {/* Student Info Card */}
-      {studentInfo && (
-        <div className="glass-card p-6">
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-5">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xl font-bold shadow-lg">
-              {studentInfo.nombres?.charAt(0)}{studentInfo.apellidos?.charAt(0)}
-            </div>
-            <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div>
-                <p className="text-xs text-slate-400 uppercase tracking-wide">Codigo</p>
-                <p className="font-semibold text-slate-700">{studentInfo.codigo_estudiante}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 uppercase tracking-wide">Nombre</p>
-                <p className="font-semibold text-slate-700">{studentInfo.apellidos}, {studentInfo.nombres}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 uppercase tracking-wide">DNI</p>
-                <p className="font-semibold text-slate-700">{studentInfo.dni}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 uppercase tracking-wide">Programa</p>
-                <p className="font-semibold text-slate-700">{studentInfo.programa_id || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 uppercase tracking-wide">Estado</p>
-                <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
-                  {studentInfo.estado_academico || 'Activo'}
-                </span>
-              </div>
-            </div>
-          </div>
+      {isAdmin && !selectedStudentName && (
+        <div ref={searchRef} className="no-print mb-6">
+          <StudentSearchBar
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filteredStudents={filteredStudents}
+            showDropdown={showDropdown}
+            onSelect={handleSelectStudent}
+            searchLoading={searchLoading}
+            recentStudents={recentStudents}
+          />
         </div>
       )}
 
-      {/* Credit Progress Bar */}
-      <div className="glass-card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-slate-700">Progreso de Creditos</h3>
-          <span className="text-sm text-slate-500">{stats.creditosAprobados} / 200 creditos</span>
-        </div>
-        <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden">
-          <div
-            className="bg-gradient-to-r from-blue-500 to-blue-600 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
-            style={{ width: `${Math.min((stats.creditosAprobados / 200) * 100, 100)}%` }}
-          >
-            <span className="text-[10px] font-bold text-white">{Math.round((stats.creditosAprobados / 200) * 100)}%</span>
+      {/* Selector de Periodo + Botón Imprimir */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 no-print">
+        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em]">Periodo:</label>
+        <select
+          className="input-field py-2 text-sm min-w-[160px]"
+          value={periodoId}
+          onChange={(e) => setPeriodoId(e.target.value)}
+        >
+          {periodos.map(p => (
+            <option key={p.id} value={p.id}>{p.codigo}</option>
+          ))}
+        </select>
+        <button onClick={handlePrint} className="btn-primary text-sm px-4 py-2 flex items-center gap-2 ml-auto">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+          Imprimir Boletín
+        </button>
+      </div>
+
+      {/* SECCION 1: Datos del Estudiante */}
+      <div className="bg-white border border-slate-200 border-l-4 border-l-primary rounded-md p-6 mb-5 boletin-section">
+        <p className={`${SECTION_TITLE} mb-4 pb-2 border-b border-slate-100`}>Datos del Estudiante</p>
+        <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center text-3xl flex-shrink-0">
+            {estudiante.foto_url ? (
+              <img src={estudiante.foto_url} alt="Foto" className="w-full h-full rounded-full object-cover" />
+            ) : '🎓'}
+          </div>
+          <div className="flex-1 text-center md:text-left">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{estudiante.apellidos}, {estudiante.nombres}</h2>
+            <p className="text-slate-500 text-sm mt-0.5">{estudiante.programa_nombre}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 mt-4">
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Código</p>
+                <p className="font-semibold text-slate-800 text-sm">{estudiante.codigo_estudiante}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">DNI</p>
+                <p className="font-semibold text-slate-800 text-sm">{estudiante.dni}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Celular</p>
+                <p className="font-semibold text-slate-800 text-sm">{estudiante.celular || '-'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Email</p>
+                <p className="font-semibold text-slate-800 text-sm truncate" title={estudiante.email_personal}>{estudiante.email_personal || '-'}</p>
+              </div>
+            </div>
+          </div>
+          <div className="text-center min-w-[130px] flex-shrink-0 border-l border-slate-200 pl-6">
+            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-1">Periodo</p>
+            <p className="text-lg font-extrabold text-slate-900">{estudiante.periodo_codigo}</p>
+            <p className="text-[10px] text-slate-400 mt-1.5">Emisión: {estudiante.fecha_emision}</p>
           </div>
         </div>
-        <div className="flex justify-between mt-2 text-xs text-slate-400">
-          <span>Inicio</span>
-          <span>25% - Auxiliar</span>
-          <span>50% - Tecnico</span>
-          <span>75% - Pre-profesional</span>
-          <span>100% - Profesional</span>
+      </div>
+
+      {/* RESUMEN EN LENGUAJE NATURAL (solo Admin) */}
+      {isAdmin && (
+        <div className="bg-primary/5 border border-primary/20 rounded-md px-5 py-4 mb-5 boletin-section">
+          <p className="text-sm text-slate-700 leading-relaxed">
+            <span className="font-bold text-slate-900">{estudiante.apellidos}, {estudiante.nombres}</span>
+            {cursos_periodo.length === 0 ? (
+              <> aún no tiene notas registradas para este periodo.</>
+            ) : (
+              <>
+                {' '}lleva <span className="font-bold text-primary">{progreso_creditos.creditos_aprobados}</span> de <span className="font-bold">{progreso_creditos.creditos_totales}</span> créditos aprobados (<span className="font-bold text-primary">{progreso_creditos.porcentaje}%</span>).
+                Este periodo tiene <span className="font-bold text-emerald-700">{resumen.cursos_aprobados}</span> curso{resumen.cursos_aprobados !== 1 ? 's' : ''} aprobado{resumen.cursos_aprobados !== 1 ? 's' : ''} y <span className="font-bold text-red-600">{resumen.cursos_desaprobados}</span> desaprobado{resumen.cursos_desaprobados !== 1 ? 's' : ''}, con un promedio de <span className="font-bold">{resumen.promedio_general ?? '-'}</span>.
+                {' '}Su matrícula está{' '}
+                {matricula_estado.pago_matricula ? (
+                  <span className="font-bold text-emerald-700">pagada</span>
+                ) : (
+                  <span className="font-bold text-amber-600">pendiente de pago</span>
+                )}.
+                {resumen.cursos_desaprobados > 0 && (
+                  <span className="block mt-2 text-amber-700 font-semibold">⚠️ Requiere seguimiento por cursos desaprobados.</span>
+                )}
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* SECCION 2: Estado de Matrícula */}
+      <div className={`bg-white border rounded-md p-5 mb-5 boletin-section ${matricula_estado.pago_matricula ? 'border-emerald-200' : 'border-amber-200'}`}>
+        <div className="flex items-start gap-4">
+          <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 text-sm font-bold ${matricula_estado.pago_matricula ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+            {matricula_estado.pago_matricula ? '✓' : '⚠'}
+          </div>
+          <div className="flex-1">
+            <p className={`${SECTION_TITLE} mb-3`}>Estado de Matrícula</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm">
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Pago</p>
+                <p className={`font-semibold ${matricula_estado.pago_matricula ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {matricula_estado.pago_matricula ? 'Pagado' : 'Pendiente'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Tipo Ingreso</p>
+                <p className="font-semibold text-slate-800">{matricula_estado.tipo_ingreso || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Estado</p>
+                <p className="font-semibold text-slate-800 capitalize">{matricula_estado.estado_matricula}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Fin Mat. Regular</p>
+                <p className="font-semibold text-slate-800 text-xs">{matricula_estado.fecha_fin_matricula_regular ? new Date(matricula_estado.fecha_fin_matricula_regular).toLocaleDateString() : 'N/A'}</p>
+              </div>
+            </div>
+            {!matricula_estado.pago_matricula && (
+              <p className="text-amber-700 text-xs mt-3 font-medium bg-amber-50 border border-amber-200 px-3 py-1.5 rounded inline-block">
+                La matrícula tiene pagos pendientes.
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="glass-card p-4 text-center">
-          <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Promedio</p>
-          <p className={`text-3xl font-bold ${getNotaColor(stats.promedioGeneral)}`}>{stats.promedioGeneral}</p>
-          <p className="text-xs text-slate-400 mt-1">de 20</p>
-        </div>
-        <div className="glass-card p-4 text-center">
-          <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Aprobados</p>
-          <p className="text-3xl font-bold text-emerald-600">{stats.aprobados}</p>
-          <p className="text-xs text-slate-400 mt-1">cursos</p>
-        </div>
-        <div className="glass-card p-4 text-center">
-          <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Por Recuperar</p>
-          <p className="text-3xl font-bold text-amber-600">{stats.porRecuperar}</p>
-          <p className="text-xs text-slate-400 mt-1">cursos</p>
-        </div>
-        <div className="glass-card p-4 text-center">
-          <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Desaprobados</p>
-          <p className="text-3xl font-bold text-red-600">{stats.desaprobados}</p>
-          <p className="text-xs text-slate-400 mt-1">cursos</p>
-        </div>
-        <div className="glass-card p-4 text-center">
-          <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Ranking</p>
-          <p className="text-3xl font-bold text-blue-600">#{ranking.posicion}</p>
-          <p className="text-xs text-slate-400">de {ranking.total}</p>
-        </div>
-      </div>
-
-      {/* Alert Banner */}
-      {stats.desaprobados > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-          <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
+      {/* SECCION 3: Estado Académico */}
+      <div className="bg-white border border-slate-200 border-l-4 border-l-blue-500 rounded-md p-5 mb-5 boletin-section">
+        <div className="flex items-center gap-4">
+          <div className="w-9 h-9 rounded bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center flex-shrink-0 text-sm">📋</div>
           <div>
-            <p className="font-semibold text-red-800">Atencion - Cursos Desaprobados</p>
-            <p className="text-sm text-red-700">
-              Tienes {stats.desaprobados} curso(s) desaprobado(s). Consulta con tu coordinador para opciones de recuperacion.
+            <p className={`${SECTION_TITLE}`}>Estado Académico</p>
+            <p className="text-sm text-slate-700 capitalize mt-0.5 font-semibold">{estado_academico}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* SECCION 4: Progreso de Créditos */}
+      <div className="bg-white border border-slate-200 border-l-4 border-l-purple-500 rounded-md p-5 mb-5 boletin-section">
+        <div className="flex items-center gap-4 mb-3">
+          <div className="w-9 h-9 rounded bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center flex-shrink-0 text-sm">📊</div>
+          <div className="flex-1">
+            <p className={`${SECTION_TITLE}`}>Progreso de Créditos</p>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {progreso_creditos.creditos_aprobados} de {progreso_creditos.creditos_totales} créditos aprobados
             </p>
           </div>
+          <div className="text-right">
+            <span className="text-2xl font-extrabold text-purple-600">{progreso_creditos.porcentaje}<span className="text-sm font-bold text-purple-400">%</span></span>
+          </div>
         </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-        <button
-          onClick={() => setActiveTab('actual')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'actual' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'
-          }`}
-        >
-          Periodo Actual
-        </button>
-        <button
-          onClick={() => setActiveTab('historial')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'historial' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'
-          }`}
-        >
-          Historial
-        </button>
-        <button
-          onClick={() => setActiveTab('tramites')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'tramites' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'
-          }`}
-        >
-          Tramites
-        </button>
+        <div className="w-full bg-slate-100 rounded h-2 overflow-hidden progress-bar-print-hide">
+          <div
+            className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded transition-all duration-500"
+            style={{ width: `${progreso_creditos.porcentaje}%` }}
+          ></div>
+        </div>
+        <p className="text-sm text-slate-600 font-semibold progress-text-print">
+          {progreso_creditos.creditos_aprobados} de {progreso_creditos.creditos_totales} créditos aprobados ({progreso_creditos.porcentaje}%)
+        </p>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 'actual' && (
-        <div className="space-y-6">
-          {/* Grades Table */}
-          <div className="glass-card overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100">
-              <h2 className="font-semibold text-slate-800">Calificaciones por Asignatura</h2>
-              <p className="text-sm text-slate-500 mt-1">Periodo {selectedPeriod}</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-slate-50/80">
-                    <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Unidad</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cred.</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">C1</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">C2</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">C3</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Prom.</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {gradesWithAvg.map((g) => {
-                    const estado = getEstado(g.promedio);
-                    return (
-                      <tr key={g.id} className="hover:bg-blue-50/30 transition-colors">
-                        <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                          Unidad Didactica {g.unidad_didactica_id}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-center text-slate-500">{g.creditos}</td>
-                        <td className={`px-4 py-4 text-sm text-center ${getNotaColor(g.nota_c1)}`}>{g.nota_c1 ?? '-'}</td>
-                        <td className={`px-4 py-4 text-sm text-center ${getNotaColor(g.nota_c2)}`}>{g.nota_c2 ?? '-'}</td>
-                        <td className={`px-4 py-4 text-sm text-center ${getNotaColor(g.nota_c3)}`}>{g.nota_c3 ?? '-'}</td>
-                        <td className={`px-4 py-4 text-sm text-center font-bold ${getNotaColor(g.promedio)}`}>{g.promedio ?? '-'}</td>
-                        <td className="px-4 py-4 text-center">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${estado.color}`}>
-                            {estado.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <button
-                            onClick={() => setShowDetail(showDetail === g.id ? null : g.id)}
-                            className="text-blue-500 hover:text-blue-700 text-sm"
-                          >
-                            {showDetail === g.id ? 'Ocultar' : 'Detalle'}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+      {/* SECCION 5: Notas por Curso */}
+      <div className="bg-white border border-slate-200 rounded-md overflow-hidden mb-5 boletin-section">
+        <div className="bg-slate-800 text-white px-5 py-3.5 flex justify-between items-center">
+          <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
+            <span className="mr-2">📚</span> Notas del Periodo
+          </h4>
+          <span className="text-xs text-slate-300 font-medium">{cursos_periodo.length} cursos</span>
+        </div>
+        {cursos_periodo.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-slate-400 font-medium text-sm">No hay cursos registrados para este periodo.</p>
           </div>
-
-          {/* Detail Modal */}
-          {showDetail && (
-            <div className="glass-card p-6 border-l-4 border-l-blue-500">
-              {(() => {
-                const g = gradesWithAvg.find(gr => gr.id === showDetail);
-                if (!g) return null;
-                const estado = getEstado(g.promedio);
-                return (
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h3 className="font-semibold text-slate-800">Unidad Didactica {g.unidad_didactica_id}</h3>
-                        <p className="text-sm text-slate-500">{g.creditos} creditos</p>
-                      </div>
-                      <button onClick={() => setShowDetail(null)} className="text-slate-400 hover:text-slate-600">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-slate-50 rounded-lg p-4 text-center">
-                        <p className="text-xs text-slate-400 uppercase mb-1">Capacidad 1 (40%)</p>
-                        <p className={`text-2xl font-bold ${getNotaColor(g.nota_c1)}`}>{g.nota_c1 ?? '-'}</p>
-                      </div>
-                      <div className="bg-slate-50 rounded-lg p-4 text-center">
-                        <p className="text-xs text-slate-400 uppercase mb-1">Capacidad 2 (30%)</p>
-                        <p className={`text-2xl font-bold ${getNotaColor(g.nota_c2)}`}>{g.nota_c2 ?? '-'}</p>
-                      </div>
-                      <div className="bg-slate-50 rounded-lg p-4 text-center">
-                        <p className="text-xs text-slate-400 uppercase mb-1">Capacidad 3 (30%)</p>
-                        <p className={`text-2xl font-bold ${getNotaColor(g.nota_c3)}`}>{g.nota_c3 ?? '-'}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-                      <span className={`px-3 py-1 rounded-full text-sm font-semibold ${estado.color}`}>
-                        {estado.label}
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left boletin-table">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="py-2.5 px-4 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em]">Curso / Unidad Didáctica</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Créditos</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 1</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 2</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 3</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase text-[10px] tracking-[0.15em] text-center bg-slate-100">Final</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {cursos_periodo.map((curso, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-2.5 px-4 font-medium text-slate-800 text-sm">{curso.unidad_nombre}</td>
+                    <td className="py-2.5 px-3 text-center text-slate-500 text-sm">{curso.creditos}</td>
+                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c1)}`}>
+                      {curso.nota_c1 ?? '-'}
+                    </td>
+                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c2)}`}>
+                      {curso.nota_c2 ?? '-'}
+                    </td>
+                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c3)}`}>
+                      {curso.nota_c3 ?? '-'}
+                    </td>
+                    <td className={`py-2.5 px-3 text-center text-base bg-slate-50/80 font-bold ${getGradeColor(curso.nota_final)}`}>
+                      {curso.nota_final ?? '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${getBadgeColor(curso.estado)}`}>
+                        {curso.estado}
                       </span>
-                      <p className="text-sm text-slate-500">
-                        Promedio: <span className={`font-bold ${getNotaColor(g.promedio)}`}>{g.promedio ?? '-'}</span>/20
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
-          {/* Bar Chart */}
-          <div className="glass-card p-6">
-            <h3 className="font-semibold text-slate-800 mb-4">Grafico de Calificaciones</h3>
-            <div className="flex items-end gap-3 h-48">
-              {gradesWithAvg.map((g) => (
-                <div key={g.id} className="flex-1 flex flex-col items-center">
-                  <span className={`text-xs font-bold mb-1 ${getNotaColor(g.promedio)}`}>{g.promedio ?? '-'}</span>
-                  <div className="w-full flex flex-col justify-end" style={{ height: '140px' }}>
-                    <div
-                      className={`w-full rounded-t-md transition-all duration-300 ${
-                        g.promedio >= 14 ? 'bg-emerald-500' : g.promedio >= 11 ? 'bg-amber-500' : 'bg-red-500'
-                      }`}
-                      style={{ height: `${getBarHeight(g.promedio)}%` }}
-                    />
+      {/* SECCION 6: Resumen del Rendimiento */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5 boletin-section">
+        <div className="bg-white border border-slate-200 border-t-4 border-t-primary rounded-md p-5 text-center">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Promedio General</p>
+          <p className={`text-4xl font-extrabold ${getGradeColor(resumen.promedio_general)}`}>
+            {resumen.promedio_general ?? '-'}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de 20 puntos</p>
+        </div>
+        <div className="bg-white border border-slate-200 border-t-4 border-t-emerald-500 rounded-md p-5 text-center">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Aprobados</p>
+          <p className="text-4xl font-extrabold text-emerald-700">{resumen.cursos_aprobados}</p>
+          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de {resumen.total_cursos} cursos</p>
+        </div>
+        <div className="bg-white border border-slate-200 border-t-4 border-t-red-500 rounded-md p-5 text-center">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Desaprobados</p>
+          <p className="text-4xl font-extrabold text-red-600">{resumen.cursos_desaprobados}</p>
+          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de {resumen.total_cursos} cursos</p>
+        </div>
+      </div>
+
+      {/* SECCION 7: Historial + Observaciones */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8 boletin-section">
+        {/* Historial */}
+        <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
+          <div className="bg-slate-800 text-white px-5 py-3">
+            <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
+              <span className="mr-2">📅</span> Historial de Periodos
+            </h4>
+          </div>
+          {historial.length === 0 ? (
+            <div className="py-10 text-center">
+              <p className="text-slate-400 text-sm">Sin periodos anteriores registrados.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {historial.map((h, idx) => (
+                <div key={idx} className="px-5 py-3 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-slate-800 text-sm">{h.periodo_codigo}</span>
+                    <span className={`text-lg font-extrabold ${getGradeColor(h.promedio)}`}>
+                      {h.promedio ?? '-'}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-2 text-center leading-tight">UD-{g.unidad_didactica_id}</span>
+                  <div className="flex gap-4 text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+                    <span className="text-emerald-700">✓ {h.cursos_aprobados} aprobados</span>
+                    <span className="text-red-600">✗ {h.cursos_desaprobados} desaprobados</span>
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="flex justify-center gap-6 mt-4 text-xs">
-              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-emerald-500 rounded-sm" /> Aprobado (14+)</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-amber-500 rounded-sm" /> Por Recuperar (11-13)</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-500 rounded-sm" /> Desaprobado (&lt;11)</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'historial' && (
-        <div className="glass-card p-6">
-          <h3 className="font-semibold text-slate-800 mb-4">Historial de Periodos</h3>
-          <div className="space-y-4">
-            {matriculas.map((m) => (
-              <div key={m.id} className="p-4 bg-slate-50 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-slate-700">Periodo {m.periodo_id}</p>
-                    <p className="text-sm text-slate-500">{m.detalles?.length || 0} unidades</p>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    m.estado_matricula === 'confirmada' ? 'bg-emerald-100 text-emerald-700' :
-                    m.estado_matricula === 'pendiente' ? 'bg-amber-100 text-amber-700' :
-                    'bg-slate-100 text-slate-600'
-                  }`}>
-                    {m.estado_matricula}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'tramites' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button
-            onClick={() => handleTramite('constancia')}
-            className="glass-card p-6 text-left hover:border-blue-300 border-2 border-transparent transition-all"
-          >
-            <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 mb-4">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <h3 className="font-semibold text-slate-800 mb-1">Solicitar Constancia</h3>
-            <p className="text-sm text-slate-500">Constancia de estudios o de notas</p>
-          </button>
-
-          <button
-            onClick={() => handleTramite('reclamo')}
-            className="glass-card p-6 text-left hover:border-amber-300 border-2 border-transparent transition-all"
-          >
-            <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 mb-4">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h3 className="font-semibold text-slate-800 mb-1">Reclamo de Nota</h3>
-            <p className="text-sm text-slate-500">Solicitar revision de calificacion</p>
-          </button>
-
-          <button
-            onClick={() => handleTramite('certificado')}
-            className="glass-card p-6 text-left hover:border-emerald-300 border-2 border-transparent transition-all"
-          >
-            <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 mb-4">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-              </svg>
-            </div>
-            <h3 className="font-semibold text-slate-800 mb-1">Certificado de Notas</h3>
-            <p className="text-sm text-slate-500">Certificado oficial de calificaciones</p>
-          </button>
-
-          {tramiteModal && (
-            <div className="md:col-span-3 glass-card p-6 border-l-4 border-l-blue-500">
-              {tramiteConfirmado ? (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <h3 className="font-semibold text-slate-800 text-lg mb-2">Solicitud Enviada</h3>
-                  <p className="text-slate-500">Tu solicitud ha sido registrada. Recibiras una notificacion pronto.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-slate-800">
-                      {tramiteModal === 'constancia' && 'Solicitar Constancia de Estudios'}
-                      {tramiteModal === 'reclamo' && 'Reclamo de Nota'}
-                      {tramiteModal === 'certificado' && 'Solicitar Certificado de Notas'}
-                    </h3>
-                    <button onClick={() => setTramiteModal(null)} className="text-slate-400 hover:text-slate-600">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div className="space-y-4">
-                    {tramiteModal === 'reclamo' && (
-                      <div>
-                        <label className="label">Asignatura</label>
-                        <select className="input-field">
-                          {gradesWithAvg.map(g => (
-                            <option key={g.id} value={g.id}>Unidad Didactica {g.unidad_didactica_id}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    <div>
-                      <label className="label">Motivo</label>
-                      <input
-                        type="text"
-                        className="input-field"
-                        placeholder="Motivo de la solicitud"
-                        value={tramiteForm.motivo}
-                        onChange={(e) => setTramiteForm({...tramiteForm, motivo: e.target.value})}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Detalles</label>
-                      <textarea
-                        className="input-field"
-                        rows={3}
-                        placeholder="Descripcion adicional..."
-                        value={tramiteForm.detalles}
-                        onChange={(e) => setTramiteForm({...tramiteForm, detalles: e.target.value})}
-                      />
-                    </div>
-                    <div className="flex justify-end gap-3">
-                      <button onClick={() => setTramiteModal(null)} className="px-4 py-2 text-slate-600 hover:text-slate-800">
-                        Cancelar
-                      </button>
-                      <button onClick={submitTramite} className="btn-primary">
-                        Enviar Solicitud
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
           )}
         </div>
+
+        {/* Observaciones */}
+        <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
+          <div className="bg-slate-800 text-white px-5 py-3">
+            <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
+              <span className="mr-2">📝</span> Observaciones
+            </h4>
+          </div>
+          <div className="p-5">
+            {observaciones ? (
+              <p className="text-sm text-slate-600 leading-relaxed">{observaciones}</p>
+            ) : (
+              <p className="text-slate-400 text-sm text-center py-6">Sin observaciones registradas.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* PIE DE PÁGINA */}
+      <div className="border-t border-slate-300 pt-6 pb-4 mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+          <div>
+            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-1">Secretaría Académica</p>
+            <div className="w-48 border-b border-slate-400 mb-1"></div>
+            <p className="text-[10px] text-slate-400">Firma y sello</p>
+          </div>
+          <p className="text-[10px] text-slate-400 text-right">
+            Documento generado el {estudiante.fecha_emision} por el Sistema SIGA
+          </p>
+        </div>
+      </div>
+
+      {/* Print-only footer */}
+      <div className="boletin-footer-print print-only">
+        <p>Documento generado por SIGA — Sistema de Gestión Académica</p>
+        <p>Este boletín es un documento informativo. Para versiones oficiales, consulte con la institución.</p>
+      </div>
+
+    </div>
+  );
+}
+
+function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDropdown, onSelect, searchLoading, recentStudents }) {
+  const showRecent = showDropdown && searchTerm.length === 0 && recentStudents.length > 0;
+  const showResults = showDropdown && searchTerm.length >= 3;
+
+  return (
+    <div className="relative">
+      <div className="bg-white border border-slate-200 rounded-md flex items-center gap-2 px-4 py-2 shadow-sm">
+        <span className="px-1 text-slate-400 text-lg">🔍</span>
+        <input
+          type="text"
+          className="w-full bg-transparent border-none focus:ring-0 py-1.5 text-slate-700 placeholder-slate-400 outline-none text-sm"
+          placeholder="Buscar estudiante por DNI, nombre, apellido o código..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onFocus={() => setShowDropdown(true)}
+        />
+        {searchLoading && <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin"></div>}
+      </div>
+
+      {showRecent && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg">
+          <p className="px-4 pt-3 pb-1 text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Consultados recientemente</p>
+          {recentStudents.map((student) => (
+            <button
+              key={student.id}
+              onClick={() => onSelect(student)}
+              className="w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 cursor-pointer"
+            >
+              <p className="font-semibold text-slate-800 text-sm">{student.apellidos}, {student.nombres}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Cód: {student.codigo_estudiante}</p>
+            </button>
+          ))}
+        </div>
       )}
 
-      {/* Footer */}
-      <div className="text-center text-xs text-slate-400 py-4 border-t border-slate-100 mt-6">
-        <p>Documento de uso informativo. Para constancia oficial, solicite en la Secretaria Academica.</p>
-      </div>
+      {showResults && filteredStudents.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+          {filteredStudents.map((student) => (
+            <button
+              key={student.id}
+              onClick={() => onSelect(student)}
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 cursor-pointer"
+            >
+              <p className="font-semibold text-slate-800 text-sm">{student.apellidos}, {student.nombres}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Cód: {student.codigo_estudiante} · DNI: {student.dni}</p>
+            </button>
+          ))}
+        </div>
+      )}
+      {showResults && searchTerm.length >= 3 && filteredStudents.length === 0 && !searchLoading && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg p-4 text-center">
+          <p className="text-slate-400 text-sm">No se encontraron estudiantes con "{searchTerm}"</p>
+        </div>
+      )}
     </div>
   );
 }

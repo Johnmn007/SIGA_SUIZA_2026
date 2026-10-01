@@ -4,12 +4,11 @@ set -e
 # Build DB URL for Alembic
 export DB_URL="postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
-# Only run migrations for siga-core (microservices skip via SKIP_MIGRATIONS)
-if [ "$SKIP_MIGRATIONS" != "true" ]; then
-    echo "Running database migrations..."
-    alembic upgrade head
+echo "Running database migrations..."
+if alembic upgrade head; then
+    echo "Migrations applied successfully."
 else
-    echo "Skipping migrations (SKIP_MIGRATIONS=true)"
+    echo "WARNING: alembic upgrade head failed — starting without migrations."
 fi
 
 if [ "$#" -eq 0 ]; then

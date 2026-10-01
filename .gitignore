@@ -1,1 +1,5 @@
 __pycache__/
+**/__pycache__/
+*.pyc
+siga_backend/venv/
+siga_frontend/dist/

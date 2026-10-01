@@ -33,14 +33,23 @@ class CacheManager:
             return False
             
         try:
-            self.redis_client = redis.Redis(
-                host=getattr(settings, 'redis_host', 'localhost'),
-                port=getattr(settings, 'redis_port', 6379),
-                password=getattr(settings, 'redis_password', None),
-                decode_responses=True,
-                socket_connect_timeout=5,
-                retry_on_timeout=True
-            )
+            redis_url = getattr(settings, 'redis_url_effective', None)
+            if redis_url:
+                self.redis_client = redis.from_url(
+                    redis_url,
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    retry_on_timeout=True
+                )
+            else:
+                self.redis_client = redis.Redis(
+                    host=getattr(settings, 'redis_host', 'localhost'),
+                    port=getattr(settings, 'redis_port', 6379),
+                    password=getattr(settings, 'redis_password', None),
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    retry_on_timeout=True
+                )
             await self.redis_client.ping()
             logger.info("✅ Cache distribuido conectado")
             return True
