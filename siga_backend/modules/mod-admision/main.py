@@ -187,7 +187,7 @@ def parse_excel_sync(contents: bytes):
         
     return admitidos_list
 
-@app.post("/api/mod-admision/upload")
+@app.post("/upload")
 async def upload_excel(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     try:
         contents = await file.read()

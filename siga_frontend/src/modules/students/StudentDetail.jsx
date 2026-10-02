@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { API_BASE } from '../../core/api/client';
 import { ProtectedImage } from './ProtectedImage';
 import {
-  ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen,
+  X, Mail, Phone, MapPin, Calendar, BookOpen,
   FileText, CreditCard, Award, BadgeCheck, User, Building2,
   GraduationCap, Clock
 } from 'lucide-react';
@@ -63,7 +63,7 @@ function StatusCard({ active, labelActive, labelInactive, icon: Icon }) {
 
 function LoadingSkeleton() {
   return (
-    <div className="animate-pulse space-y-6 p-6">
+    <div className="animate-pulse space-y-6">
       <div className="flex items-center gap-4">
         <div className="w-20 h-20 rounded-2xl bg-slate-200" />
         <div className="space-y-2">
@@ -71,8 +71,8 @@ function LoadingSkeleton() {
           <div className="h-4 w-32 bg-slate-100 rounded-lg" />
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[...Array(6)].map((_, i) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {[...Array(4)].map((_, i) => (
           <div key={i} className="h-16 bg-slate-100 rounded-xl" />
         ))}
       </div>
@@ -191,27 +191,25 @@ export function StudentDetail({ student, onClose }) {
   ];
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex flex-col bg-background animate-fade-in">
-      <header className="flex-shrink-0 bg-white/80 backdrop-blur-md border-b border-slate-200/60 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={onClose}
-              className="flex-shrink-0 w-9 h-9 rounded-xl bg-slate-100 hover:bg-primary/10 text-slate-500 hover:text-primary flex items-center justify-center transition-all duration-200"
-              aria-label="Volver"
-            >
-              <ArrowLeft size={18} />
-            </button>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="glass-card w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] bg-white/95 shadow-2xl animate-fade-in">
+
+        <div className="bg-gradient-to-r from-primary to-secondary px-6 py-4 flex justify-between items-center gap-4">
+          <div className="flex items-center min-w-0">
+            <User size={18} className="mr-2 flex-shrink-0" />
             <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-bold text-slate-text truncate">Ficha del Estudiante</h2>
-              <p className="text-xs text-slate-400 hidden sm:block">{s.codigo_estudiante} &middot; {s.dni}</p>
+              <h3 className="text-lg font-bold text-white truncate">
+                Ficha del Estudiante: {s.nombres} {s.apellidos}
+              </h3>
+              <p className="text-xs text-white/70 truncate">{s.codigo_estudiante} &middot; DNI {s.dni}</p>
             </div>
           </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors flex-shrink-0" aria-label="Cerrar">
+            <X size={20} />
+          </button>
         </div>
-      </header>
 
-      <main className="flex-1 overflow-y-auto custom-scrollbar">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
           <div className="glass-card p-5 sm:p-6 animate-fade-in">
             <div className="flex flex-col sm:flex-row items-start gap-5">
               <ProtectedImage
@@ -263,7 +261,7 @@ export function StudentDetail({ student, onClose }) {
                   <div className="w-1 h-4 rounded-full bg-primary" />
                   Datos de Contacto
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <InfoField icon={Mail} label="Email Personal" value={s.email_personal} />
                   <InfoField icon={Mail} label="Email Institucional" value={s.email_institucional} />
                   <InfoField icon={Phone} label="Celular" value={s.celular} />
@@ -500,7 +498,14 @@ export function StudentDetail({ student, onClose }) {
             </>
           )}
         </div>
-      </main>
+
+        <div className="bg-slate-light px-6 py-4 border-t border-slate-200 flex justify-end space-x-3">
+          <button type="button" onClick={onClose} className="btn-primary">
+            <X size={16} className="mr-2" /> Cerrar
+          </button>
+        </div>
+
+      </div>
     </div>,
     document.body
   );

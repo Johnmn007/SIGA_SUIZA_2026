@@ -5,7 +5,7 @@ from fastapi import Request, HTTPException
 from fastapi.responses import Response
 from typing import Dict, Optional, Any
 import logging
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from ..registry.runtime import module_runtime
 from ..identity.tokens import token_service
@@ -28,7 +28,14 @@ logger = logging.getLogger(__name__)
 
 class HTTPGateway:
     """Gateway HTTP inteligente con resiliencia integrada"""
-    
+
+    # Headers que jamas deben reenviarse al cliente (hop-by-hop o internos)
+    _HOP_BY_HOP_HEADERS = {
+        "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+        "te", "trailer", "transfer-encoding", "upgrade", "content-encoding",
+        "content-length", "server",
+    }
+
     def __init__(self):
         self.timeout = settings.http_proxy_timeout
         self._client: Optional[httpx.AsyncClient] = None
@@ -96,7 +103,7 @@ class HTTPGateway:
             return Response(
                 content=response.content,
                 status_code=response.status_code,
-                headers=dict(response.headers)
+                headers=self._sanitize_response_headers(dict(response.headers), module_name, request)
             )
             
         except CircuitBreakerOpenException as cbo_exc:
@@ -173,6 +180,47 @@ class HTTPGateway:
         
         return None
     
+    def _sanitize_response_headers(
+        self,
+        headers: Dict[str, str],
+        module_name: str,
+        request: Request
+    ) -> Dict[str, str]:
+        """
+        Limpia los headers de la respuesta del modulo antes de volver al cliente.
+
+        Sin esto, un 307/302 del modulo (p.ej. /estudiantes -> /estudiantes/)
+        reenvia un "Location: http://mod-gestion-academica:8006/..." que el
+        navegador no puede resolver, ya que ese hostname solo existe en la red
+        de Docker. El cliente se queda sin datos y sin error visible.
+        """
+        root = str(request.base_url).rstrip("/")
+        # Prefijo publico del modulo tal como lo expone el gateway
+        public_prefix = f"{root}/api/{module_name}"
+        clean: Dict[str, str] = {}
+
+        module = module_runtime.get_module(module_name)
+        internal = module.endpoints.get("http") if module else None
+
+        for key, value in headers.items():
+            lower = key.lower()
+            if lower in self._HOP_BY_HOP_HEADERS:
+                continue
+
+            if lower == "location":
+                if internal and value.startswith(internal):
+                    # Host interno conocido: sustituir por el host publico
+                    clean[key] = public_prefix + value[len(internal):]
+                else:
+                    # Relativo o de host desconocido: conservar solo el path
+                    parts = urlsplit(value)
+                    clean[key] = public_prefix + (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
+                continue
+
+            clean[key] = value
+
+        return clean
+
     async def _execute_fallback(self, module_name: str, path: str, request: Request, error_type: str) -> Optional[Response]:
         """Ejecuta fallback después de un error en tiempo real"""
         if not self.resilience_enabled or not fallback_manager:
@@ -201,8 +249,8 @@ class HTTPGateway:
         """Crea respuesta HTTP a partir del resultado de fallback"""
         
         status_mapping = {
-            "cached": 200,
-            "fallback": 206,  # Partial Content
+            "cached": 200,        # datos reales del cache: respuesta valida
+            "fallback": 503,      # degradado sin datos: el cliente DEBE enterarse
             "unavailable": 503
         }
         

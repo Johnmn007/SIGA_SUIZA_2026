@@ -4,7 +4,8 @@ import { useAuth } from '../../core/auth/useAuth';
 import { API_BASE } from '../../core/api/client';
 import { EditStudentModal } from './EditStudentModal';
 import { StudentDetail } from './StudentDetail';
-import { Search, CloudDownload, Plus, Users, Pencil, ChevronRight, Info, X } from 'lucide-react';
+import { ProtectedImage } from './ProtectedImage';
+import { Search, CloudDownload, Plus, Users, Pencil, ChevronRight, Info, X, AlertTriangle } from 'lucide-react';
 
 const InputGroup = ({ label, type = "text", value, onChange, options = null }) => (
   <div className="flex flex-col space-y-1">
@@ -46,6 +47,7 @@ export function StudentMaster() {
   const [wizardStep, setWizardStep] = useState(1);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [currentPrograma, setCurrentPrograma] = useState('ALL');
+  const [loadError, setLoadError] = useState(null);
 
   const [form, setForm] = useState({
     codigo_estudiante: '', dni: '', nombres: '', apellidos: '',
@@ -77,6 +79,7 @@ export function StudentMaster() {
   const handleSearch = async (val = '') => {
     setSearchTerm(val);
     setLoading(true);
+    setLoadError(null);
     try {
       // Usar la ruta correcta del módulo integrado
       let url = `${API_BASE}/api/mod-gestion-academica/estudiantes/`;
@@ -91,8 +94,24 @@ export function StudentMaster() {
       });
       
       if (!res.ok) {
-        console.error("API Error:", await res.text());
+        let detalle = `El servicio de estudiantes respondio ${res.status}.`;
+        try {
+          const cuerpo = await res.json();
+          detalle = cuerpo.detail || cuerpo.message || detalle;
+        } catch (e) { /* cuerpo no-JSON */ }
+        console.error('API Error:', detalle);
         setStudents([]);
+        setLoadError(detalle);
+        setLoading(false);
+        return;
+      }
+
+      if (res.headers.get('X-Fallback') === 'true') {
+        const detalle = res.headers.get('X-Fallback-Message')
+          || 'El servicio de estudiantes respondio con datos degradados.';
+        console.error('Respuesta degradada:', detalle);
+        setStudents([]);
+        setLoadError(detalle);
         setLoading(false);
         return;
       }
@@ -114,6 +133,7 @@ export function StudentMaster() {
     } catch (e) { 
       console.error(e); 
       setStudents([]);
+      setLoadError('No se pudo conectar con el servidor. Verifique que el backend este levantado.');
     }
     setLoading(false);
   };
@@ -164,7 +184,11 @@ export function StudentMaster() {
     if (!window.confirm("¿Sincronizar lista de ingresantes desde el módulo de Admisión?")) return;
     setLoading(true);
     try {
-      const resAdmision = await fetch('http://localhost:8009/admitidos');
+      // via gateway, do not puncture the module directly
+      const resAdmision = await fetch(`${API_BASE}/api/mod-admision/admitidos`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+
       if (!resAdmision.ok) throw new Error("No se pudo conectar con Admisión Piloto");
       let admisionData = await resAdmision.json();
       
@@ -364,6 +388,22 @@ export function StudentMaster() {
         {loading && <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-4"></div>}
       </div>
 
+      {loadError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-start gap-3">
+          <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold">No se pudieron cargar los estudiantes</p>
+            <p className="mt-0.5 text-red-700">{loadError}</p>
+          </div>
+          <button
+            onClick={() => handleSearch(searchTerm)}
+            className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 font-medium hover:bg-red-100"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
       <div className="glass-card overflow-hidden lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
         <div className="overflow-x-auto overflow-y-auto custom-scrollbar max-h-[70vh] lg:max-h-none lg:flex-1 lg:min-h-0">
           <table className="data-table">
@@ -383,7 +423,11 @@ export function StudentMaster() {
                     <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-soft text-primary flex items-center justify-center">
                       <Users size={30} />
                     </div>
-                    <p className="text-slate-500 font-medium">No se encontraron estudiantes registrados</p>
+                    <p className="text-slate-500 font-medium">
+                      {loadError
+                        ? 'Datos no disponibles'
+                        : 'No se encontraron estudiantes registrados'}
+                    </p>
                   </td>
                 </tr>
               ) : (
@@ -391,9 +435,17 @@ export function StudentMaster() {
                   <tr key={s.id} className="hover:bg-primary/5 transition-colors group">
                     <td className="py-4 px-6">
                       <div className="flex items-center">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs mr-3 border border-primary/20">
-                          {s.nombres[0]}{s.apellidos[0]}
-                        </div>
+                        <ProtectedImage
+                          src={s.foto_url}
+                          alt={`${s.nombres} ${s.apellidos}`}
+                          className="w-9 h-9 rounded-full border border-primary/20 mr-3 flex-shrink-0 overflow-hidden bg-white"
+                          lazy
+                          fallback={
+                            <div className="w-full h-full rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                              {s.nombres[0]}{s.apellidos[0]}
+                            </div>
+                          }
+                        />
                         <div>
                           <p className="font-bold text-slate-text text-sm">{s.nombres} {s.apellidos}</p>
                           <p className="text-xs text-slate-500">{s.email_personal || s.email_institucional || 'Sin correo'}</p>

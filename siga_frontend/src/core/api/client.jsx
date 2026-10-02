@@ -19,12 +19,13 @@ class SIGAApiClient {
 
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+    const { headers: optionHeaders, ...rest } = options;
     const config = {
+      ...rest,
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...optionHeaders,
       },
-      ...options,
     };
 
     if (this.token) {
@@ -42,13 +43,31 @@ class SIGAApiClient {
 
       if (!response.ok) {
         let errorMsg = `HTTP error! status: ${response.status}`;
+        let errorData = null;
         try {
-          const errorData = await response.json();
-          errorMsg = errorData.detail || errorMsg;
+          errorData = await response.json();
+          errorMsg = errorData.detail || errorData.message || errorMsg;
         } catch (e) {
           // ignore
         }
-        throw new Error(errorMsg);
+        const error = new Error(errorMsg);
+        error.status = response.status;
+        error.isFallback = response.headers.get('X-Fallback') === 'true';
+        error.data = errorData;
+        throw error;
+      }
+
+      // El gateway sirve respuestas degradadas (206/503) cuando un modulo cae.
+      // No deben presentarse como datos validos.
+      if (response.headers.get('X-Fallback') === 'true') {
+        const fallbackType = response.headers.get('X-Fallback-Type');
+        const message =
+          response.headers.get('X-Fallback-Message') ||
+          'Un servicio no esta disponible y se sirvio una respuesta degradada.';
+        const error = new Error(message);
+        error.isFallback = true;
+        error.fallbackType = fallbackType;
+        throw error;
       }
 
       return await response.json();

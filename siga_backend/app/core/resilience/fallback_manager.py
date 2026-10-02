@@ -23,119 +23,53 @@ class FallbackManager:
         self.setup_default_fallbacks()
     
     def setup_default_fallbacks(self):
-        """Configura fallbacks por defecto para módulos críticos"""
-        
-        # Fallback para mod-planes-estudio
-        self.static_fallbacks["mod-planes-estudio"] = {
-            "planes_vigentes": {
-                "status": "degraded",
-                "message": "Servicio temporalmente no disponible - Usando datos cacheados",
-                "data": [
-                    {
-                        "id": 1,
-                        "nombre": "Plan 2023 - Datos de respaldo",
-                        "estado": "vigente",
-                        "carrera": "Ingeniería de Sistemas"
-                    }
-                ],
-                "timestamp": None
+        """
+        Declara los endpoints que degradan a "vacio" cuando el modulo cae.
+
+        IMPORTANTE: nunca se inventan registros. Servir datos ficticios
+        (estudiantes, planes, docentes) en un sistema academico oculta una
+        caida y puede contaminar reportes. La unica fuente de datos de
+        respaldo valida es el cache de ultimas respuestas reales exitosas
+        (ver handle_module_request, paso 2).
+        """
+        self.static_fallbacks = {
+            "mod-planes-estudio": {
+                "planes_vigentes": self._empty_degraded("mod-planes-estudio"),
+                "carreras": self._empty_degraded("mod-planes-estudio"),
+                "materias": self._empty_degraded("mod-planes-estudio"),
             },
-            "carreras": {
-                "status": "degraded", 
-                "message": "Servicio temporalmente no disponible",
-                "data": [
-                    {
-                        "id": 1,
-                        "nombre": "Ingeniería de Sistemas",
-                        "codigo": "IS-2023"
-                    }
-                ],
-                "timestamp": None
+            "mod-usuarios": {
+                "perfiles": self._empty_degraded("mod-usuarios"),
+                "estudiantes": self._empty_degraded("mod-usuarios"),
+                "profesores": self._empty_degraded("mod-usuarios"),
             },
-            "materias": {
-                "status": "degraded",
-                "message": "Servicio de materias no disponible",
-                "data": [
-                    {
-                        "id": 1,
-                        "nombre": "Programación I",
-                        "codigo": "PROG1"
-                    }
-                ],
-                "timestamp": None
-            }
+            "mod-gestion-academica": {
+                "estudiantes": self._empty_degraded("mod-gestion-academica"),
+                "matriculas": self._empty_degraded("mod-gestion-academica"),
+                "programas": self._empty_degraded("mod-gestion-academica"),
+            },
+            "mod-programas-estudio": {
+                "programas": self._empty_degraded("mod-programas-estudio"),
+                "carreras": self._empty_degraded("mod-programas-estudio"),
+            },
+            "mod-evaluacion": {
+                "notas": self._empty_degraded("mod-evaluacion"),
+                "promedios": self._empty_degraded("mod-evaluacion"),
+            },
         }
-        
-        # Fallback para mod-usuarios
-        self.static_fallbacks["mod-usuarios"] = {
-            "perfiles": {
-                "status": "degraded",
-                "message": "Servicio de usuarios no disponible",
-                "data": [
-                    {
-                        "id": 1,
-                        "nombre": "Usuario Demo",
-                        "email": "demo@siga.edu",
-                        "rol": "estudiante"
-                    }
-                ],
-                "timestamp": None
-            },
-            "estudiantes": {
-                "status": "degraded",
-                "message": "Servicio de estudiantes no disponible", 
-                "data": [
-                    {
-                        "id": 1,
-                        "nombre": "Estudiante Demo",
-                        "matricula": "20230001"
-                    }
-                ],
-                "timestamp": None
-            },
-            "profesores": {
-                "status": "degraded",
-                "message": "Servicio de profesores no disponible",
-                "data": [
-                    {
-                        "id": 1,
-                        "nombre": "Profesor Demo",
-                        "especialidad": "Sistemas"
-                    }
-                ],
-                "timestamp": None
-            }
+
+    def _empty_degraded(self, module_name: str) -> Dict[str, Any]:
+        """Respuesta degradada sin datos, para que el cliente detecte la caida."""
+        return {
+            "status": "degraded",
+            "message": (
+                f"El modulo '{module_name}' no responde. "
+                "No se muestran datos para evitar informacion incorrecta."
+            ),
+            "data": [],
+            "timestamp": None,
         }
-        
-        # Fallback para mod-academico
-        self.static_fallbacks["mod-academico"] = {
-            "cursos": {
-                "status": "degraded",
-                "message": "Servicio académico no disponible",
-                "data": [
-                    {
-                        "id": 1,
-                        "nombre": "Curso de Programación",
-                        "semestre": "2024-1"
-                    }
-                ],
-                "timestamp": None
-            },
-            "inscripciones": {
-                "status": "degraded",
-                "message": "Servicio de inscripciones no disponible",
-                "data": [
-                    {
-                        "id": 1,
-                        "estudiante_id": 1,
-                        "curso_id": 1,
-                        "estado": "pendiente"
-                    }
-                ],
-                "timestamp": None
-            }
-        }
-    
+
     async def handle_module_request(self, 
                                   module_name: str, 
                                   endpoint: str,
@@ -168,13 +102,12 @@ class FallbackManager:
         # 3. Usar datos estáticos como último recurso
         static_fallback = self.get_static_fallback(module_name, endpoint)
         if static_fallback:
-            logger.info(f"🔄 Fallback estático para {module_name}/{endpoint}")
-            # Actualizar timestamp
+            logger.warning(f"🔄 Fallback degradado (sin datos) para {module_name}/{endpoint}")
             static_fallback["timestamp"] = asyncio.get_event_loop().time()
             return {
                 "status": "fallback",
-                "data": static_fallback,
-                "message": "Servicio degradado - Datos limitados disponibles",
+                "data": static_fallback.get("data", []),
+                "message": static_fallback.get("message", "Servicio degradado"),
                 "timestamp": static_fallback["timestamp"]
             }
         

@@ -1,1 +1,18 @@
 __pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Secretos / configuracion local
+.env
+!.env.example
+
+# Artefactos
+node_modules/
+dist/
+.vite/
+*.log
+core_logs.txt
+
+# Datos subidos en runtime
+siga_backend/modules/*/uploads/

@@ -1,8 +1,14 @@
 services:
+  # ====== POSTGRES (OPCIONAL) ======
+  # La fuente de verdad de la BD es el PostgreSQL local (pgAdmin).
+  # Este servicio queda tras el perfil "local-db" para no_publicar el 5432
+  # del host (choca con el PostgreSQL nativo) y no crear ambiguedad.
+  # Uso:  docker compose --profile local-db up -d
   postgres:
     image: postgres:16-alpine
+    profiles: ["local-db"]
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -45,18 +51,16 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
     volumes:
       - ./siga_backend:/app
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -72,19 +76,17 @@ services:
     ports:
       - "8001:8001"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8001
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -99,19 +101,17 @@ services:
     ports:
       - "8002:8002"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8002
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -126,19 +126,17 @@ services:
     ports:
       - "8005:8005"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8005
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -153,19 +151,17 @@ services:
     ports:
       - "8006:8006"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8006
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -180,19 +176,17 @@ services:
     ports:
       - "8007:8007"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8007
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -207,19 +201,17 @@ services:
     ports:
       - "8008:8008"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8008
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -234,11 +226,11 @@ services:
     ports:
       - "8009:8009"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=siga
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8009
       - SKIP_MIGRATIONS=true
@@ -246,8 +238,6 @@ services:
       - ./siga_backend:/app
       - ./docs:/app/docs
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_started
       redis:
