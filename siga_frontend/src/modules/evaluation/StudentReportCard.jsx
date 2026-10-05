@@ -27,7 +27,7 @@ export function StudentReportCard() {
   const searchRef = useRef(null);
 
   const [recentStudents, setRecentStudents] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('boletin_recent') || '[]'); } catch { return []; }
+    try { const parsed = JSON.parse(localStorage.getItem('boletin_recent') || '[]'); return Array.isArray(parsed) ? parsed.slice(0, 3) : []; } catch { return []; }
   });
 
   useEffect(() => {
@@ -68,13 +68,22 @@ export function StudentReportCard() {
 
   useEffect(() => {
     if (searchTerm.length >= 3) {
-      const val = searchTerm.toLowerCase();
-      const filtered = allStudents.filter(s =>
-        (s.dni && s.dni.includes(searchTerm)) ||
-        (s.nombres && s.nombres.toLowerCase().includes(val)) ||
-        (s.apellidos && s.apellidos.toLowerCase().includes(val)) ||
-        (s.codigo_estudiante && s.codigo_estudiante.toLowerCase().includes(val))
-      );
+      const val = searchTerm.trim().toLowerCase();
+      const term = searchTerm.trim();
+      const filtered = allStudents.filter(s => {
+        const nombres = (s.nombres || '').toLowerCase();
+        const apellidos = (s.apellidos || '').toLowerCase();
+        const nombreCompleto = `${s.nombres || ''} ${s.apellidos || ''}`.trim().toLowerCase();
+        const nombreInverso = `${s.apellidos || ''} ${s.nombres || ''}`.trim().toLowerCase();
+        return (
+          (s.dni && s.dni.includes(term)) ||
+          (nombres && nombres.includes(val)) ||
+          (apellidos && apellidos.includes(val)) ||
+          (nombreCompleto && nombreCompleto.includes(val)) ||
+          (nombreInverso && nombreInverso.includes(val)) ||
+          (s.codigo_estudiante && s.codigo_estudiante.toLowerCase().includes(val))
+        );
+      });
       setFilteredStudents(filtered);
       setShowDropdown(true);
     } else {
@@ -104,7 +113,7 @@ export function StudentReportCard() {
     const entry = { id: student.id, nombres: student.nombres, apellidos: student.apellidos, codigo_estudiante: student.codigo_estudiante };
     setRecentStudents(prev => {
       const filtered = prev.filter(s => s.id !== student.id);
-      const updated = [entry, ...filtered].slice(0, 5);
+      const updated = [entry, ...filtered].slice(0, 3);
       localStorage.setItem('boletin_recent', JSON.stringify(updated));
       return updated;
     });
@@ -116,6 +125,15 @@ export function StudentReportCard() {
     setSearchTerm('');
     setData(null);
     setError(null);
+  };
+
+  const handleRemoveRecent = (event, studentId) => {
+    event.stopPropagation();
+    setRecentStudents(prev => {
+      const updated = prev.filter(s => s.id !== studentId).slice(0, 3);
+      localStorage.setItem('boletin_recent', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const effectiveStudentId = isAdmin ? selectedStudentId : user?.id;
@@ -262,6 +280,8 @@ export function StudentReportCard() {
               onSelect={handleSelectStudent}
               searchLoading={searchLoading}
               recentStudents={recentStudents}
+              setShowDropdown={setShowDropdown}
+              onRemoveRecent={handleRemoveRecent}
             />
           </div>
         )}
@@ -287,6 +307,8 @@ export function StudentReportCard() {
             onSelect={handleSelectStudent}
             searchLoading={searchLoading}
             recentStudents={recentStudents}
+            setShowDropdown={setShowDropdown}
+            onRemoveRecent={handleRemoveRecent}
           />
         </div>
       </div>
@@ -307,6 +329,8 @@ export function StudentReportCard() {
               onSelect={handleSelectStudent}
               searchLoading={searchLoading}
               recentStudents={recentStudents}
+              setShowDropdown={setShowDropdown}
+              onRemoveRecent={handleRemoveRecent}
             />
           </div>
         )}
@@ -375,6 +399,8 @@ export function StudentReportCard() {
             onSelect={handleSelectStudent}
             searchLoading={searchLoading}
             recentStudents={recentStudents}
+            setShowDropdown={setShowDropdown}
+            onRemoveRecent={handleRemoveRecent}
           />
         </div>
       )}
@@ -686,7 +712,76 @@ export function StudentReportCard() {
   );
 }
 
-function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDropdown, onSelect, searchLoading, recentStudents }) {
+function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDropdown, onSelect, searchLoading, recentStudents, setShowDropdown, onRemoveRecent }) {
+  const [listening, setListening] = useState(false);
+  const [voiceMsg, setVoiceMsg] = useState('');
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      try { recognitionRef.current?.abort?.(); } catch { /* noop */ }
+    };
+  }, []);
+
+  const handleVoiceSearch = () => {
+    try {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        setVoiceMsg('Búsqueda por voz no disponible en este dispositivo.');
+        return;
+      }
+      // Si ya está escuchando, cancelar (permite probar "cancelar reconocimiento")
+      if (listening && recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch { /* noop */ }
+        return;
+      }
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.lang = 'es-PE';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setListening(true);
+        setVoiceMsg('Escuchando...');
+      };
+      recognition.onresult = (event) => {
+        const text = event.results?.[0]?.[0]?.transcript || '';
+        if (text.trim()) {
+          // Reutiliza el MISMO searchTerm del buscador existente:
+          // el useEffect de filtrado (DNI, código, nombres, apellidos) reacciona solo.
+          setSearchTerm(text.trim());
+          setVoiceMsg('');
+        } else {
+          setVoiceMsg('No se pudo reconocer la voz. Inténtalo nuevamente.');
+        }
+      };
+      recognition.onerror = (event) => {
+        const err = event?.error;
+        if (err === 'not-allowed' || err === 'service-not-allowed') {
+          setVoiceMsg('Permiso de micrófono denegado.');
+        } else if (err === 'no-speech' || err === 'audio-capture' || err === 'no-match') {
+          setVoiceMsg('No se pudo reconocer la voz. Inténtalo nuevamente.');
+        } else if (err === 'aborted') {
+          setVoiceMsg('');
+        } else {
+          setVoiceMsg('No se pudo reconocer la voz. Inténtalo nuevamente.');
+        }
+        setListening(false);
+      };
+      recognition.onend = () => {
+        setListening(false);
+        setVoiceMsg((prev) => (prev === 'Escuchando...' ? '' : prev));
+      };
+
+      recognition.start();
+    } catch {
+      // No romper nunca el buscador escrito
+      setListening(false);
+      setVoiceMsg('No se pudo reconocer la voz. Inténtalo nuevamente.');
+    }
+  };
+
   const showRecent = showDropdown && searchTerm.length === 0 && recentStudents.length > 0;
   const showResults = showDropdown && searchTerm.length >= 3;
 
@@ -700,23 +795,62 @@ function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDro
           placeholder="Buscar estudiante por DNI, nombre, apellido o código..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          onFocus={() => setShowDropdown(true)}
+          onFocus={() => setShowDropdown?.(true)}
         />
         {searchLoading && <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin"></div>}
+        <button
+          type="button"
+          onClick={handleVoiceSearch}
+          aria-label="Buscar estudiante por voz"
+          title={listening ? 'Escuchando... pulsa para cancelar' : 'Buscar estudiante por voz'}
+          className={`relative flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full border transition-colors cursor-pointer ${
+            listening
+              ? 'bg-red-50 border-red-300 text-red-600 animate-pulse'
+              : 'border-slate-200 text-slate-500 hover:text-primary hover:border-primary/40 hover:bg-primary/5'
+          }`}
+        >
+          {listening && (
+            <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-30 animate-ping"></span>
+          )}
+          <svg className="relative w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+        </button>
       </div>
+      {(voiceMsg || listening) && (
+        <p className={`mt-1.5 ml-1 text-xs font-medium flex items-center gap-1.5 ${listening ? 'text-red-600' : 'text-slate-500'}`} role="status" aria-live="polite">
+          {listening && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>}
+          {voiceMsg || 'Escuchando...'}
+        </p>
+      )}
 
       {showRecent && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg">
           <p className="px-4 pt-3 pb-1 text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Consultados recientemente</p>
           {recentStudents.map((student) => (
-            <button
+            <div
               key={student.id}
-              onClick={() => onSelect(student)}
-              className="w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 cursor-pointer"
+              className="w-full flex items-center gap-2 pl-4 pr-2 py-2 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
             >
-              <p className="font-semibold text-slate-800 text-sm">{student.apellidos}, {student.nombres}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Cód: {student.codigo_estudiante}</p>
-            </button>
+              <button
+                onClick={() => onSelect(student)}
+                className="flex-1 text-left cursor-pointer"
+              >
+                <p className="font-semibold text-slate-800 text-sm">{student.apellidos}, {student.nombres}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Cód: {student.codigo_estudiante}</p>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => onRemoveRecent?.(e, student.id)}
+                aria-label="Eliminar de recientes"
+                title="Eliminar de recientes"
+                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
           ))}
         </div>
       )}
