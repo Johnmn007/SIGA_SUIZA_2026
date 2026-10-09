@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
 import { DocentePlanning } from '../academic/DocentePlanning';
 import { useAuth } from '../../core/auth/useAuth';
+import { Save, GraduationCap, Calendar, BookOpen, ClipboardList, AlertTriangle, Target } from 'lucide-react';
 
 export function EvaluationDashboard() {
   const { user } = useAuth();
@@ -191,7 +192,7 @@ export function EvaluationDashboard() {
     <div className="animate-fade-in space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
         <div>
-          <h3 className="text-3xl font-bold tracking-tight text-slate-800">
+          <h3 className="text-3xl font-bold tracking-tight text-slate-text">
             Registro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Evaluaciones</span>
           </h3>
           <p className="text-slate-500 text-sm mt-1">Ingreso de Promedios Finales por Unidad Didáctica (Sistema Vigesimal)</p>
@@ -199,13 +200,13 @@ export function EvaluationDashboard() {
         <button 
           onClick={handleSaveGrades}
           disabled={saving || !selectedUnit || students.length === 0}
-          className={`mt-4 md:mt-0 flex items-center space-x-2 shadow-glow ${saving || !selectedUnit || students.length === 0 ? 'bg-slate-300 cursor-not-allowed px-5 py-2.5 rounded-xl text-white font-medium transition-all' : 'btn-primary px-5 py-2.5 rounded-xl'}`}
+          className={`mt-4 md:mt-0 flex items-center space-x-2 ${saving || !selectedUnit || students.length === 0 ? 'bg-slate-300 cursor-not-allowed px-5 py-2.5 rounded-xl text-white font-medium transition-all' : 'btn-primary px-5 py-2.5 rounded-xl'}`}
         >
           {saving ? (
             <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Guardando...</span></>
           ) : (
             <>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+              <Save className="w-5 h-5" />
               <span>Guardar Promedios</span>
             </>
           )}
@@ -243,18 +244,18 @@ export function EvaluationDashboard() {
           {selectedProgram && selectedPeriod && (
             <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-primary mb-6 bg-gradient-to-r from-white to-slate-50">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xl">🎓</div>
+                <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary"><GraduationCap className="w-5 h-5" /></div>
                 <div>
                   <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
-                  <p className="font-bold text-slate-800">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
+                  <p className="font-bold text-slate-text">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
                 </div>
               </div>
               <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 text-xl">📅</div>
+                <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary"><Calendar className="w-5 h-5" /></div>
                 <div>
                   <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
-                  <p className="font-bold text-slate-800">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
+                  <p className="font-bold text-slate-text">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
                 </div>
               </div>
             </div>
@@ -262,12 +263,12 @@ export function EvaluationDashboard() {
 
           {/* Selección de Curso */}
           <div className="glass-card p-6 border border-slate-200 shadow-sm mb-6">
-            <label className="label text-sm font-bold text-slate-700 mb-3 flex items-center">
-              <span className="text-xl mr-2">📚</span> Mis Cursos Asignados
+            <label className="label text-sm font-bold text-slate-text mb-3 flex items-center">
+              <BookOpen className="w-5 h-5 mr-2 text-primary" /> Mis Cursos Asignados
             </label>
             <div className="relative">
               <select 
-                className="w-full appearance-none bg-white border-2 border-slate-200 text-slate-800 text-base font-semibold rounded-xl px-4 py-3.5 pr-10 hover:border-primary focus:outline-none focus:ring-4 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
+                className="input-field w-full appearance-none text-base font-semibold rounded-xl px-4 py-3.5 pr-10"
                 value={selectedUnit}
                 onChange={(e) => setSelectedUnit(e.target.value)}
                 disabled={!selectedProgram || !selectedPeriod || malla.length === 0}
@@ -283,7 +284,7 @@ export function EvaluationDashboard() {
                   return (
                     <optgroup key={`mod-${modulo.id}`} label={`Ciclo ${modulo.periodo} - ${modulo.nombre}`} className="bg-slate-50 font-bold text-slate-500 text-xs uppercase tracking-wider">
                       {assignedUnits.map(u => (
-                        <option key={u.id} value={u.id} className="font-medium text-slate-800 text-base normal-case">
+                        <option key={u.id} value={u.id} className="font-medium text-slate-text text-base normal-case">
                           {u.nombre}
                         </option>
                       ))}
@@ -299,7 +300,7 @@ export function EvaluationDashboard() {
             </div>
             {teacherLoad.length === 0 && (
               <p className="text-amber-600 text-sm mt-3 flex items-center bg-amber-50 p-3 rounded-lg border border-amber-200">
-                <span className="mr-2">⚠️</span> No tienes cursos asignados para este periodo. Contacta a Secretaría Académica.
+                <AlertTriangle className="w-4 h-4 mr-2" /> No tienes cursos asignados para este periodo. Contacta a Secretaría Académica.
               </p>
             )}
           </div>
@@ -309,12 +310,12 @@ export function EvaluationDashboard() {
           <div className="bg-slate-800 text-white p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h4 className="font-bold flex items-center text-xl">
-                <span className="text-3xl mr-3">📋</span>
+                <ClipboardList className="w-7 h-7 mr-3" />
                 Registro de Promedios
               </h4>
               {tipoCompetencia && (
                 <div className={`mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${tipoCompetencia.includes('Transversal') ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'}`}>
-                  {tipoCompetencia.includes('Transversal') ? '🌐' : '🎯'} {tipoCompetencia}
+                  <Target className="w-3.5 h-3.5 mr-1.5" /> {tipoCompetencia}
                 </div>
               )}
             </div>
@@ -330,27 +331,27 @@ export function EvaluationDashboard() {
                 <div className="inline-block w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4"></div>
                 <p className="text-slate-500 font-medium">Cargando nómina de estudiantes...</p>
               </div>
-            ) : students.length === 0 ? (
+             ) : students.length === 0 ? (
                <div className="py-20 text-center flex flex-col items-center">
-                <div className="text-6xl mb-4 opacity-40">📭</div>
-                <h3 className="text-xl font-bold text-slate-700 mb-2">Sin estudiantes matriculados</h3>
+                <div className="w-20 h-20 mb-4 rounded-full bg-primary-soft flex items-center justify-center text-primary"><ClipboardList className="w-10 h-10" /></div>
+                <h3 className="text-xl font-bold text-slate-text mb-2">Sin estudiantes matriculados</h3>
                 <p className="text-slate-500 max-w-md">No hay registros de matrícula para esta Unidad Didáctica en el periodo seleccionado.</p>
               </div>
             ) : (
-              <table className="w-full text-left border-collapse">
+              <table className="data-table w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-100/80">
                     <th className="py-4 px-6 font-bold text-slate-500 uppercase text-xs tracking-wider w-16 text-center">N°</th>
                     <th className="py-4 px-6 font-bold text-slate-500 uppercase text-xs tracking-wider">Apellidos y Nombres</th>
-                    <th className="py-4 px-6 font-extrabold text-slate-800 uppercase text-xs tracking-wider text-center w-32 bg-slate-200/50 shadow-inner">Promedio Final</th>
+                    <th className="py-4 px-6 font-extrabold text-slate-text uppercase text-xs tracking-wider text-center w-32 bg-slate-200/50 shadow-inner">Promedio Final</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {students.map((student, idx) => {
                     return (
-                      <tr key={student.id} className="hover:bg-blue-50/40 transition-colors group">
+                      <tr key={student.id} className="hover:bg-primary-soft/40 transition-colors group">
                         <td className="py-4 px-6 text-slate-400 font-medium text-sm text-center">{idx + 1}</td>
-                        <td className="py-4 px-6 font-semibold text-slate-700">{student.name}</td>
+                        <td className="py-4 px-6 font-semibold text-slate-text">{student.name}</td>
                         <td className="py-2 px-3 bg-slate-100/50 group-hover:bg-slate-200/50 transition-colors shadow-[inset_1px_0_0_rgba(0,0,0,0.02)]">
                           <input 
                             type="text" 

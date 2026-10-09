@@ -1,7 +1,7 @@
 # Comunicación entre Componentes
 
-> **Versión:** 1.0.0  
-> **Última actualización:** 2026-06-26  
+> **Versión:** 1.1  
+> **Última actualización:** 2026-08-29  
 > **Responsable:** Arquitectura de Software SIGA
 
 ---
@@ -59,25 +59,23 @@
 │  MÓDULOS (Microservicios FastAPI independientes)                  │
 │                                                                   │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐ │
-│  │ mod-planes-      │  │ mod-programas-   │  │ mod-estudiantes  │ │
-│  │ estudio          │  │ estudio          │  │                  │ │
-│  │ :8001            │  │ :8002            │  │ :8003            │ │
-│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘ │
-│           │                     │                     │           │
-│  ┌────────┴─────────┐  ┌───────┴──────────┐  ┌────────┴─────────┐ │
-│  │ BD: mod_planes   │  │ BD: mod_         │  │ BD: mod_         │ │
-│  │ _estudio         │  │ programas_estudio│  │ estudiantes      │ │
+│  │ mod-usuarios     │  │ mod-planes-      │  │ mod-programas-   │ │
+│  │  :8001           │  │  estudio         │  │  estudio         │ │
+│  │                  │  │  :8002           │  │  :8005           │ │
 │  └──────────────────┘  └──────────────────┘  └──────────────────┘ │
 │                                                                   │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐ │
-│  │ mod-matricula    │  │ mod-evaluacion   │  │ mod-gobierno     │ │
-│  │ :8004            │  │ :8005            │  │ :8006            │ │
-│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘ │
-│           │                     │                     │           │
-│  ┌────────┴─────────┐  ┌───────┴──────────┐  ┌────────┴─────────┐ │
-│  │ BD: mod_matricula│  │ BD: mod_         │  │ BD: mod_gobierno │ │
-│  └──────────────────┘  │ evaluacion       │  └──────────────────┘ │
-│                        └──────────────────┘                       │
+│  │ mod-gestion-     │  │ mod-auditoria    │  │ mod-evaluacion   │ │
+│  │  academica       │  │  :8007           │  │  :8008           │ │
+│  │  :8006           │  │                  │  │                  │ │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘ │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────────┐ │
+│  │  mod-admision :8009 (dominio externo ADR-011: ingesta Excel  │ │
+│  │  MINEDU → admin_admision ; bypass temporal por :8009)        │ │
+│  └──────────────────────────────────────────────────────────────┘ │
+│                                                                   │
+│  Todos los módulos MVP apuntan a la BD única: siga_core (Core)    │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -109,32 +107,28 @@ Frontend                          Core                              Redis
    │                                │  Verificar locked_until        │
    │                                │                                │
    │                                │  Generar JWT access_token      │
-   │                                │  (exp: 30 min)                 │
-   │                                │  Generar refresh_token         │
-   │                                │  (exp: 7 days)                 │
+   │                                │  (HS256, exp: 30 min)          │
    │                                │                                │
-   │                                │  Almacenar refresh_token hash  │
-   │                                │  en core_sessions              │
-   │                                │                                │
-   │  {access_token,                │                                │
-   │   refresh_token,               │                                │
-   │   user}                        │                                │
+   │  {access_token, user}          │  (refresh_token: POST-MVP)     │
    │<───────────────────────────────│                                │
    │                                │                                │
-   │  Almacenar en localStorage     │                                │
-   │  (access_token, refresh_token) │                                │
+   │  Almacenar access_token        │                                │
+   │  en localStorage               │                                │
 ```
 
-### 2.3 Refresh Token Flow
+### 2.3 Refresh Token Flow — POST-MVP
+
+> **Contrato MVP (v1.1):** `POST /auth/login` con **body JSON** (`{"email","password"}`) devuelve un **único access token HS256** (exp: 30 min). El refresh token (`POST /auth/refresh`) y el algoritmo RS256 son **POST-MVP** y no forman parte del contrato actual.
 
 ```javascript
-// Cuando el access_token expira (HTTP 401)
-// El SIGAApiClient automáticamente intenta refrescar
+// POST-MVP — Cuando el access_token expira (HTTP 401)
+// El SIGAApiClient reintenta login en MVP; este flujo se habilita post-MVP.
 
-POST /auth/refresh
-Headers: { Authorization: "Bearer <refresh_token>" }
-Response: { access_token: "nuevo_jwt...", refresh_token: "nuevo_refresh..." }
-
+// POST-MVP:
+// POST /auth/refresh
+// Headers: { Authorization: "Bearer <refresh_token>" }
+// Response: { access_token: "nuevo_jwt...", refresh_token: "nuevo_refresh..." }
+//
 // Si el refresh_token también expiró → logout forzado
 ```
 
@@ -143,7 +137,7 @@ Response: { access_token: "nuevo_jwt...", refresh_token: "nuevo_refresh..." }
 **Request genérico:**
 
 ```http
-POST /api/mod-planes-estudio/api/v1/planes HTTP/1.1
+POST /api/v1/planes-estudio/planes HTTP/1.1
 Host: siga.iestp.edu.pe
 Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 Content-Type: application/json
@@ -208,7 +202,7 @@ X-Request-ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         "message": "No tienes permisos para acceder a este recurso",
         "details": {
             "required_permission": "mod-planes-estudio:write",
-            "user_permissions": ["mod-planes-estudio:read", "mod-estudiantes:read"]
+            "user_permissions": ["mod-planes-estudio:read", "mod-gestion-academica:read"]
         },
         "request_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
         "timestamp": "2026-06-26T10:30:00Z"
@@ -279,12 +273,12 @@ ws.onclose = () => {
 El Core actúa como un API Gateway. Todas las solicitudes a módulos pasan a través del Core.
 
 ```
-Ruta externa:  /api/{module_name}/{endpoint_path}
+Ruta externa:  /api/v1/{module_name}/{endpoint_path}
 Ruta interna:  http://{module_host}:{module_port}/{endpoint_path}
 
 Ejemplo:
-  Externa: GET /api/mod-planes-estudio/api/v1/planes?programa_id=1
-  Interna: GET http://localhost:8001/api/v1/planes?programa_id=1
+  Externa: GET /api/v1/planes-estudio/planes?programa_id=1
+  Interna: GET http://localhost:8002/api/v1/planes?programa_id=1
 ```
 
 ### 3.2 Flujo Completo de Proxy
@@ -292,7 +286,7 @@ Ejemplo:
 ```
 Frontend                                               Core Gateway                              Módulo Destino
    │                                                      │                                          │
-   │  GET /api/mod-planes-estudio/api/v1/planes           │                                          │
+   │  GET /api/v1/planes-estudio/planes                    │                                          │
    │  Authorization: Bearer <jwt>                         │                                          │
    │─────────────────────────────────────────────────────>│                                          │
    │                                                      │                                          │
@@ -376,7 +370,7 @@ Cuando el Core hace proxy a un módulo, incluye estos headers para transmitir el
 | `X-User-Email` | String | Email del usuario | `jdocente@siga.edu` |
 | `X-User-Full-Name` | String | Nombre completo del usuario | `Juan Pérez García` |
 | `X-User-Roles` | String | Roles del usuario (separados por coma) | `docente,jefe_unidad` |
-| `X-User-Permissions` | String | Permisos del usuario (separados por coma) | `mod-planes:read,mod-estudiantes:write` |
+| `X-User-Permissions` | String | Permisos del usuario (separados por coma) | `mod-planes-estudio:read,mod-gestion-academica:write` |
 | `X-Request-ID` | UUID | ID único para tracing distribuido | `a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
 | `X-Internal-Token` | JWT | Token interno que autentica al Core ante el módulo | `eyJ...` |
 | `X-Gateway-Version` | String | Versión del gateway para compatibilidad | `2.0.0` |
@@ -424,22 +418,24 @@ async def verify_internal_token(request: Request):
 
 | Endpoint | Método | Propósito | Auth |
 |----------|--------|-----------|------|
-| `POST /auth/login` | POST | Login de usuario | No |
+| `POST /auth/login` | POST | Login de usuario (body JSON) | No |
 | `POST /auth/register` | POST | Registro de usuario | No |
-| `POST /auth/refresh` | POST | Refrescar token | Refresh token |
+| `POST /auth/refresh` | POST | Refrescar token (**POST-MVP**) | Refresh token |
 | `GET /auth/me` | GET | Obtener usuario actual | JWT |
 | `POST /auth/logout` | POST | Logout (invalidar token) | JWT |
-| `GET /core/modules` | GET | Listar módulos registrados | JWT |
+| `GET /core/modules` | GET | Listar módulos registrados | JWT (+ rate limit) |
 | `GET /core/modules/{name}` | GET | Obtener detalle de módulo | JWT |
 | `GET /core/status` | GET | Estado del sistema | JWT |
 | `POST /core/audit/query` | POST | Consultar logs de auditoría | JWT (admin) |
 | `POST /internal/module-query` | POST | Proxy para comunicación módulo→módulo | Internal Token |
-| `GET /api/{module}/{path}` | * | Proxy a módulo | JWT |
-| `POST /api/{module}/{path}` | * | Proxy a módulo | JWT |
-| `PUT /api/{module}/{path}` | * | Proxy a módulo | JWT |
-| `DELETE /api/{module}/{path}` | * | Proxy a módulo | JWT |
+| `GET /api/v1/{module}/{path}` | * | Proxy a módulo | JWT |
+| `POST /api/v1/{module}/{path}` | * | Proxy a módulo | JWT |
+| `PUT /api/v1/{module}/{path}` | * | Proxy a módulo | JWT |
+| `DELETE /api/v1/{module}/{path}` | * | Proxy a módulo | JWT |
 | `GET /health` | GET | Health check del Core | No |
 | `GET /ws` | WS | WebSocket para tiempo real | JWT (query param) |
+
+> **Nota:** `GET /core/modules` exige JWT y aplica **rate limit**, de forma consistente con el resto del gateway. `GET /auth/refresh` es **post-MVP**; en MVP el cliente reintenta `POST /auth/login`.
 
 ---
 
@@ -461,17 +457,18 @@ Opción B (Asíncrona): Módulo A → NATS (Event Bus) → Módulo B
 Cuando un módulo necesita datos de otro módulo de forma síncrona:
 
 ```
-mod-matricula necesita validar datos de un estudiante
+mod-evaluacion necesita validar datos de una matrícula
                                    │
-mod-matricula                      │                     Core                     mod-estudiantes
+mod-evaluacion                     │                        Core                    mod-gestion-academica
    │                               │                       │                           │
    │ POST /internal/module-query    │                       │                           │
    │ X-Internal-Token: <token>      │                       │                           │
    │ {                              │                       │                           │
    │   "target_module": "mod-      │                       │                           │
-   │    estudiantes",               │                       │                           │
+   │    gestion-academica",         │                       │                           │
    │   "endpoint": "/api/v1/       │                       │                           │
-   │    estudiantes/456",           │                       │                           │
+   │    gestion-academica/          │                       │                           │
+   │    matriculas/456",            │                       │                           │
    │   "method": "GET"              │                       │                           │
    │ }                              │                       │                           │
    │───────────────────────────────>│                       │                           │
@@ -479,23 +476,23 @@ mod-matricula                      │                     Core                 
    │                               │  Verificar módulo     │                           │
    │                               │  origen tiene permiso │                           │
    │                               │                       │                           │
-   │                               │  GET /api/v1/estudiantes/456                      │
+   │                               │  GET /api/v1/gestion-academica/matriculas/456     │
    │                               │  X-User-ID: 0 (system)                            │
    │                               │  X-Request-ID: uuid                               │
    │                               │  X-Internal-Token: <token>                        │
    │                               │─────────────────────────────────────────────────>│
    │                               │                       │                           │
-   │                               │                       │  Datos del estudiante      │
+   │                               │                       │  Datos de la matrícula    │
    │                               │<─────────────────────────────────────────────────│
    │                               │                       │                           │
-   │  {estudiante_data}            │                       │                           │
+   │  {matricula_data}             │                       │                           │
    │<───────────────────────────────│                       │                           │
 ```
 
 **Implementación en Python:**
 
 ```python
-# En el módulo origen (ej: mod-matricula)
+# En el módulo origen (ej: mod-evaluacion)
 import httpx
 
 class ModuleGateway:
@@ -523,8 +520,8 @@ class ModuleGateway:
         return response.json()
 
 # Uso:
-gateway = ModuleGateway("http://siga-core:8000", "mod-matricula", "internal_jwt...")
-estudiante = await gateway.query_module("mod-estudiantes", "/api/v1/estudiantes/456")
+gateway = ModuleGateway("http://siga-core:8000", "mod-evaluacion", "internal_jwt...")
+matricula = await gateway.query_module("mod-gestion-academica", "/api/v1/gestion-academica/matriculas/456")
 ```
 
 ### 4.3 Opción B: Comunicación Asíncrona vía NATS Event Bus
@@ -544,7 +541,8 @@ Para acciones que no requieren respuesta inmediata, los módulos publican y se s
          ▼                    ▼                    ▼
 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
 │  Publisher        │  │  Subscriber 1    │  │  Subscriber 2    │
-│  mod-matricula    │  │  mod-evaluacion  │  │  mod-notif.      │
+│  mod-gestion-     │  │  mod-evaluacion  │  │  (post-MVP)      │
+│  academica        │  │                  │  │  mod-notif.      │
 │                   │  │                  │  │                  │
 │  "enrollment.     │  │  → prepara      │  │  → envia correo  │
 │   confirmed"      │  │    estructura    │  │    al estudiante │
@@ -554,7 +552,7 @@ Para acciones que no requieren respuesta inmediata, los módulos publican y se s
 **Publicación de eventos (Publisher) - Implementando Transactional Outbox:**
 
 ```python
-# En mod-matricula, en lugar de publicar directo a NATS, se guarda en la tabla outbox:
+# En mod-gestion-academica, en lugar de publicar directo a NATS, se guarda en la tabla outbox:
 def confirmar_matricula(db: Session, matricula_data: dict):
     # 1. Lógica de negocio (guardar matrícula)
     matricula = Matricula(**matricula_data)
@@ -564,7 +562,7 @@ def confirmar_matricula(db: Session, matricula_data: dict):
     event_payload = {
         "event_id": str(uuid.uuid4()),
         "event_type": "enrollment.confirmed",
-        "source": "mod-matricula",
+        "source": "mod-gestion-academica",
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "version": "1.0.0",
         "data": matricula.to_dict(),
@@ -589,27 +587,23 @@ def confirmar_matricula(db: Session, matricula_data: dict):
 **Suscripción a eventos (Subscriber):**
 
 ```python
-# En mod-evaluacion
+# En mod-evaluacion (MVP: NATS core pub/sub; JetStream/durables = POST-MVP)
 import nats
-from nats.js import JetStreamContext
 
 async def setup_subscribers():
     nc = await nats.connect("nats://nats:4222")
-    js = nc.jetstream()
 
-    # Suscribirse al stream de eventos
-    await js.subscribe(
+    # MVP: NATS core simple. JetStream (stream="siga-events") se habilita post-MVP.
+    await nc.subscribe(
         "enrollment.confirmed",
-        stream="siga-events",
         cb=handle_enrollment_confirmed,
-        durable="mod-evaluacion-enrollment-consumer"  # Consumer durable
+        queue="mod-evaluacion-enrollment"
     )
 
-    await js.subscribe(
+    await nc.subscribe(
         "student.created",
-        stream="siga-events",
         cb=handle_student_created,
-        durable="mod-evaluacion-student-consumer"
+        queue="mod-evaluacion-student"
     )
 
 async def handle_enrollment_confirmed(msg):
@@ -636,32 +630,44 @@ async def handle_enrollment_confirmed(msg):
 |--------|-----------|-------------|---------|-----------------|
 | `core.started` | Core | Todos los módulos | Inicio del Core | `version`, `environment`, `startup_time` |
 | `core.shutdown` | Core | Todos los módulos | Apagado graceful | `reason`, `shutdown_time` |
-| `user.created` | Core | Módulos relevantes | Nuevo usuario registrado | `user_id`, `email`, `roles` |
-| `user.updated` | Core | Módulos relevantes | Actualización de usuario | `user_id`, `email`, `changes` |
-| `user.deactivated` | Core | Módulos | Usuario desactivado | `user_id`, `reason` |
+| `user.created` | Core (mod-usuarios) | Módulos relevantes | Nuevo usuario registrado | `user_id`, `email`, `roles` |
+| `user.updated` | Core (mod-usuarios) | Módulos relevantes | Actualización de usuario | `user_id`, `email`, `changes` |
+| `user.deactivated` | Core (mod-usuarios) | Módulos | Usuario desactivado | `user_id`, `reason` |
 | `module.registered` | Core | Módulos, monitoreo | Nuevo módulo registrado | `module_name`, `version`, `endpoints` |
 | `module.health.changed` | Core | Monitoreo | Cambio de estado de salud | `module_name`, `old_status`, `new_status` |
 | `module.circuit.opened` | Core | Monitoreo, admin | Circuit breaker se abre | `module_name`, `fail_count` |
-| `program.created` | mod-programas | mod-planes, mod-matricula | Nuevo programa | `programa_id`, `codigo`, `nombre` |
-| `program.updated` | mod-programas | mod-planes, mod-matricula | Programa actualizado | `programa_id`, `changes` |
-| `period.opened` | mod-programas | mod-matricula, mod-evaluacion | Periodo aperturado | `periodo_id`, `programa_id`, `fechas` |
-| `period.closed` | mod-programas | mod-matricula, mod-evaluacion | Periodo cerrado | `periodo_id`, `programa_id` |
-| `student.created` | mod-estudiantes | mod-matricula, mod-reportes, mod-evaluacion | Nuevo estudiante registrado | `student_id`, `dni`, ` nombres`, `apellidos` |
-| `student.updated` | mod-estudiantes | mod-matricula | Estudiante actualizado | `student_id`, `changes` |
-| `student.state.changed` | mod-estudiantes | mod-matricula | Cambio de estado académico | `student_id`, `old_state`, `new_state` |
-| `plan.published` | mod-planes-estudio | mod-programas, mod-matricula, mod-evaluacion | Nuevo plan aprobado | `plan_id`, `programa_id`, `version` |
-| `plan.archived` | mod-planes-estudio | mod-programas | Plan reemplazado | `plan_id`, `programa_id`, `new_plan_id` |
-| `ud.updated` | mod-planes-estudio | mod-matricula | UD actualizada (ej: prerrequisitos) | `unidad_id`, `codigo`, `changes` |
-| `enrollment.started` | mod-matricula | mod-reportes | Inicio de proceso de matrícula | `estudiante_id`, `periodo_id` |
-| `enrollment.validated` | mod-matricula | mod-evaluacion, mod-reportes | Matrícula validada | `matricula_id`, `estudiante_id`, `periodo_id`, `unidades` |
-| `enrollment.confirmed` | mod-matricula | mod-evaluacion, mod-notificaciones, mod-reportes | Matrícula confirmada oficialmente | `matricula_id`, `estudiante_id`, `periodo_id`, `unidades`, `creditos` |
-| `enrollment.cancelled` | mod-matricula | mod-evaluacion | Matrícula anulada | `matricula_id`, `estudiante_id`, `motivo` |
-| `grade.registered` | mod-evaluacion | mod-reportes | Nota registrada (aún no publicada) | `evaluacion_id`, `unidad_id`, `nota` |
-| `grade.published` | mod-evaluacion | mod-reportes, mod-notificaciones, mod-gobierno, mod-estudiantes | Notas publicadas oficialmente | `estudiante_id`, `periodo_id`, `promedio_general`, `uds_aprobadas` |
-| `grade.updated` | mod-evaluacion | mod-reportes | Nota rectificada | `evaluacion_id`, `nota_anterior`, `nota_nueva`, `motivo` |
-| `average.calculated` | mod-evaluacion | mod-reportes, mod-gobierno | Promedio de periodo calculado | `estudiante_id`, `periodo_id`, `promedio`, `estado_promocion` |
-| `risk.alert.generated` | mod-evaluacion | mod-notificaciones | Alerta de riesgo académico | `estudiante_id`, `tipo_riesgo`, `nivel`, `detalle` |
+| `program.created` | mod-programas-estudio | mod-planes-estudio, mod-gestion-academica, mod-admision | Nuevo programa | `programa_id`, `codigo`, `nombre` |
+| `program.updated` | mod-programas-estudio | mod-planes-estudio, mod-gestion-academica | Programa actualizado | `programa_id`, `changes` |
+| `period.opened` | mod-programas-estudio | mod-gestion-academica, mod-evaluacion | Periodo aperturado | `periodo_id`, `programa_id`, `fechas` |
+| `period.closed` | mod-programas-estudio | mod-gestion-academica, mod-evaluacion | Periodo cerrado | `periodo_id`, `programa_id` |
+| `plan.published` | mod-planes-estudio | mod-programas-estudio, mod-gestion-academica, mod-evaluacion | Nuevo plan aprobado | `plan_id`, `programa_id`, `version` |
+| `plan.archived` | mod-planes-estudio | mod-programas-estudio | Plan reemplazado | `plan_id`, `programa_id`, `new_plan_id` |
+| `ud.updated` | mod-planes-estudio | mod-gestion-academica | UD actualizada (ej: prerrequisitos) | `unidad_id`, `codigo`, `changes` |
+| `student.created` | mod-gestion-academica | mod-admision, mod-evaluacion | Nuevo estudiante registrado | `student_id`, `dni`, `nombres`, `apellidos` |
+| `student.updated` | mod-gestion-academica | mod-admision | Estudiante actualizado | `student_id`, `changes` |
+| `student.state.changed` | mod-gestion-academica | mod-admision | Cambio de estado académico | `student_id`, `old_state`, `new_state` |
+| `history.state.changed` | mod-gestion-academica | mod-admision | Cambio en historial académico (reserva, egreso…) | `estudiante_id`, `estado`, `resolucion` |
+| `benefit.assigned` | mod-gestion-academica | Core Admin | Beneficio/beca asignado | `estudiante_id`, `tipo_beneficio`, `porcentaje_descuento` |
+| `convalidation.approved` | mod-gestion-academica | mod-evaluacion | Convalidación aprobada | `estudiante_id`, `unidad_destino_id`, `nota_reconocida` |
+| `tramite.state.changed` | mod-gestion-academica | Core Admin | Cambio de estado de trámite | `tramite_id`, `tipo_tramite`, `estado` |
+| `enrollment.started` | mod-gestion-academica | mod-evaluacion | Inicio de proceso de matrícula | `estudiante_id`, `periodo_id` |
+| `enrollment.validated` | mod-gestion-academica | mod-evaluacion | Matrícula validada | `matricula_id`, `estudiante_id`, `periodo_id`, `unidades` |
+| `enrollment.confirmed` | mod-gestion-academica | mod-evaluacion, mod-admision | Matrícula confirmada oficialmente | `matricula_id`, `estudiante_id`, `periodo_id`, `unidades`, `creditos` |
+| `enrollment.cancelled` | mod-gestion-academica | mod-evaluacion | Matrícula anulada | `matricula_id`, `estudiante_id`, `motivo` |
+| `grade.registered` | mod-evaluacion | mod-gestion-academica | Nota registrada (aún no publicada) | `evaluacion_id`, `unidad_id`, `nota` |
+| `grade.published` | mod-evaluacion | mod-gestion-academica | Notas publicadas oficialmente | `estudiante_id`, `periodo_id`, `promedio_general`, `uds_aprobadas` |
+| `grade.updated` | mod-evaluacion | mod-gestion-academica | Nota rectificada | `evaluacion_id`, `nota_anterior`, `nota_nueva`, `motivo` |
+| `average.calculated` | mod-evaluacion | mod-gestion-academica | Promedio de periodo calculado | `estudiante_id`, `periodo_id`, `promedio`, `estado_promocion` |
+| `risk.alert.generated` | mod-evaluacion | post-MVP (mod-notificaciones) | Alerta de riesgo académico | `estudiante_id`, `tipo_riesgo`, `nivel`, `detalle` |
+| `admission.ingested` | mod-admision (dominio externo) | mod-gestion-academica | Ingesta masiva Excel MINEDU | `postulante_id`, `dni`, `programa_id`, `estado` |
+
+**Eventos post-MVP (fuera del contrato v1.1):**
+
+| Evento | Publisher | Subscribers | Disparo | Datos incluidos |
+|--------|-----------|-------------|---------|-----------------|
 | `indicator.updated` | mod-gobierno | Core | Indicador de gestión actualizado | `codigo`, `valor`, `periodo` |
+
+Además de `indicator.updated`, quedan post-MVP los consumidores de **mod-reportes** y **mod-notificaciones** (p. ej. correos/alertas sobre `grade.published`, `enrollment.confirmed`, `risk.alert.generated`) y los eventos de dominios de egresados/titulados.
 
 ### 4.5 Formato Estandarizado de Eventos
 
@@ -669,7 +675,7 @@ async def handle_enrollment_confirmed(msg):
 {
     "event_id": "evt_a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "event_type": "enrollment.confirmed",
-    "source": "mod-matricula",
+    "source": "mod-gestion-academica",
     "version": "1.0.0",
     "timestamp": "2026-06-26T10:30:00.123Z",
     "data": {
@@ -694,10 +700,14 @@ async def handle_enrollment_confirmed(msg):
 }
 ```
 
-### 4.6 NATS Stream Configuration
+### 4.6 NATS — Configuración MVP y JetStream (POST-MVP)
+
+**MVP (v1.1):** se usa NATS **core** (pub/sub simple y **degradable**). Si NATS no está disponible, la publicación se **reintenta 1 vez** y, si persiste el fallo, se registra en log (y queda pendiente de reconciliación). **No se exige JetStream, durable ni clúster en el MVP.**
+
+### 4.7 JetStream / Clúster NATS — POST-MVP
 
 ```bash
-# Configuración de JetStream
+# POST-MVP: JetStream con clúster de 3 réplicas
 nats stream add siga-events \
     --subjects ">" \
     --storage file \
@@ -708,16 +718,17 @@ nats stream add siga-events \
     --durable \
     --replicas 3
 
-# Consumidores durables por módulo
-nats consumer add siga-events mod-matricula-consumer \
-    --filter "mod-matricula.>" \
+# POST-MVP: Consumidores durables por módulo
+# Filtros sobre subjects de eventos reales (no prefijos de módulo legacy)
+nats consumer add siga-events gestion-academica-consumer \
+    --filter "enrollment.*" \
     --ack explicit \
     --deliver all \
     --max-deliver 3 \
     --backoff "10s,30s,1m,5m"
 
-nats consumer add siga-events mod-evaluacion-consumer \
-    --filter "enrollment.>" \
+nats consumer add siga-events evaluacion-consumer \
+    --filter "grade.*" \
     --ack explicit \
     --deliver all \
     --max-deliver 3 \
@@ -759,7 +770,7 @@ class CircuitBreaker:
         self.failure_threshold = 5      # Fallos consecutivos para abrir
         self.success_threshold = 3      # Éxitos consecutivos para cerrar
         self.timeout_open = 30          # Segundos en estado OPEN
-        self.timeout_half_open = 10     # Timeout para request de prueba
+        self.timeout_half_open = 5      # Timeout para request de prueba
 
     async def get_state(self) -> CircuitBreakerState:
         state = await self.redis.get(f"circuit:{self.module_name}:state")
@@ -810,10 +821,10 @@ class CircuitBreaker:
 | Operación | Timeout | Acción si expira |
 |-----------|---------|-----------------|
 | Proxy a módulo (request normal) | 30 segundos | 504 Gateway Timeout |
-| Proxy a módulo (circuit half-open) | 10 segundos | Circuit breaker registra fallo |
+| Proxy a módulo (circuit half-open) | 5 segundos | Circuit breaker registra fallo |
 | Health check de módulo | 5 segundos | Marcar módulo como unhealthy |
 | Consulta interna módulo → módulo | 15 segundos | 504, reintentar 1 vez |
-| Publicación de evento NATS | 5 segundos | Reintentar 2 veces, luego log error |
+| Publicación de evento NATS | 5 segundos | Reintentar 1 vez, luego log error |
 | Autenticación JWT | 3 segundos | 401 |
 
 ### 5.4 Reintentos (Retry Policy)
@@ -823,7 +834,7 @@ class CircuitBreaker:
 | Proxy GET a módulo (timeout) | 1 | 1s | Solo si idempotente |
 | Proxy POST a módulo (timeout) | 0 | — | No reintentar (riesgo de duplicación) |
 | Health check fallido | 3 | 1s, 2s, 5s | Marcar unhealthy si todos fallan |
-| Publicación NATS fallida | 2 | 500ms, 1s | Log error si persiste |
+| Publicación NATS fallida | 1 | 500ms | Log error si persiste |
 | Consulta módulo→módulo | 1 | 500ms | Solo GETs |
 | Conexión a BD fallida | 3 | 1s, 2s, 4s | Pool de conexiones con reconexión |
 
@@ -849,7 +860,7 @@ class SIGAApiClient {
     constructor() {
         this.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         this.token = localStorage.getItem('siga_access_token');
-        this.refreshToken = localStorage.getItem('siga_refresh_token');
+        this.refreshToken = localStorage.getItem('siga_refresh_token'); // POST-MVP (refresh token)
         this.isRefreshing = false;
         this.refreshSubscribers = [];
     }
@@ -888,7 +899,8 @@ class SIGAApiClient {
             throw new APIError(0, { detail: 'Error de conexión. Verifica tu red.' });
         }
 
-        // Token expirado → intentar refresh
+        // POST-MVP: Token expirado → intentar refresh
+        // MVP: el usuario reintenta POST /auth/login (token HS256 único)
         if (response.status === 401 && this.refreshToken) {
             const refreshed = await this._attemptRefresh();
             if (refreshed) {
@@ -909,6 +921,7 @@ class SIGAApiClient {
     }
 
     async _attemptRefresh() {
+        // POST-MVP: refresh token rotativo (RS256 + /auth/refresh)
         if (this.isRefreshing) {
             // Esperar a que otro request complete el refresh
             return new Promise((resolve) => {
@@ -944,12 +957,13 @@ class SIGAApiClient {
     }
 
     // === Auth ===
+    // MVP: POST /auth/login (body JSON) → access_token HS256 único (refresh: POST-MVP)
     async login(email, password) {
         const data = await this.request('/auth/login', {
             method: 'POST',
             body: JSON.stringify({ email, password }),
         });
-        this.setToken(data.access_token, data.refresh_token);
+        this.setToken(data.access_token);
         return data;
     }
 
@@ -971,7 +985,7 @@ class SIGAApiClient {
         if (data && method !== 'GET') {
             options.body = JSON.stringify(data);
         }
-        return this.request(`/api/${moduleName}/${endpoint}`, options);
+        return this.request(`/api/v1/${moduleName}/${endpoint}`, options);
     }
 
     // === Core ===
@@ -1011,8 +1025,8 @@ export function AcademicDashboard() {
         try {
             setLoading(true);
             const data = await apiClient.callModule(
-                'mod-planes-estudio',
-                'api/v1/planes?programa_id=1',
+                'planes-estudio',
+                'planes?programa_id=1',
                 'GET'
             );
             setPlanes(data);
@@ -1027,8 +1041,8 @@ export function AcademicDashboard() {
         if (!hasPermission('mod-planes-estudio:write')) return;
         try {
             const created = await apiClient.callModule(
-                'mod-planes-estudio',
-                'api/v1/planes',
+                'planes-estudio',
+                'planes',
                 'POST',
                 newPlan
             );
@@ -1230,11 +1244,11 @@ Propagación:
 |------|--------|---------------|
 | Transporte | HTTPS/TLS | Certificados Let's Encrypt, TLS 1.3 |
 | Transporte (interno) | HTTP plano (solo red interna) | Docker network interna, VLAN dedicada |
-| Autenticación | JWT (access + refresh) | RS256 o HS256, expiración 30 min |
+| Autenticación | JWT access (HS256) | HS256, expiración 30 min (refresh y RS256: POST-MVP) |
 | Autorización | Permisos por endpoint | Validación en Core antes de proxy |
 | Comunicación interna | X-Internal-Token | JWT con secreto compartido, exp 30s |
 | Rate limiting | Por usuario + ruta | Redis + contadores deslizantes |
-| Anti-falsificación | X-Request-ID único | Validación de idempotencia |
+| Trazabilidad | X-Request-ID único | Correlación de requests distribuidos (no garantiza idempotencia) |
 | CORS | Orígenes permitidos | Solo dominios del frontend |
 | Headers seguridad | CSP, X-Frame-Options, etc. | Middleware de seguridad HTTP |
 
@@ -1283,6 +1297,7 @@ class RateLimitMiddleware:
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
 | 1.0.0 | 2026-06-26 | Arquitectura SIGA | Versión inicial del documento de comunicación |
+| 1.1 | 2026-08-29 | Arquitectura SIGA | Alineación MVP v1.1: 7 módulos y puertos reales, /api/v1, auth HS256 única, catálogo de eventos real, observabilidad |
 
 ---
 
