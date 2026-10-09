@@ -5,6 +5,209 @@ import mockEvaluacion from './mockEvaluacion.json';
 
 const SECTION_TITLE = "text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em]";
 
+/* Estado vacío del módulo: réplica visual (solo JSX/CSS) de la referencia.
+   No toca lógica: se renderiza únicamente cuando aún no hay estudiante seleccionado. */
+function BoletinEmptyState() {
+  const cursos = [
+    { nombre: 'Programación', nota: '18', pct: '90%', bar: 'bg-teal-400/90' },
+    { nombre: 'Base de Datos', nota: '16', pct: '80%', bar: 'bg-blue-500/90' },
+    { nombre: 'Diseño Web', nota: '17', pct: '85%', bar: 'bg-violet-500/90' },
+    { nombre: 'Redes', nota: '15', pct: '75%', bar: 'bg-amber-500/90' },
+    { nombre: 'Análisis de Sistemas', nota: '19', pct: '95%', bar: 'bg-cyan-400/90' },
+  ];
+  const chips = [
+    { label: 'DNI', icon: 'M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zm3 4a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm-1 6h4m5-6h4m-4 3h4m-4 3h4', color: 'text-blue-500' },
+    { label: 'Código', icon: 'M8 9l-3 3 3 3m8-6l3 3-3 3M13 5l-2 14', color: 'text-emerald-600' },
+    { label: 'Nombre completo', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', color: 'text-amber-500' },
+    { label: 'Búsqueda por voz', icon: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z', color: 'text-violet-500' },
+    { label: 'Historial académico', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', color: 'text-slate-500' },
+  ];
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-5 py-8 sm:px-8 text-center shadow-[0_24px_60px_-24px_rgba(100,116,139,0.25)]">
+      {/* Iluminación mínima: halo tenue + viñeta clara */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-32 left-1/2 h-48 w-[36rem] -translate-x-1/2 rounded-full bg-amber-200/30 blur-3xl" />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-200/60 to-transparent" />
+      </div>
+
+      <div className="relative">
+        {/* Escena: observaciones / libros+laptop / boletín / créditos+historial */}
+        <div className="relative mx-auto flex max-w-[760px] items-end justify-center gap-3 sm:gap-0">
+          {/* Hojas decorativas */}
+          <div aria-hidden="true" className="pointer-events-none absolute -left-2 bottom-6 hidden opacity-40 md:block">
+            <div className="h-16 w-3 rotate-[-24deg] rounded-full bg-emerald-600/15" />
+            <div className="ml-3 -mt-10 h-12 w-3 rotate-[-40deg] rounded-full bg-emerald-600/10" />
+          </div>
+          <div aria-hidden="true" className="pointer-events-none absolute -right-2 bottom-10 hidden opacity-40 md:block">
+            <div className="h-16 w-3 rotate-[24deg] rounded-full bg-emerald-600/15" />
+            <div className="mr-3 -mt-10 ml-auto h-12 w-3 rotate-[40deg] rounded-full bg-emerald-600/10" />
+          </div>
+
+          {/* Tarjeta Observaciones (fondo, izquierda) */}
+          <div className="absolute left-2 top-8 hidden w-40 -rotate-6 rounded-xl border border-[#DDE3EA] bg-white p-3 text-left shadow-[0_10px_30px_-12px_rgba(100,116,139,0.25)] lg:block">
+            <div className="mb-2 flex items-center gap-1.5">
+              <span className="flex h-5 w-5 items-center justify-center rounded-md border border-amber-300/60 bg-amber-100">
+                <svg className="h-3 w-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M9 8h6M5 3h14a1 1 0 011 1v16a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" /></svg>
+              </span>
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#1F2937]">Observaciones</p>
+            </div>
+            <div className="space-y-1.5">
+              <div className="h-1.5 w-full rounded bg-slate-200" />
+              <div className="h-1.5 w-5/6 rounded bg-slate-200/80" />
+              <div className="h-1.5 w-4/6 rounded bg-slate-100" />
+            </div>
+          </div>
+
+          {/* Libros + laptop grandes (decorado, izquierda) */}
+          <div aria-hidden="true" className="pointer-events-none relative z-10 hidden w-64 shrink-0 items-end md:flex -mr-8">
+            {/* Fondo integrado: silueta académica + follaje + luz dorada tenue */}
+            <svg className="absolute -left-5 -top-12 h-24 w-24 rotate-[-10deg] text-slate-400/20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" /></svg>
+            <div className="absolute -left-2 bottom-0 opacity-70">
+              <div className="h-24 w-3 rotate-[-18deg] rounded-full bg-slate-300" />
+              <div className="ml-3 -mt-16 h-16 w-2.5 rotate-[-36deg] rounded-full bg-slate-200" />
+              <div className="-ml-1 -mt-12 h-12 w-2 rotate-[-4deg] rounded-full bg-[#c9d2c0]" />
+            </div>
+            {/* Tarjeta secundaria con contenido, detrás de la laptop */}
+            <div className="absolute -top-7 right-4 z-0 w-32 rotate-[5deg] rounded-xl border border-[#DDE3EA] bg-white/95 p-2.5 text-left opacity-90 shadow-[0_10px_30px_-12px_rgba(100,116,139,0.3)]">
+              <p className="text-[8px] font-extrabold uppercase tracking-[0.18em] text-[#64748B]">Periodo actual</p>
+              <p className="mt-0.5 text-sm font-extrabold text-[#111827]">2026-I</p>
+              <div className="mt-1.5 space-y-1 border-t border-slate-200 pt-1.5">
+                <p className="text-[9px] font-semibold text-[#64748B]">5 módulos</p>
+                <p className="text-[9px] font-semibold text-[#64748B]">20 créditos</p>
+              </div>
+            </div>
+            <div className="mb-1 w-32">
+              <div className="rounded-sm border border-slate-200 border-l-4 border-l-cyan-500/60 bg-white px-2 py-1.5 text-left shadow-sm"><p className="text-[8px] font-bold uppercase tracking-[0.14em] text-[#64748B]">Desarrollo</p></div>
+              <div className="rounded-sm border border-slate-200 border-l-4 border-l-amber-500/70 bg-white px-2 py-1.5 text-left shadow-sm"><p className="text-[8px] font-bold uppercase tracking-[0.14em] text-amber-600">Base de datos</p></div>
+              <div className="rounded-sm border border-slate-200 border-l-4 border-l-blue-500/60 bg-white px-2 py-1.5 text-left shadow-sm"><p className="text-[8px] font-bold uppercase tracking-[0.14em] text-[#64748B]">Redes</p></div>
+            </div>
+            <div className="-ml-8 mb-1">
+              <div className="w-52 overflow-hidden rounded-t-md border border-[#DDE3EA] bg-white px-3 pb-2 pt-1.5 shadow-sm">
+                <div className="mb-1.5 flex gap-1"><span className="h-1 w-1 rounded-full bg-red-400" /><span className="h-1 w-1 rounded-full bg-amber-400" /><span className="h-1 w-1 rounded-full bg-emerald-500" /></div>
+                <div className="space-y-1.5">
+                  <div className="h-1 w-11/12 rounded-sm bg-cyan-500/70" />
+                  <div className="h-1 w-3/4 rounded-sm bg-violet-500/70" />
+                  <div className="h-1 w-5/6 rounded-sm bg-amber-500/70" />
+                  <div className="h-1 w-2/3 rounded-sm bg-blue-500/70" />
+                  <div className="h-1 w-4/5 rounded-sm bg-emerald-500/60" />
+                  <div className="h-1 w-3/5 rounded-sm bg-slate-400/70" />
+                </div>
+              </div>
+              <div className="h-1.5 w-56 -translate-x-1 rounded-b-lg bg-gradient-to-b from-slate-300 to-slate-400" />
+            </div>
+            {/* Portalápices + resplandor cálido como en la referencia */}
+            <div className="-ml-7 mb-1 hidden w-8 items-end justify-center lg:flex">
+              <div className="relative flex h-11 w-7 items-end justify-center overflow-visible rounded-b-md border border-[#DDE3EA] bg-white pb-0 shadow-sm">
+                <span className="absolute -top-3 left-1 h-5 w-[3px] rotate-[-8deg] rounded-full bg-amber-500/80" />
+                <span className="absolute -top-3.5 left-3 h-6 w-[3px] rotate-[4deg] rounded-full bg-slate-500/80" />
+                <span className="absolute -top-2.5 right-1 h-4 w-[3px] rotate-[12deg] rounded-full bg-cyan-600/70" />
+              </div>
+            </div>
+            <div aria-hidden="true" className="pointer-events-none absolute -bottom-4 left-10 h-16 w-72 rounded-full bg-amber-200/50 blur-2xl" />
+          </div>
+
+          {/* Tarjeta central: Boletín de Estudiante */}
+          <div className="relative z-20 w-full max-w-[310px] shrink-0 rounded-2xl border border-[#DDE3EA] bg-white p-4 text-left shadow-[0_18px_45px_-15px_rgba(100,116,139,0.35)] sm:-mx-2">
+            <span aria-hidden="true" className="absolute -top-[3px] left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+            <div className="mb-3 flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-300/60 bg-amber-100">
+                <svg className="h-3.5 w-3.5 text-amber-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" /></svg>
+              </span>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#1F2937]">Boletín de Estudiante</p>
+            </div>
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#64748B]">Módulo</p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#64748B]">Nota (20)</p>
+              </div>
+              <div className="space-y-2.5">
+                {cursos.map((c) => (
+                  <div key={c.nombre}>
+                    <div className="mb-1 flex items-baseline justify-between gap-2">
+                      <p className="truncate text-xs font-semibold text-[#1F2937]">{c.nombre}</p>
+                      <p className="shrink-0 text-xs font-bold text-[#111827]">{c.nota}</p>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                      <div className={`h-full rounded-full ${c.bar}`} style={{ width: c.pct }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Columna derecha: Créditos + Historial */}
+          <div className="relative z-10 flex w-44 shrink-0 flex-col gap-4 sm:-ml-2">
+            <div className="rounded-2xl border border-[#DDE3EA] bg-white p-3 text-left shadow-[0_10px_30px_-12px_rgba(100,116,139,0.25)]">
+              <div className="mb-2 flex items-center gap-1.5">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-slate-100">
+                  <svg className="h-3 w-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l9 5-9 5-9-5 9-5zm0 0v2m9 3l-9 5-9-5m18 5l-9 5-9-5" /></svg>
+                </span>
+                <p className="text-[8px] font-extrabold uppercase tracking-[0.14em] text-[#1F2937]">Créditos Académicos</p>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div className="relative h-16 w-16 shrink-0">
+                  <svg className="h-16 w-16 -rotate-90" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(100,116,139,0.15)" strokeWidth="8" />
+                    <circle cx="32" cy="32" r="26" fill="none" stroke="#2dd4bf" strokeWidth="8" strokeLinecap="round" strokeDasharray="117.8 163.4" />
+                    <circle cx="32" cy="32" r="26" fill="none" stroke="#3b82f6" strokeWidth="8" strokeDasharray="30 163.4" strokeDashoffset="-117.8" />
+                    <circle cx="32" cy="32" r="26" fill="none" stroke="#f59e0b" strokeWidth="8" strokeDasharray="15.6 163.4" strokeDashoffset="-147.8" />
+                  </svg>
+                  <p className="absolute inset-0 flex items-center justify-center text-[13px] font-extrabold text-[#111827]">72%</p>
+                </div>
+                <div className="space-y-1">
+                  {[
+                    { dot: 'bg-emerald-400', label: 'Aprobados', val: '72' },
+                    { dot: 'bg-blue-400', label: 'En curso', val: '22' },
+                    { dot: 'bg-amber-400', label: 'Pendientes', val: '6' },
+                  ].map((l) => (
+                    <div key={l.label} className="flex items-center gap-1.5">
+                      <span className={`h-1.5 w-1.5 rounded-full ${l.dot}`} />
+                      <p className="text-[9px] font-medium text-[#64748B]">{l.label}</p>
+                      <p className="ml-auto pl-2 text-[9px] font-bold text-[#111827]">{l.val}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#DDE3EA] bg-white p-3 text-left shadow-[0_10px_30px_-12px_rgba(100,116,139,0.25)]">
+              <div className="mb-2 flex items-center gap-1.5">
+                <svg className="h-3.5 w-3 text-slate-500" fill="currentColor" viewBox="0 0 12 12"><rect x="0" y="6" width="2" height="6" rx="0.5" opacity="0.45" /><rect x="3" y="3" width="2" height="9" rx="0.5" opacity="0.6" /><rect x="6" y="7" width="2" height="5" rx="0.5" opacity="0.5" /><rect x="9" y="1" width="2" height="11" rx="0.5" /></svg>
+                <p className="text-[8px] font-extrabold uppercase tracking-[0.14em] text-[#1F2937]">Historial Académico</p>
+              </div>
+              <div className="flex h-12 items-end justify-between gap-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-2.5 pb-2 pt-2">
+                {[45, 60, 40, 70, 55, 85, 95].map((h, i) => (
+                  <div key={i} className={`flex-1 rounded-[3px] ${i >= 4 ? 'bg-gradient-to-t from-amber-500 to-amber-300' : 'bg-slate-300'}`} style={{ height: `${h}%` }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Textos */}
+        <h2 className="mt-7 text-xl font-extrabold tracking-tight text-[#1F2937] sm:text-2xl">
+          Selecciona un estudiante para comenzar
+        </h2>
+        <p className="mx-auto mt-1.5 max-w-xl text-sm leading-relaxed text-[#64748B]">
+          Consulta sus notas, créditos, historial académico y observaciones en un solo lugar.
+        </p>
+
+        {/* Chips */}
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+          {chips.map((chip) => (
+            <span key={chip.label} className="inline-flex items-center gap-2 rounded-full border border-[#D7DEE7] bg-white px-4 py-1.5 text-xs font-medium text-[#374151] shadow-sm">
+              <svg className={`h-4 w-4 ${chip.color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={chip.icon} /></svg>
+              {chip.label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export function StudentReportCard() {
   const { user } = useAuth();
   const userRoles = user?.roles ? user.roles.map(r => typeof r === 'string' ? r : r.nombre || r.name) : [];
@@ -311,6 +514,7 @@ export function StudentReportCard() {
             onRemoveRecent={handleRemoveRecent}
           />
         </div>
+        <BoletinEmptyState />
       </div>
     );
   }
