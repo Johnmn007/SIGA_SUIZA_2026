@@ -1,0 +1,14 @@
+# Raíz del monorepo: excluir datos sensibles, artefactos y dependencias
+.env
+*.xlsx
+*.sql
+!reset.sql
+venv/
+node_modules/
+__pycache__/
+*.pyc
+dist/
+.vite/
+tmp_*.txt
+tmp_*.json
+core_logs.txt

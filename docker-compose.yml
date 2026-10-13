@@ -1,26 +1,16 @@
+# NOTA: la base de datos NO corre en Docker. Vive en el PostgreSQL nativo
+# de Windows (visible en pgAdmin, BD siga_core, localhost:5432).
+# Los servicios la alcanzan vía host.docker.internal.
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "john.007"
-      POSTGRES_DB: siga_core
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   nats:
     image: nats:2.9-alpine
     ports:
       - "4222:4222"
       - "8222:8222"
     command: ["-js", "-m", "8222"]
+    networks:
+      - siga-net
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
       interval: 10s
@@ -31,6 +21,9 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    networks:
+      - siga-net
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -39,24 +32,31 @@ services:
 
   # ====== CORE GATEWAY ======
   siga-core:
-    build: 
+    build:
       context: ./siga_backend
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
+      - DB_PASSWORD=12345
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
     volumes:
       - ./siga_backend:/app
+    networks:
+      - siga-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -64,7 +64,7 @@ services:
 
   # ====== MICROSERVICES ======
   mod-usuarios:
-    build: 
+    build:
       context: ./siga_backend
       dockerfile: Dockerfile
     command: ["sh", "-c", "cd modules/mod-usuarios && uvicorn main:app --host 0.0.0.0 --port 8001 --reload"]
@@ -72,8 +72,8 @@ services:
       - "8001:8001"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
+      - DB_PASSWORD=12345
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
@@ -81,12 +81,18 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - siga-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   mod-planes-estudio:
-    build: 
+    build:
       context: ./siga_backend
       dockerfile: Dockerfile
     command: ["sh", "-c", "cd modules/mod-planes-estudio && uvicorn main:app --host 0.0.0.0 --port 8002 --reload"]
@@ -94,8 +100,8 @@ services:
       - "8002:8002"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
+      - DB_PASSWORD=12345
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
@@ -103,12 +109,18 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - siga-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8002/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   mod-programas-estudio:
-    build: 
+    build:
       context: ./siga_backend
       dockerfile: Dockerfile
     command: ["sh", "-c", "cd modules/mod-programas-estudio && uvicorn main:app --host 0.0.0.0 --port 8005 --reload"]
@@ -116,8 +128,8 @@ services:
       - "8005:8005"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
+      - DB_PASSWORD=12345
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
@@ -125,12 +137,18 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - siga-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8005/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   mod-gestion-academica:
-    build: 
+    build:
       context: ./siga_backend
       dockerfile: Dockerfile
     command: ["sh", "-c", "cd modules/mod-gestion-academica && uvicorn main:app --host 0.0.0.0 --port 8006 --reload"]
@@ -138,8 +156,8 @@ services:
       - "8006:8006"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
+      - DB_PASSWORD=12345
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
@@ -147,12 +165,18 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - siga-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8006/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   mod-auditoria:
-    build: 
+    build:
       context: ./siga_backend
       dockerfile: Dockerfile
     command: ["sh", "-c", "cd modules/mod-auditoria && uvicorn main:app --host 0.0.0.0 --port 8007 --reload"]
@@ -160,8 +184,8 @@ services:
       - "8007:8007"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
+      - DB_PASSWORD=12345
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
@@ -169,12 +193,18 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - siga-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8007/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   mod-evaluacion:
-    build: 
+    build:
       context: ./siga_backend
       dockerfile: Dockerfile
     command: ["sh", "-c", "cd modules/mod-evaluacion && uvicorn main:app --host 0.0.0.0 --port 8008 --reload"]
@@ -182,8 +212,8 @@ services:
       - "8008:8008"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
+      - DB_PASSWORD=12345
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
@@ -191,12 +221,18 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - siga-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8008/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   mod-admision:
-    build: 
+    build:
       context: ./siga_backend
       dockerfile: Dockerfile
     command: ["sh", "-c", "cd modules/mod-admision && uvicorn main:app --host 0.0.0.0 --port 8009 --reload"]
@@ -204,8 +240,8 @@ services:
       - "8009:8009"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
-      - DB_HOST=postgres
+      - DB_PASSWORD=12345
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
@@ -214,13 +250,19 @@ services:
     volumes:
       - ./siga_backend:/app
       - ./docs:/app/docs
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - siga-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8009/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   # ====== FRONTEND ======
   siga-frontend:
-    build: 
+    build:
       context: ./siga_frontend
       dockerfile: Dockerfile
       target: build
@@ -233,9 +275,17 @@ services:
     volumes:
       - ./siga_frontend:/app
       - frontend_node_modules:/app/node_modules
+    networks:
+      - siga-net
+    restart: unless-stopped
     depends_on:
       - siga-core
 
 volumes:
+  # Conservado como respaldo histórico (datos previos en Docker). Ya no se usa.
   postgres_data:
   frontend_node_modules:
+
+networks:
+  siga-net:
+    driver: bridge
