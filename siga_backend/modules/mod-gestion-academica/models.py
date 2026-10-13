@@ -23,6 +23,9 @@ class Estudiante(BaseModel):
     fecha_limite_documentos = Column(TIMESTAMP)
     modalidad_admision = Column(String(100), default="ORDINARIO")
     metadata_admision = Column(JSON, default={})
+    # Proceso de matrícula (sección 2: alumnos históricos; sección 3: ciclo)
+    plan_estudios_id = Column(Integer, index=True)  # Plan de ORIGEN (históricos)
+    ciclo_actual = Column(Integer, default=1)
 
 class Matricula(BaseModel):
     __tablename__ = "matriculas"
@@ -33,6 +36,13 @@ class Matricula(BaseModel):
     tipo_ingreso = Column(String(50))
     estado_matricula = Column(String(30), default="pendiente")
     observaciones = Column(String(255))
+    # Resultado del motor de matrícula (diagrama, secciones 3-8)
+    ciclo = Column(Integer)                     # Ciclo al que corresponde
+    casuistica = Column(String(50))             # Ingresante/Regular/Irregular/...
+    boleta_codigo = Column(String(64), index=True)  # Código único de la boleta (QR)
+    boleta_emitida_en = Column(TIMESTAMP)
+    consolidada = Column(Boolean, default=False)     # Resultado final cerrado
+    registro_academico = Column(String(50))          # Código del registro académico
 
     # Relación con el detalle de la matrícula (las UDs matriculadas)
     from sqlalchemy.orm import relationship

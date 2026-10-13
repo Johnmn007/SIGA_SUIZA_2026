@@ -44,7 +44,16 @@ class SIGAApiClient {
         let errorMsg = `HTTP error! status: ${response.status}`;
         try {
           const errorData = await response.json();
-          errorMsg = errorData.detail || errorMsg;
+          const detail = errorData.detail ?? errorData.message;
+          if (detail && typeof detail === 'object') {
+            if (Array.isArray(detail.errores) && detail.errores.length > 0) {
+              errorMsg = detail.errores.join(' ');
+            } else {
+              errorMsg = detail.message || JSON.stringify(detail);
+            }
+          } else if (detail) {
+            errorMsg = detail;
+          }
         } catch (e) {
           // ignore
         }

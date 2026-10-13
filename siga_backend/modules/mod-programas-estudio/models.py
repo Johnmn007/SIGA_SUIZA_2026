@@ -75,6 +75,18 @@ class ProgramaUnidad(BaseModel):
 
     modulo = relationship("ProgramaModulo", back_populates="unidades")
 
+class ProgramaUnidadRequisito(BaseModel):
+    """Prerrequisito entre unidades didácticas de un programa.
+
+    ``unidad_id`` requiere tener aprobada ``requisito_unidad_id`` para poder
+    matricularse (restricción de la sección 5 del diagrama de matrícula).
+    """
+    __tablename__ = "programa_unidad_requisitos"
+
+    unidad_id = Column(Integer, ForeignKey("programa_unidades.id"), index=True, nullable=False)
+    requisito_unidad_id = Column(Integer, index=True, nullable=False)
+
+
 class ProgramaRequisito(BaseModel):
     """Requisitos de titulación"""
     __tablename__ = "programa_requisitos"

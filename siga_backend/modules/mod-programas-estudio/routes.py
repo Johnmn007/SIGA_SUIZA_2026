@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from database import get_db, OutboxEvent
-from models import ProgramaEstudio, ProgramaConfiguracion, ProgramaModulo, ProgramaUnidad, ProgramaRequisito, PeriodoAcademico
+from models import ProgramaEstudio, ProgramaConfiguracion, ProgramaModulo, ProgramaUnidad, ProgramaRequisito, PeriodoAcademico, ProgramaUnidadRequisito
 
 router = APIRouter()
 
@@ -525,4 +525,42 @@ async def listar_tutorias(programa_id: int, periodo_id: int, db: AsyncSession = 
         .where(Tutoria.programa_id == programa_id, Tutoria.periodo_id == periodo_id)
     )
     return result.scalars().all()
+
+# --- Prerrequisitos entre unidades didácticas (sección 5 de matrícula) ---
+class PrerrequisitosUpdate(BaseModel):
+    requisitos: List[int] = []
+
+@router.get("/programas/{programa_id}/prerrequisitos")
+async def obtener_prerrequisitos(programa_id: int, db: AsyncSession = Depends(get_db)):
+    """Mapa ``{unidad_id: [requisito_unidad_id, ...]}`` de todo el programa."""
+    unidades = (await db.execute(
+        select(ProgramaUnidad.id)
+        .join(ProgramaModulo, ProgramaUnidad.programa_modulo_id == ProgramaModulo.id)
+        .where(ProgramaModulo.programa_id == programa_id)
+    )).scalars().all()
+    if not unidades:
+        return {}
+    filas = (await db.execute(
+        select(ProgramaUnidadRequisito).where(ProgramaUnidadRequisito.unidad_id.in_(unidades))
+    )).scalars().all()
+    mapa = {}
+    for fila in filas:
+        mapa.setdefault(fila.unidad_id, []).append(fila.requisito_unidad_id)
+    return mapa
+
+@router.post("/unidades/{unidad_id}/prerrequisitos")
+async def definir_prerrequisitos(unidad_id: int, payload: PrerrequisitosUpdate, db: AsyncSession = Depends(get_db)):
+    """Reemplaza los prerrequisitos de una unidad didáctica."""
+    unidad = (await db.execute(
+        select(ProgramaUnidad).where(ProgramaUnidad.id == unidad_id)
+    )).scalar_one_or_none()
+    if not unidad:
+        raise HTTPException(status_code=404, detail="Unidad no encontrada")
+
+    await db.execute(delete(ProgramaUnidadRequisito).where(ProgramaUnidadRequisito.unidad_id == unidad_id))
+    requisitos = [r for r in dict.fromkeys(payload.requisitos) if r != unidad_id]
+    for requisito in requisitos:
+        db.add(ProgramaUnidadRequisito(unidad_id=unidad_id, requisito_unidad_id=requisito))
+    await db.commit()
+    return {"unidad_id": unidad_id, "requisitos": requisitos}
 

@@ -5,6 +5,9 @@ from sqlalchemy.orm import selectinload
 from database import get_db, OutboxEvent
 from models import Estudiante, Matricula, MatriculaDetalle
 from schemas import EstudianteCreate, EstudianteResponse, EstudianteUpdate, MatriculaCreate, MatriculaResponse, IngestaMasivaRequest
+from domain import EstadoMatricula
+from enrollment_engine import evaluar_ventana_matricula, validar_seleccion
+import enrollment_service
 from datetime import datetime
 from typing import List, Optional
 import uuid
@@ -182,7 +185,7 @@ async def realizar_matricula(request: Request, data: MatriculaCreate, db: AsyncS
         select(Matricula).where(
             Matricula.estudiante_id == data.estudiante_id,
             Matricula.periodo_id == data.periodo_id,
-            Matricula.estado_matricula != 'anulado'
+            Matricula.estado_matricula.notin_(list(EstadoMatricula.anuladas()))
         )
     )
     if existing.scalars().first():
@@ -193,8 +196,27 @@ async def realizar_matricula(request: Request, data: MatriculaCreate, db: AsyncS
     if total_creditos < 1 or total_creditos > 40:
         raise HTTPException(status_code=400, detail=f"La matrícula tiene {total_creditos} créditos. Debe estar entre 1 y 40 créditos")
 
+    # Motor de reglas (secciones 2, 3 y 5): integridad siempre; reglas duras en modo estricto.
+    ctx = await enrollment_service.construir_contexto(
+        db, data.estudiante_id, data.programa_id, data.periodo_id
+    )
+    if ctx.unidades:
+        errores, warnings = validar_seleccion(ctx, [d.unidad_didactica_id for d in data.detalles])
+        if errores:
+            raise HTTPException(status_code=400, detail={
+                "message": "Matrícula rechazada por el motor de reglas",
+                "errores": errores,
+                "warnings": warnings,
+            })
+    permitido, _extemporanea, mensaje = evaluar_ventana_matricula(ctx.periodo)
+    if (not permitido) and ctx.estricto:
+        raise HTTPException(status_code=400, detail=mensaje)
+
     # Separar detalles
     matricula_data = data.model_dump(exclude={"detalles"})
+    # La creación por este endpoint equivale a la confirmación de la matrícula.
+    matricula_data["estado_matricula"] = EstadoMatricula.CONFIRMADA.value
+    matricula_data["casuistica"] = ctx.casuistica
     db_matricula = Matricula(**matricula_data)
     db.add(db_matricula)
     await db.flush() # Para obtener db_matricula.id
@@ -237,7 +259,7 @@ async def obtener_estudiantes_por_unidad(unidad_id: int, periodo_id: int, db: As
         .join(MatriculaDetalle, MatriculaDetalle.matricula_id == Matricula.id)
         .where(Matricula.periodo_id == periodo_id)
         .where(MatriculaDetalle.unidad_didactica_id == unidad_id)
-        .where(Matricula.estado_matricula != "anulada")
+        .where(Matricula.estado_matricula.notin_(list(EstadoMatricula.anuladas())))
     )
     result = await db.execute(query)
     rows = result.all()

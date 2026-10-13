@@ -40,6 +40,8 @@ class EstudianteUpdate(BaseModel):
     fecha_limite_documentos: Optional[datetime] = None
     modalidad_admision: Optional[str] = "ORDINARIO"
     metadata_admision: Optional[dict] = {}
+    plan_estudios_id: Optional[int] = None
+    ciclo_actual: Optional[int] = None
 
 class EstudianteResponse(EstudianteBase):
     id: int
@@ -51,6 +53,8 @@ class EstudianteResponse(EstudianteBase):
     fecha_limite_documentos: Optional[datetime] = None
     modalidad_admision: Optional[str] = "ORDINARIO"
     metadata_admision: Optional[dict] = {}
+    plan_estudios_id: Optional[int] = None
+    ciclo_actual: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 class MatriculaDetalleBase(BaseModel):
@@ -70,7 +74,7 @@ class MatriculaBase(BaseModel):
     programa_id: int
     periodo_id: int
     tipo_ingreso: str = "Ordinario"
-    observaciones: str = ""
+    observaciones: Optional[str] = ""
 
 class MatriculaCreate(MatriculaBase):
     detalles: List[MatriculaDetalleCreate]
@@ -78,6 +82,11 @@ class MatriculaCreate(MatriculaBase):
 class MatriculaResponse(MatriculaBase):
     id: int
     estado_matricula: str
+    ciclo: Optional[int] = None
+    casuistica: Optional[str] = None
+    boleta_codigo: Optional[str] = None
+    consolidada: Optional[bool] = False
+    registro_academico: Optional[str] = None
     detalles: List[MatriculaDetalleResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
