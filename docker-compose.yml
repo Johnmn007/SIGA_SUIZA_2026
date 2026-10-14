@@ -46,10 +46,10 @@ services:
       - "8000:8000"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
     volumes:
@@ -72,10 +72,10 @@ services:
       - "8001:8001"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8001
       - SKIP_MIGRATIONS=true
@@ -94,10 +94,10 @@ services:
       - "8002:8002"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8002
       - SKIP_MIGRATIONS=true
@@ -116,10 +116,10 @@ services:
       - "8005:8005"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8005
       - SKIP_MIGRATIONS=true
@@ -138,10 +138,10 @@ services:
       - "8006:8006"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8006
       - SKIP_MIGRATIONS=true
@@ -160,10 +160,10 @@ services:
       - "8007:8007"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8007
       - SKIP_MIGRATIONS=true
@@ -182,10 +182,10 @@ services:
       - "8008:8008"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8008
       - SKIP_MIGRATIONS=true
@@ -204,10 +204,10 @@ services:
       - "8009:8009"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8009
       - SKIP_MIGRATIONS=true
