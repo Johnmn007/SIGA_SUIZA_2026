@@ -14,12 +14,10 @@ export function DeterminacionPanel() {
 
   const [propuesta, setPropuesta] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [loadingRefs, setLoadingRefs] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     (async () => {
-      setLoadingRefs(true);
       try {
         const [est, prog, per] = await Promise.all([
           apiClient.request('/api/mod-gestion-academica/estudiantes/').catch(() => []),
@@ -39,8 +37,6 @@ export function DeterminacionPanel() {
       } catch (e) {
         console.error(e);
         setError(e.message);
-      } finally {
-        setLoadingRefs(false);
       }
     })();
   }, []);

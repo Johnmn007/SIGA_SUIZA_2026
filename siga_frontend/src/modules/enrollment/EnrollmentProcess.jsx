@@ -7,8 +7,6 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [students, setStudents] = useState([]);
-  const [programs, setPrograms] = useState([]);
-  const [periods, setPeriods] = useState([]);
   
   const [selection, setSelection] = useState({
     student: initialStudent || null,
@@ -63,9 +61,6 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
         const fetchedPeriods = Array.isArray(peRes) ? peRes : [];
         
         console.log("Academic Data Loaded:", {fetchedPrograms, fetchedPeriods, initialStudent});
-        
-        setPrograms(fetchedPrograms);
-        setPeriods(fetchedPeriods);
         
         // Auto-select based on student and active period
         if (initialStudent) {

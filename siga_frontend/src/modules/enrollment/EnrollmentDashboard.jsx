@@ -65,6 +65,8 @@ export function EnrollmentDashboard() {
         fetchStudents();
       }
     }
+    // Solo debe re-ejecutarse al cambiar de programa o rol (no en cada tecla del buscador).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPrograma, userRole]);
 
   const handleEnrollClick = (student) => {

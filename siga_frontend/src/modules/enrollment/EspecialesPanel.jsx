@@ -30,6 +30,7 @@ export function EspecialesPanel() {
 
   const [resultado, setResultado] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingRefs, setLoadingRefs] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -40,6 +41,8 @@ export function EspecialesPanel() {
       } catch (e) {
         console.error(e);
         setError(e.message);
+      } finally {
+        setLoadingRefs(false);
       }
     })();
   }, []);
