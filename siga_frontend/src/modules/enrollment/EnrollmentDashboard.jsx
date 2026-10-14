@@ -3,6 +3,13 @@ import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { EnrollmentProcess } from './EnrollmentProcess';
 import { EnrollmentFlowDiagram } from './EnrollmentFlowDiagram';
+import { AdmissionPanel } from './AdmissionPanel';
+import { TiposAlumnosPanel } from './TiposAlumnosPanel';
+import { BoletaQRPanel } from './BoletaQRPanel';
+import { DeterminacionPanel } from './DeterminacionPanel';
+import { EspecialesPanel } from './EspecialesPanel';
+import { RestriccionesPanel } from './RestriccionesPanel';
+import { ResultadoPanel } from './ResultadoPanel';
 import ExtraordinaryEnrollmentModal from './ExtraordinaryEnrollmentModal';
 
 export function EnrollmentDashboard() {
@@ -79,6 +86,13 @@ export function EnrollmentDashboard() {
   }
 
   const tabs = [
+    { id: 'admision', label: 'Admisión' },
+    { id: 'tipos', label: 'Tipos de alumnos' },
+    { id: 'boleta', label: 'Boleta con QR' },
+    { id: 'determinacion', label: 'Determinación' },
+    { id: 'especiales', label: 'Alumnos especiales' },
+    { id: 'restricciones', label: 'Restricciones' },
+    { id: 'resultado', label: 'Resultado final' },
     { id: 'list', label: 'Estudiantes' },
     { id: 'diagram', label: 'Diagrama de flujo' },
   ];
@@ -93,7 +107,7 @@ export function EnrollmentDashboard() {
           </h3>
           <p className="text-slate-500 text-sm mt-1">Control de procesos de matrícula para estudiantes registrados</p>
         </div>
-        {view !== 'diagram' && (
+        {view === 'list' && (
           <button
             onClick={() => setIsModalOpen(true)}
             className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 transition-all active:scale-95 flex items-center"
@@ -123,6 +137,20 @@ export function EnrollmentDashboard() {
 
       {view === 'diagram' ? (
         <EnrollmentFlowDiagram />
+      ) : view === 'admision' ? (
+        <AdmissionPanel />
+      ) : view === 'tipos' ? (
+        <TiposAlumnosPanel />
+      ) : view === 'boleta' ? (
+        <BoletaQRPanel />
+      ) : view === 'determinacion' ? (
+        <DeterminacionPanel />
+      ) : view === 'especiales' ? (
+        <EspecialesPanel />
+      ) : view === 'restricciones' ? (
+        <RestriccionesPanel />
+      ) : view === 'resultado' ? (
+        <ResultadoPanel />
       ) : (
         <>
       <div className="glass-card p-2 mb-8 flex items-center max-w-3xl gap-2">

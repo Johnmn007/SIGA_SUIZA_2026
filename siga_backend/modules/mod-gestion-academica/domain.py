@@ -115,3 +115,33 @@ def clasificar_casuistica(historial, convalidados=None):
     if any(estado == EstadoCurso.DESAPROBADO.value for estado in historial.values()):
         return Casuistica.IRREGULAR.value
     return Casuistica.REGULAR.value
+
+
+class TipoAlumno(str, Enum):
+    """Tipos de alumno del diagrama (Sección 2 — tipos de alumnos históricos).
+
+    - Invicto   : alumno sin cursos a cargo (no arrastra unidades).
+    - Jalado    : alumno con cursos a cargo (desaprobó o se retiró).
+    - Historico : alumno que proviene de un plan de estudios anterior.
+    """
+
+    INGRESANTE = "Ingresante"
+    INVICTO = "Invicto"
+    JALADO = "Jalado"
+    HISTORICO = "Historico"
+
+
+def clasificar_tipo_alumno(historial, convalidados=None, es_historico=False):
+    """Deduce el tipo de alumno (Sección 2 del diagrama).
+
+    ``historial``: dict ``{unidad_id: estado}``.
+    ``es_historico``: True si el plan de origen difiere del plan vigente.
+    """
+    convalidados = convalidados or set()
+    if es_historico:
+        return TipoAlumno.HISTORICO.value
+    if not historial and not convalidados:
+        return TipoAlumno.INGRESANTE.value
+    if any(estado in ESTADOS_ARRastre for estado in historial.values()):
+        return TipoAlumno.JALADO.value
+    return TipoAlumno.INVICTO.value

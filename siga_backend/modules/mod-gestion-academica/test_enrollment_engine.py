@@ -131,6 +131,49 @@ class TestMotorMatricula(unittest.TestCase):
         self.assertFalse(permitido)
         self.assertIn("cerrado", mensaje.lower())
 
+    # --- Sección 2: tipos de alumno histórico ---------------------------------
+
+    def test_tipo_alumno_ingresante(self):
+        prop = construir_propuesta(_ctx(casuistica=Casuistica.INGRESANTE.value))
+        self.assertEqual(prop.tipo_alumno, "Ingresante")
+        self.assertEqual(prop.detalle_alumno["tipo"], "Ingresante")
+
+    def test_tipo_alumno_invicto(self):
+        ctx = _ctx(
+            casuistica=Casuistica.REGULAR.value,
+            historial={1: EstadoCurso.APROBADO.value, 2: EstadoCurso.APROBADO.value},
+        )
+        prop = construir_propuesta(ctx)
+        self.assertEqual(prop.tipo_alumno, "Invicto")
+        self.assertEqual(prop.detalle_alumno["aprobadas"], 2)
+        self.assertEqual(prop.detalle_alumno["desaprobadas"], 0)
+
+    def test_tipo_alumno_jalado(self):
+        ctx = _ctx(
+            casuistica=Casuistica.IRREGULAR.value,
+            historial={1: EstadoCurso.DESAPROBADO.value, 2: EstadoCurso.APROBADO.value},
+            intentos={1: 1},
+        )
+        prop = construir_propuesta(ctx)
+        self.assertEqual(prop.tipo_alumno, "Jalado")
+        self.assertEqual(prop.detalle_alumno["desaprobadas"], 1)
+        self.assertEqual(
+            [u["unidad_didactica_id"] for u in prop.detalle_alumno["cursos_a_cargo"]], [1]
+        )
+
+    def test_tipo_alumno_historico(self):
+        ctx = _ctx(
+            casuistica=Casuistica.REGULAR.value,
+            historial={1: EstadoCurso.APROBADO.value},
+            es_historico=True,
+            plan_origen=3,
+            plan_vigente=7,
+        )
+        prop = construir_propuesta(ctx)
+        self.assertEqual(prop.tipo_alumno, "Historico")
+        self.assertTrue(prop.detalle_alumno["es_historico"])
+        self.assertEqual(prop.detalle_alumno["plan_origen"], 3)
+
 
 if __name__ == "__main__":
     unittest.main()

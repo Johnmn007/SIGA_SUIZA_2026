@@ -129,6 +129,12 @@ async def construir_contexto(
 
     periodo = await intermodule.fetch_periodo(periodo_id)
 
+    # Sección 2: ¿el alumno es "histórico"? (plan de origen ≠ plan vigente)
+    programa = await intermodule.fetch_programa(programa_id)
+    plan_origen = getattr(estudiante, "plan_estudios_id", None)
+    plan_vigente = (programa or {}).get("plan_estudio_id") if isinstance(programa, dict) else None
+    es_historico = bool(plan_origen and plan_vigente and plan_origen != plan_vigente)
+
     return Contexto(
         mode=enrollment_settings.engine_for(estrategia),
         casuistica=_deducir_casuistica(estudiante, historial, convalidados, casuistica),
@@ -141,4 +147,7 @@ async def construir_contexto(
         max_reprobadas=enrollment_settings.max_reprobadas,
         max_intentos=enrollment_settings.max_intentos,
         periodo=periodo,
+        es_historico=es_historico,
+        plan_origen=plan_origen,
+        plan_vigente=plan_vigente,
     )

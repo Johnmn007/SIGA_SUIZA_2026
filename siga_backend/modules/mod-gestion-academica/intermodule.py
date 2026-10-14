@@ -48,6 +48,11 @@ async def fetch_malla(programa_id: int):
     return await _get("programas", f"/programas/{programa_id}/malla")
 
 
+async def fetch_programa(programa_id: int):
+    """Datos del programa (incluye ``plan_estudio_id`` vigente)."""
+    return await _get("programas", f"/programas/{programa_id}")
+
+
 async def fetch_periodos():
     """Lista de periodos académicos (mod-programas-estudio)."""
     data = await _get("programas", "/periodos")

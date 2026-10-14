@@ -25,6 +25,7 @@ from domain import (
     EstadoPeriodo,
     ESTADOS_APROBATORIOS,
     ESTADOS_ARRastre,
+    clasificar_tipo_alumno,
 )
 
 
@@ -58,6 +59,11 @@ class Contexto:
     max_reprobadas: int = 3
     max_intentos: int = 3
     periodo: Optional[dict] = None
+
+    # Sección 2 — tipo de alumno histórico (plan de origen vs. plan vigente).
+    es_historico: bool = False
+    plan_origen: Optional[int] = None
+    plan_vigente: Optional[int] = None
 
     @property
     def estricto(self) -> bool:
@@ -101,9 +107,16 @@ class Propuesta:
     min_creditos: int = 1
     max_creditos: int = 40
 
+    creditos_obligatorios: int = 0
+    min_creditos: int = 1
+    max_creditos: int = 40
+    tipo_alumno: str = ""
+    detalle_alumno: dict = field(default_factory=dict)
+
     def resumen(self) -> dict:
         return {
             "casuistica": self.casuistica,
+            "tipo_alumno": self.tipo_alumno,
             "modo": self.modo,
             "ciclo_sugerido": self.ciclo_sugerido,
             "creditos_obligatorios": self.creditos_obligatorios,
@@ -117,6 +130,8 @@ class Propuesta:
     def to_dict(self) -> dict:
         return {
             "casuistica": self.casuistica,
+            "tipo_alumno": self.tipo_alumno,
+            "detalle_alumno": self.detalle_alumno,
             "modo": self.modo,
             "ciclo_sugerido": self.ciclo_sugerido,
             "obligatorias": [u.to_dict() for u in self.obligatorias],
@@ -255,8 +270,25 @@ def construir_propuesta(ctx: Contexto) -> Propuesta:
     if casuistica == Casuistica.CONVENIO.value:
         warnings.append("Convenio/Beca: se generará deuda 0.00 y se derivará el cobro a la entidad.")
 
+    # 6. Tipo de alumno histórico (Sección 2): invicto / jalado / histórico.
+    tipo_alumno = clasificar_tipo_alumno(ctx.historial, ctx.convalidados, ctx.es_historico)
+    detalle_alumno = {
+        "tipo": tipo_alumno,
+        "es_historico": ctx.es_historico,
+        "plan_origen": ctx.plan_origen,
+        "plan_vigente": ctx.plan_vigente,
+        "total_en_historial": len(ctx.historial),
+        "aprobadas": sum(1 for e in ctx.historial.values() if e == EstadoCurso.APROBADO.value),
+        "desaprobadas": sum(1 for e in ctx.historial.values() if e == EstadoCurso.DESAPROBADO.value),
+        "retiradas": sum(1 for e in ctx.historial.values() if e == EstadoCurso.RETIRADO.value),
+        "convalidadas": len(ctx.convalidados),
+        "cursos_a_cargo": [u.to_dict() for u in obligatorias],
+    }
+
     return Propuesta(
         casuistica=casuistica,
+        tipo_alumno=tipo_alumno,
+        detalle_alumno=detalle_alumno,
         modo=ctx.mode,
         ciclo_sugerido=ciclo,
         obligatorias=obligatorias,

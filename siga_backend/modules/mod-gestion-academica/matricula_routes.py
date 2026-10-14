@@ -12,15 +12,16 @@ ni cambia el comportamiento por defecto (motor flexible). Implementa, en orden:
 7. Resultado final     -> consolidación, códigos, docentes, notificación, historial.
 8. Historial y avance  -> historial académico y créditos del estudiante.
 """
+import json
 import uuid
 from datetime import datetime
 from io import BytesIO
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -30,13 +31,16 @@ from domain import (
     Casuistica,
     EstadoCurso,
     EstadoMatricula,
+    ESTADOS_ARRastre,
+    clasificar_tipo_alumno,
     normalizar_casuistica,
 )
 from enrollment_engine import construir_propuesta, evaluar_ventana_matricula
 from enrollment_service import cargar_historial, construir_contexto
-from intermodule import fetch_cargaLectiva, fetch_malla
+from intermodule import fetch_cargaLectiva, fetch_malla, fetch_programa
 from models import (
     BeneficioEstudiante,
+    ConvalidacionDetalle,
     Estudiante,
     HistorialAcademico,
     Matricula,
@@ -177,6 +181,43 @@ def parse_excel_ingresantes(contenido: bytes) -> List[dict]:
     return registros
 
 
+def parse_json_ingresantes(contenido: bytes) -> List[dict]:
+    """Parsea una relación de ingresantes en JSON (lista o ``{"admitidos": [...]}``)."""
+    try:
+        data = json.loads(contenido.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"JSON inválido: {exc}")
+
+    if isinstance(data, dict):
+        data = data.get("admitidos") or data.get("registros") or data.get("estudiantes") or []
+    if not isinstance(data, list):
+        raise ValueError("El JSON debe ser una lista de ingresantes o un objeto con la clave 'admitidos'.")
+
+    registros = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        dni = _limpiar(item.get("dni") or item.get("nro de documento") or item.get("numero de documento"))
+        if not dni:
+            continue
+        apellidos = _limpiar(item.get("apellidos"))
+        if not apellidos:
+            apellidos = " ".join(filter(None, [
+                _limpiar(item.get("apellido_paterno") or item.get("paterno")),
+                _limpiar(item.get("apellido_materno") or item.get("materno")),
+            ])).strip() or None
+        registros.append({
+            "dni": dni,
+            "nombres": _limpiar(item.get("nombres") or item.get("nombre")) or "SIN NOMBRES",
+            "apellidos": apellidos or "SIN APELLIDOS",
+            "programa_id": _limpiar(item.get("programa_id") or item.get("id_programa")),
+            "celular": _limpiar(item.get("celular") or item.get("telefono")),
+            "email_personal": _limpiar(item.get("email_personal") or item.get("correo")),
+            "modalidad": _limpiar(item.get("modalidad") or item.get("modalidad_admision")) or "ORDINARIO",
+        })
+    return registros
+
+
 class MatricularIngresantesRequest(BaseModel):
     periodo_id: int
     programa_id: Optional[int] = None
@@ -190,16 +231,46 @@ async def admision_excel(
     programa_id: Optional[int] = None,
     periodo_id: int = 1,
     matricular: bool = True,
+    dry_run: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
-    """Sección 1: carga de ingresantes desde Excel y (opcional) matrícula automática."""
-    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
-        raise HTTPException(status_code=400, detail="El archivo debe ser .xlsx o .xls")
+    """Sección 1: carga de ingresantes (Excel o JSON) y matrícula automática opcional.
+
+    - ``dry_run=true``: devuelve solo la vista previa (no escribe en BD).
+    - ``matricular=true``: tras crear los estudiantes, ejecuta la matrícula
+      automática de Ciclo I para los recién ingresados en ``periodo_id``.
+    """
+    nombre = (file.filename or "").lower()
+    if not nombre.endswith((".xlsx", ".xls", ".json")):
+        raise HTTPException(status_code=400, detail="El archivo debe ser .xlsx, .xls o .json")
     contenido = await file.read()
     try:
-        registros = parse_excel_ingresantes(contenido)
+        registros = (
+            parse_json_ingresantes(contenido) if nombre.endswith(".json")
+            else parse_excel_ingresantes(contenido)
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+    if not registros:
+        raise HTTPException(status_code=400, detail="No se encontraron ingresantes con DNI en el archivo.")
+
+    if dry_run:
+        preview = []
+        for reg in registros:
+            ya = (await db.execute(
+                select(Estudiante).where(Estudiante.dni == reg["dni"])
+            )).scalar_one_or_none()
+            preview.append({**reg, "existe": ya is not None, "estudiante_id": ya.id if ya else None})
+        return {
+            "modo": "preview",
+            "total": len(registros),
+            "nuevos": sum(1 for r in preview if not r["existe"]),
+            "existentes": sum(1 for r in preview if r["existe"]),
+            "registros": preview,
+            "programa_id": programa_id,
+            "periodo_id": periodo_id,
+        }
 
     creados, existentes = 0, 0
     ids_creados = []
@@ -234,24 +305,24 @@ async def admision_excel(
     await db.commit()
 
     matricula_resultado = None
-    if ids_creados:
-        req = MatricularIngresantesRequest(
-            estudiante_ids=ids_creados,
-            programa_id=programa_id,
-            periodo_id=int(programa_id) if False else 1,  # placeholder (se sobreescribe abajo)
+    if matricular and ids_creados:
+        matricula_resultado = await matricular_ingresantes(
+            MatricularIngresantesRequest(
+                estudiante_ids=ids_creados,
+                programa_id=programa_id,
+                periodo_id=periodo_id,
+            ),
+            request,
+            db,
         )
+
     return {
         "message": f"Admisión procesada: {creados} nuevos, {existentes} ya existían.",
         "estudiantes_creados": creados,
         "estudiantes_existentes": existentes,
         "estudiante_ids": ids_creados,
+        "matricula": matricula_resultado,
     }
-
-
-class MatricularIngresantesRequest(BaseModel):
-    periodo_id: int
-    programa_id: Optional[int] = None
-    estudiante_ids: Optional[List[int]] = None
 
 
 @router.post("/admision/matricular-ingresantes")
@@ -417,6 +488,197 @@ async def propuesta_matricula(
 
 
 # ---------------------------------------------------------------------------
+# Restricciones — Validación de créditos y reglas académicas
+# ---------------------------------------------------------------------------
+
+@router.get("/matriculas/restricciones")
+async def restricciones_matricula(
+    estudiante_id: int,
+    programa_id: int,
+    periodo_id: int,
+    estrategia: Optional[str] = None,
+    casuistica: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Valida las 4 restricciones de la tarjeta "Restricciones de Créditos".
+
+    Reutiliza el motor: créditos máximos del plan, límite de unidades
+    reprobadas, prerrequisitos no aprobados y el tope de intentos ("tercera vez").
+    """
+    ctx = await construir_contexto(
+        db, estudiante_id, programa_id, periodo_id,
+        estrategia=estrategia, casuistica=casuistica,
+    )
+    propuesta = construir_propuesta(ctx)
+
+    # 1. Créditos a cargo vs. máximo del plan.
+    creditos_cargo = propuesta.creditos_obligatorios
+    ok_creditos = creditos_cargo <= ctx.max_creditos
+
+    # 2. Unidades reprobadas vs. límite admitido.
+    desaprobadas = [
+        u for u in ctx.unidades
+        if ctx.historial.get(u.id) == EstadoCurso.DESAPROBADO.value
+    ]
+    ok_reprobadas = len(desaprobadas) <= ctx.max_reprobadas
+
+    # 3 y 4. Unidades bloqueadas, separadas por motivo.
+    por_prerrequisito = [u.to_dict() for u in propuesta.bloqueadas if u.motivo.startswith("Prerrequisito")]
+    por_intentos = [u.to_dict() for u in propuesta.bloqueadas if u.motivo.startswith("Máximo de intentos")]
+    otras = [
+        u.to_dict() for u in propuesta.bloqueadas
+        if not u.motivo.startswith("Prerrequisito") and not u.motivo.startswith("Máximo de intentos")
+    ]
+
+    requisitos = [
+        {
+            "clave": "max_creditos",
+            "descripcion": "Máximo de créditos por ciclo según el plan de estudios vigente.",
+            "detalle": f"{creditos_cargo} crédito(s) a cargo · límite {ctx.max_creditos}",
+            "cumple": ok_creditos,
+        },
+        {
+            "clave": "max_reprobadas",
+            "descripcion": "El alumno con cursos a cargo no puede exceder el límite de unidades reprobadas admitidas.",
+            "detalle": f"{len(desaprobadas)} unidad(es) reprobada(s) · límite {ctx.max_reprobadas}",
+            "cumple": ok_reprobadas,
+        },
+        {
+            "clave": "prerrequisito",
+            "descripcion": "No se admite la matrícula en una unidad didáctica sin haber aprobado su prerrequisito.",
+            "detalle": f"{len(por_prerrequisito)} unidad(es) bloqueada(s) por prerrequisito",
+            "cumple": len(por_prerrequisito) == 0,
+        },
+        {
+            "clave": "tercera_vez",
+            "descripcion": "Una unidad didáctica no puede cursarse por tercera vez.",
+            "detalle": f"{len(por_intentos)} unidad(es) en su límite de intentos ({ctx.max_intentos})",
+            "cumple": len(por_intentos) == 0,
+        },
+    ]
+
+    return {
+        "estudiante_id": estudiante_id,
+        "casuistica": propuesta.casuistica,
+        "tipo_alumno": propuesta.tipo_alumno,
+        "modo": ctx.mode,
+        "ciclo_sugerido": propuesta.ciclo_sugerido,
+        "creditos": {"min": ctx.min_creditos, "max": ctx.max_creditos, "a_cargo": creditos_cargo},
+        "reprobadas": {"total": len(desaprobadas), "max": ctx.max_reprobadas},
+        "intentos_max": ctx.max_intentos,
+        "requisitos": requisitos,
+        "aprobado": all(r["cumple"] for r in requisitos),
+        "bloqueadas": {
+            "total": len(propuesta.bloqueadas),
+            "por_prerrequisito": por_prerrequisito,
+            "por_intentos": por_intentos,
+            "otras": otras,
+        },
+        "warnings": propuesta.warnings,
+        "errores": propuesta.errores,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Sección 2 — Tipos de alumnos históricos (invicto / jalado / histórico)
+# ---------------------------------------------------------------------------
+
+@router.get("/matriculas/tipos-alumnos")
+async def tipos_alumnos(
+    programa_id: Optional[int] = None,
+    tipo: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Clasifica a los alumnos por tipo (Sección 2 del diagrama).
+
+    Devuelve el resumen por tipo y el listado con el detalle del historial.
+    ``tipo`` permite filtrar por ``Ingresante`` / ``Invicto`` / ``Jalado`` / ``Historico``.
+    """
+    stmt = select(Estudiante)
+    if programa_id:
+        stmt = stmt.where(Estudiante.programa_id == programa_id)
+    estudiantes = (
+        await db.execute(stmt.order_by(Estudiante.apellidos, Estudiante.nombres))
+    ).scalars().all()
+
+    # Plan vigente del programa (para detectar alumnos "históricos").
+    plan_vigente = None
+    if programa_id:
+        programa = await fetch_programa(programa_id)
+        if isinstance(programa, dict):
+            plan_vigente = programa.get("plan_estudio_id")
+
+    # Unidades convalidadas (aprobadas) por estudiante.
+    convalidados_por_est: Dict[int, set] = {}
+    filas = await db.execute(
+        select(ResolucionConvalidacion.estudiante_id, ConvalidacionDetalle.unidad_destino_id)
+        .join(ConvalidacionDetalle, ConvalidacionDetalle.resolucion_id == ResolucionConvalidacion.id)
+        .where(ResolucionConvalidacion.estado == "aprobado")
+    )
+    for est_id, unidad_id in filas.all():
+        if unidad_id is not None:
+            convalidados_por_est.setdefault(est_id, set()).add(unidad_id)
+
+    # Historial: se conserva el último estado por (estudiante, unidad).
+    historial_por_est: Dict[int, Dict[int, str]] = {}
+    filas = await db.execute(
+        select(
+            Matricula.estudiante_id,
+            MatriculaDetalle.unidad_didactica_id,
+            MatriculaDetalle.estado_curso,
+        )
+        .join(MatriculaDetalle, MatriculaDetalle.matricula_id == Matricula.id)
+        .where(Matricula.estado_matricula.notin_(list(EstadoMatricula.anuladas())))
+        .order_by(Matricula.created_at.asc())
+    )
+    for est_id, unidad_id, estado in filas.all():
+        historial_por_est.setdefault(est_id, {})[unidad_id] = estado or EstadoCurso.CURSANDO.value
+
+    filtro = (tipo or "").strip().lower()
+    resumen = {"Ingresante": 0, "Invicto": 0, "Jalado": 0, "Historico": 0}
+    salida = []
+    for e in estudiantes:
+        hist = dict(historial_por_est.get(e.id, {}))
+        conv = convalidados_por_est.get(e.id, set())
+        for uid in conv:
+            hist[uid] = EstadoCurso.CONVALIDADO.value
+        plan_origen = getattr(e, "plan_estudios_id", None)
+        es_historico = bool(plan_origen and plan_vigente and plan_origen != plan_vigente)
+        clasificacion = clasificar_tipo_alumno(hist, conv, es_historico)
+        resumen[clasificacion] = resumen.get(clasificacion, 0) + 1
+        if filtro and filtro != clasificacion.lower():
+            continue
+        salida.append({
+            "estudiante_id": e.id,
+            "codigo_estudiante": e.codigo_estudiante,
+            "dni": e.dni,
+            "nombres": e.nombres,
+            "apellidos": e.apellidos,
+            "programa_id": e.programa_id,
+            "ciclo_actual": e.ciclo_actual,
+            "estado_academico": e.estado_academico,
+            "tipo_alumno": clasificacion,
+            "es_historico": es_historico,
+            "plan_origen": plan_origen,
+            "plan_vigente": plan_vigente,
+            "total_en_historial": len(hist),
+            "aprobadas": sum(1 for s in hist.values() if s == EstadoCurso.APROBADO.value),
+            "desaprobadas": sum(1 for s in hist.values() if s == EstadoCurso.DESAPROBADO.value),
+            "retiradas": sum(1 for s in hist.values() if s == EstadoCurso.RETIRADO.value),
+            "convalidadas": len(conv),
+            "unidades_a_cargo": sorted(uid for uid, s in hist.items() if s in ESTADOS_ARRastre),
+        })
+
+    resumen["total"] = len(estudiantes)
+    return {
+        "programa_id": programa_id,
+        "plan_vigente": plan_vigente,
+        "resumen": resumen,
+        "estudiantes": salida,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Sección 4 — Casuísticas especiales
 # ---------------------------------------------------------------------------
 
@@ -532,6 +794,74 @@ def _boleta_payload(matricula: Matricula) -> dict:
     }
 
 
+@router.get("/matriculas/boletas")
+async def listar_boletas(
+    periodo_id: Optional[int] = None,
+    programa_id: Optional[int] = None,
+    q: Optional[str] = None,
+    solo_emitidas: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista las matrículas vigentes y su estado de boleta (Sección 6).
+
+    ``solo_emitidas=true`` devuelve únicamente las boletas ya emitidas.
+    """
+    stmt = (
+        select(Matricula, Estudiante)
+        .join(Estudiante, Estudiante.id == Matricula.estudiante_id)
+        .where(Matricula.estado_matricula.notin_(list(EstadoMatricula.anuladas())))
+        .order_by(Matricula.created_at.desc())
+    )
+    if periodo_id:
+        stmt = stmt.where(Matricula.periodo_id == periodo_id)
+    if programa_id:
+        stmt = stmt.where(Matricula.programa_id == programa_id)
+    if solo_emitidas:
+        stmt = stmt.where(Matricula.boleta_codigo.isnot(None))
+    if q:
+        like = f"%{q.strip().lower()}%"
+        stmt = stmt.where(
+            func.lower(Estudiante.dni).like(like)
+            | func.lower(Estudiante.nombres).like(like)
+            | func.lower(Estudiante.apellidos).like(like)
+            | func.lower(Estudiante.codigo_estudiante).like(like)
+            | func.lower(func.coalesce(Matricula.boleta_codigo, "")).like(like)
+        )
+
+    filas = (await db.execute(stmt)).all()
+
+    emitidas = 0
+    items = []
+    for matricula, est in filas:
+        if matricula.boleta_codigo:
+            emitidas += 1
+        items.append({
+            "matricula_id": matricula.id,
+            "estudiante_id": est.id,
+            "codigo_estudiante": est.codigo_estudiante,
+            "dni": est.dni,
+            "nombres": est.nombres,
+            "apellidos": est.apellidos,
+            "programa_id": matricula.programa_id,
+            "periodo_id": matricula.periodo_id,
+            "ciclo": matricula.ciclo,
+            "casuistica": matricula.casuistica,
+            "estado_matricula": matricula.estado_matricula,
+            "boleta_codigo": matricula.boleta_codigo,
+            "boleta_emitida_en": matricula.boleta_emitida_en.isoformat() if matricula.boleta_emitida_en else None,
+            "tiene_boleta": matricula.boleta_codigo is not None,
+        })
+
+    return {
+        "resumen": {
+            "total": len(items),
+            "emitidas": emitidas,
+            "pendientes": len(items) - emitidas,
+        },
+        "boletas": items,
+    }
+
+
 @router.get("/boletas/validar/{codigo}")
 async def validar_boleta(codigo: str, db: AsyncSession = Depends(get_db)):
     """Validación pública por escaneo del QR (alumno / secretaría)."""
@@ -614,6 +944,69 @@ async def consolidar_matricula(matricula_id: int, request: Request, db: AsyncSes
 
     await db.commit()
     return {"matricula_id": matricula.id, "pasos": pasos}
+
+
+@router.get("/matriculas/resultado")
+async def resultado_final(
+    periodo_id: Optional[int] = None,
+    programa_id: Optional[int] = None,
+    q: Optional[str] = None,
+    solo_pendientes: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista las matrículas y su estado de consolidación (resultado final)."""
+    stmt = (
+        select(Matricula, Estudiante)
+        .join(Estudiante, Estudiante.id == Matricula.estudiante_id)
+        .where(Matricula.estado_matricula.notin_(list(EstadoMatricula.anuladas())))
+        .order_by(Matricula.created_at.desc())
+    )
+    if periodo_id:
+        stmt = stmt.where(Matricula.periodo_id == periodo_id)
+    if programa_id:
+        stmt = stmt.where(Matricula.programa_id == programa_id)
+    if solo_pendientes:
+        stmt = stmt.where(Matricula.consolidada.isnot(True))
+    if q:
+        like = f"%{q.strip().lower()}%"
+        stmt = stmt.where(
+            func.lower(Estudiante.dni).like(like)
+            | func.lower(Estudiante.nombres).like(like)
+            | func.lower(Estudiante.apellidos).like(like)
+            | func.lower(Estudiante.codigo_estudiante).like(like)
+            | func.lower(func.coalesce(Matricula.registro_academico, "")).like(like)
+        )
+
+    filas = (await db.execute(stmt)).all()
+
+    items = []
+    for matricula, est in filas:
+        items.append({
+            "matricula_id": matricula.id,
+            "estudiante_id": est.id,
+            "codigo_estudiante": est.codigo_estudiante,
+            "dni": est.dni,
+            "nombres": est.nombres,
+            "apellidos": est.apellidos,
+            "programa_id": matricula.programa_id,
+            "periodo_id": matricula.periodo_id,
+            "ciclo": matricula.ciclo,
+            "casuistica": matricula.casuistica,
+            "estado_matricula": matricula.estado_matricula,
+            "consolidada": bool(matricula.consolidada),
+            "registro_academico": matricula.registro_academico,
+            "boleta_codigo": matricula.boleta_codigo,
+            "tiene_boleta": matricula.boleta_codigo is not None,
+        })
+
+    return {
+        "resumen": {
+            "total": len(items),
+            "consolidadas": sum(1 for i in items if i["consolidada"]),
+            "pendientes": sum(1 for i in items if not i["consolidada"]),
+        },
+        "matriculas": items,
+    }
 
 
 # ---------------------------------------------------------------------------
