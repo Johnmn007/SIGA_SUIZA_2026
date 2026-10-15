@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { apiClient } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { GraduationCap, Calendar, X, FileSpreadsheet, SearchX, Eye } from 'lucide-react';
@@ -17,6 +18,25 @@ export function CoordinatorSupervision() {
   const [selectedViewUD, setSelectedViewUD] = useState(null);
   const [udStudents, setUdStudents] = useState([]);
   const [loadingUD, setLoadingUD] = useState(false);
+
+  // Bloquear scroll del body y cerrar con Escape mientras el acta está abierta.
+  // El modal se renderiza en un Portal (document.body) para que `fixed inset-0`
+  // no quede atrapado por el `transform` de `.animate-fade-in` del contenedor
+  // ni por debajo del navbar sticky (z-50). Sin portal, el acta quedaba
+  // recortada/oculta debajo del header.
+  useEffect(() => {
+    if (!selectedViewUD) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e) => {
+      if (e.key === 'Escape') setSelectedViewUD(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [selectedViewUD]);
 
   // Initial data load
   useEffect(() => {
@@ -232,10 +252,18 @@ export function CoordinatorSupervision() {
         </div>
       )}
 
-      {/* Modal / Vista Detallada de Acta */}
-      {selectedViewUD && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in-up">
+      {/* Modal / Vista Detallada de Acta (Portal a body: evita recorte bajo el header) */}
+      {selectedViewUD && createPortal(
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => setSelectedViewUD(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in m-auto overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
             <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-2xl">
               <div>
                 <div className="flex items-center space-x-2 mb-1">
@@ -318,7 +346,8 @@ export function CoordinatorSupervision() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
