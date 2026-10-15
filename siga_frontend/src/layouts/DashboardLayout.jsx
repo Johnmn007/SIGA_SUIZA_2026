@@ -11,7 +11,7 @@ import {
 export function DashboardLayout({ children, currentView, onNavigate }) {
   const { user, logout, permissions } = useAuth();
   const [notifications, setNotifications] = useState([]);
-  const [wsStatus, setWsStatus] = useState('disconnected');
+  const [wsStatus, setWsStatus] = useState(wsClient.connected ? 'connected' : 'disconnected');
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   const getUserRoles = () => {

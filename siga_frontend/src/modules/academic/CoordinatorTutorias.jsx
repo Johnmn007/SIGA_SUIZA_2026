@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
-import { UserCog, Users } from 'lucide-react';
+import { UserCog, Users, Trash2 } from 'lucide-react';
 
 export function CoordinatorTutorias({ programId, periodId, docentes }) {
   const [tutorias, setTutorias] = useState([]);
@@ -29,11 +29,6 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
     e.preventDefault();
     if (!form.ciclo || !form.docente_id) return alert("Seleccione ciclo y docente");
     
-    // Check if cycle already has a tutor
-    if (tutorias.some(t => t.ciclo === parseInt(form.ciclo))) {
-      if(!window.confirm("Ya existe un tutor para este ciclo. ¿Desea reemplazarlo? (Se creará un nuevo registro y debería inactivar el anterior, por MVP lo crearemos de todos modos)")) return;
-    }
-
     setSaving(true);
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${programId}/tutorias`, {
@@ -52,6 +47,17 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
       alert("Error al asignar tutor");
     }
     setSaving(false);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("¿Seguro que desea eliminar esta tutoría?")) return;
+    try {
+      await apiClient.request(`/api/mod-programas-estudio/programas/${programId}/tutorias/${id}`, { method: 'DELETE' });
+      fetchData();
+    } catch (error) {
+      console.error("Error deleting tutoria", error);
+      alert("No se pudo eliminar la tutoría");
+    }
   };
 
   const getDocenteName = (id) => {
@@ -140,15 +146,24 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {tutorias.sort((a,b) => a.ciclo - b.ciclo).map(tutoria => (
-                  <div key={tutoria.id} className="flex items-center p-4 border border-slate-100 rounded-xl bg-white hover:shadow-md transition-all">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-soft to-slate-light border border-primary/20 flex items-center justify-center text-primary-dark font-black text-xl mr-4 shadow-inner">
-                      {tutoria.ciclo}
+                  <div key={tutoria.id} className="flex items-center justify-between p-4 border border-slate-100 rounded-xl bg-white hover:shadow-md transition-all">
+                    <div className="flex items-center">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-soft to-slate-light border border-primary/20 flex items-center justify-center text-primary-dark font-black text-xl mr-4 shadow-inner">
+                        {tutoria.ciclo}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-primary uppercase tracking-widest mb-0.5">Ciclo {tutoria.ciclo}</div>
+                        <div className="font-bold text-slate-text text-sm leading-tight">{getDocenteName(tutoria.docente_id)}</div>
+                        {tutoria.observaciones && <div className="text-[10px] text-slate-500 mt-1">{tutoria.observaciones}</div>}
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs font-bold text-primary uppercase tracking-widest mb-0.5">Ciclo {tutoria.ciclo}</div>
-                      <div className="font-bold text-slate-text text-sm leading-tight">{getDocenteName(tutoria.docente_id)}</div>
-                      {tutoria.observaciones && <div className="text-[10px] text-slate-500 mt-1">{tutoria.observaciones}</div>}
-                    </div>
+                    <button 
+                      onClick={() => handleDelete(tutoria.id)} 
+                      className="text-red-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                      title="Eliminar tutoría"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 ))}
               </div>

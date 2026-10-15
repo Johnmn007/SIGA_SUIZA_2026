@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '../api/client';
+import { apiClient, wsClient } from '../api/client';
 import { AuthContext } from './AuthContext';
 
 export function AuthProvider({ children }) {
@@ -42,6 +42,7 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     apiClient.clearToken();
+    wsClient.disconnect();
     setUser(null);
     setPermissions([]);
   };
