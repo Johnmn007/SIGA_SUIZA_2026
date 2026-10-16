@@ -1,1 +1,4 @@
 __pycache__/
+
+# Credenciales reales del entorno (base de datos Railway, etc.)
+.env
