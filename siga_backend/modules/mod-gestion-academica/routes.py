@@ -317,6 +317,11 @@ async def actualizar_estado_tramite(tramite_id: int, estado: str, db: AsyncSessi
 
 @router.post("/convalidaciones/", response_model=ResolucionConvalidacionResponse, status_code=status.HTTP_201_CREATED)
 async def registrar_convalidacion(data: ResolucionConvalidacionCreate, db: AsyncSession = Depends(get_db)):
+    existente = await db.execute(select(ResolucionConvalidacion).where(ResolucionConvalidacion.numero_resolucion == data.numero_resolucion))
+    if existente.scalars().first():
+        raise HTTPException(status_code=409, detail="Ya existe una resolución con ese número")
+    if not data.detalles:
+        raise HTTPException(status_code=400, detail="Debe indicar al menos una unidad convalidada")
     conval_data = data.model_dump(exclude={"detalles"})
     db_resolucion = ResolucionConvalidacion(**conval_data)
     db.add(db_resolucion)
@@ -330,6 +335,15 @@ async def registrar_convalidacion(data: ResolucionConvalidacionCreate, db: Async
     # Refresh with relation
     result = await db.execute(select(ResolucionConvalidacion).options(selectinload(ResolucionConvalidacion.detalles)).where(ResolucionConvalidacion.id == db_resolucion.id))
     return result.scalar_one()
+
+@router.get("/convalidaciones/", response_model=List[ResolucionConvalidacionResponse])
+async def listar_convalidaciones(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ResolucionConvalidacion)
+        .options(selectinload(ResolucionConvalidacion.detalles))
+        .order_by(ResolucionConvalidacion.fecha_emision.desc(), ResolucionConvalidacion.id.desc())
+    )
+    return result.scalars().all()
 
 @router.get("/convalidaciones/estudiante/{estudiante_id}", response_model=List[ResolucionConvalidacionResponse])
 async def obtener_convalidaciones_estudiante(estudiante_id: int, db: AsyncSession = Depends(get_db)):
