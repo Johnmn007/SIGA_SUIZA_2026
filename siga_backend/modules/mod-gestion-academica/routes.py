@@ -133,14 +133,204 @@ async def obtener_estudiante(estudiante_id: int, db: AsyncSession = Depends(get_
         raise HTTPException(status_code=404, detail="Estudiante no encontrado")
     return db_estudiante
 
+_ROMANOS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+
+def _titulo_ciclo(numero):
+    if numero is None:
+        return 'CICLO'
+    idx = int(numero) - 1
+    return f"CICLO {_ROMANOS[idx]}" if 0 <= idx < len(_ROMANOS) else f"CICLO {numero}"
+
+def _numero_ciclo(nombre_modulo, orden):
+    import re
+    if nombre_modulo:
+        match = re.search(r'ciclo\s*(\d+)', str(nombre_modulo), re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+    return orden if orden is not None else 1
+
+async def _construir_ciclos(db, estudiante_id, plan_id, periodo_id=None):
+    """Documento historico: agrupa las unidades del plan por ciclo con la mejor nota del estudiante."""
+    from sqlalchemy import text
+
+    if not plan_id:
+        return [], 0
+
+    result_mod = await db.execute(
+        text("SELECT id, nombre, orden FROM modulos_plan WHERE plan_id = :pid ORDER BY orden, id"),
+        {"pid": plan_id}
+    )
+    modulos = result_mod.mappings().all()
+    if not modulos:
+        return [], 0
+
+    modulo_ids = [m["id"] for m in modulos]
+    placeholders = ','.join(f':m{i}' for i in range(len(modulo_ids)))
+    result_uni = await db.execute(
+        text(f"""
+            SELECT id, modulo_id, nombre, codigo, creditos, horas, tipo, orden
+            FROM unidades_plan
+            WHERE modulo_id IN ({placeholders})
+            ORDER BY modulo_id, orden, id
+        """),
+        {f'm{i}': mid for i, mid in enumerate(modulo_ids)}
+    )
+    unidades = result_uni.mappings().all()
+
+    result_eval = await db.execute(
+        text("""
+            SELECT unidad_didactica_id, nota_c1, nota_c2, nota_c3, nota_final, estado, periodo_id
+            FROM evaluacion_registros
+            WHERE estudiante_id = :eid
+              AND (nota_final IS NOT NULL OR nota_c1 IS NOT NULL OR nota_c2 IS NOT NULL OR nota_c3 IS NOT NULL)
+        """),
+        {"eid": estudiante_id}
+    )
+    evals = result_eval.mappings().all()
+
+    result_per = await db.execute(text("SELECT id, codigo FROM periodos_academicos"))
+    periodos = {p["id"]: p["codigo"] for p in result_per.mappings().all()}
+
+    # Mejor registro por unidad: prioriza aprobado, luego nota mas alta, luego periodo mas reciente
+    mejor = {}
+    for e in evals:
+        uid = e["unidad_didactica_id"]
+        parciales = [n for n in (e["nota_c1"], e["nota_c2"], e["nota_c3"]) if n is not None]
+        nota = e["nota_final"]
+        if nota is None and parciales:
+            nota = round(sum(parciales) / len(parciales))
+        if nota is None:
+            continue
+        clave = (1 if e["estado"] == 'aprobado' else 0, nota, e["periodo_id"] or 0)
+        actual = mejor.get(uid)
+        if actual is None or clave > actual["_clave"]:
+            mejor[uid] = {
+                "nota": nota,
+                "nota_c1": e["nota_c1"],
+                "nota_c2": e["nota_c2"],
+                "nota_c3": e["nota_c3"],
+                "estado": e["estado"],
+                "periodo_codigo": periodos.get(e["periodo_id"]),
+                "_clave": clave,
+            }
+
+    # Docente por unidad (carga_lectiva): prefiere el periodo de la evaluacion, si no el vigente
+    unidad_ids = [u["id"] for u in unidades]
+    docentes_por_unidad = {}
+    if unidad_ids:
+        ph_ud = ','.join(f':u{i}' for i in range(len(unidad_ids)))
+        result_cl = await db.execute(
+            text(f"""
+                SELECT cl.unidad_didactica_id, cl.periodo_id, cl.turno, cl.seccion, cu.full_name
+                FROM carga_lectiva cl
+                LEFT JOIN core_users cu ON cu.id = cl.docente_id
+                WHERE cl.unidad_didactica_id IN ({ph_ud})
+            """),
+            {f'u{i}': uid for i, uid in enumerate(unidad_ids)}
+        )
+        for row in result_cl.mappings().all():
+            uid = row["unidad_didactica_id"]
+            opciones = docentes_por_unidad.setdefault(uid, [])
+            opciones.append({
+                "docente": row["full_name"],
+                "turno": row["turno"],
+                "seccion": row["seccion"],
+                "periodo_id": row["periodo_id"],
+            })
+
+    unidades_por_modulo = {}
+    for u in unidades:
+        unidades_por_modulo.setdefault(u["modulo_id"], []).append(u)
+
+    ciclos = {}
+    for mod in modulos:
+        num = _numero_ciclo(mod["nombre"], mod["orden"])
+        ciclo = ciclos.setdefault(num, {"ciclo": num, "titulo": _titulo_ciclo(num), "unidades": []})
+        for u in unidades_por_modulo.get(mod["id"], []):
+            reg = mejor.get(u["id"])
+            opciones = docentes_por_unidad.get(u["id"]) or []
+            docente = None
+            if opciones:
+                periodo_eval = reg["_clave"][2] if reg else None
+                docente = next((o for o in opciones if periodo_eval and o["periodo_id"] == periodo_eval), None)
+                if docente is None and periodo_id:
+                    docente = next((o for o in opciones if o["periodo_id"] == periodo_id), None)
+                if docente is None:
+                    docente = max(opciones, key=lambda o: o["periodo_id"] or 0)
+            ciclo["unidades"].append({
+                "nombre": u["nombre"],
+                "codigo": u["codigo"],
+                "creditos": u["creditos"],
+                "horas": u["horas"],
+                "tipo": u["tipo"],
+                "nota": reg["nota"] if reg else None,
+                "nota_c1": reg["nota_c1"] if reg else None,
+                "nota_c2": reg["nota_c2"] if reg else None,
+                "nota_c3": reg["nota_c3"] if reg else None,
+                "estado": reg["estado"] if reg else "no_cursado",
+                "periodo_codigo": reg["periodo_codigo"] if reg else None,
+                "docente": docente["docente"] if docente else None,
+                "turno": docente["turno"] if docente else None,
+                "seccion": docente["seccion"] if docente else None,
+            })
+
+    salida = []
+    for num in sorted(ciclos):
+        c = ciclos[num]
+        notas = [u["nota"] for u in c["unidades"] if u["nota"] is not None]
+        c["promedio"] = round(sum(notas) / len(notas), 2) if notas else None
+        c["creditos_ciclo"] = sum((u["creditos"] or 0) for u in c["unidades"])
+        c["creditos_aprobados"] = sum((u["creditos"] or 0) for u in c["unidades"] if u["estado"] == 'aprobado')
+        c["completado"] = len(c["unidades"]) > 0 and all(u["estado"] == 'aprobado' for u in c["unidades"])
+        salida.append(c)
+
+    return salida, len(salida)
+
+async def _periodo_por_defecto_boletin(db, estudiante_id):
+    """Periodo por defecto del boletin: ultima matricula del estudiante;
+    si no tiene, el periodo vigente; si no, el mas reciente registrado."""
+    from sqlalchemy import text
+
+    result = await db.execute(
+        text("""
+            SELECT m.periodo_id
+            FROM matriculas m
+            JOIN periodos_academicos pa ON pa.id = m.periodo_id
+            WHERE m.estudiante_id = :eid
+            ORDER BY pa.fecha_inicio DESC NULLS LAST, m.id DESC
+            LIMIT 1
+        """),
+        {"eid": estudiante_id},
+    )
+    periodo_id = result.scalars().first()
+    if periodo_id:
+        return periodo_id
+
+    result = await db.execute(
+        text("""
+            SELECT id FROM periodos_academicos
+            ORDER BY CASE estado WHEN 'en_curso' THEN 0 WHEN 'matricula_abierta' THEN 1 ELSE 2 END,
+                     fecha_inicio DESC NULLS LAST, id DESC
+            LIMIT 1
+        """)
+    )
+    periodo_id = result.scalars().first()
+    if periodo_id:
+        return periodo_id
+
+    raise HTTPException(status_code=404, detail="No hay periodos academicos registrados")
+
 @router.get("/estudiantes/{estudiante_id}/boletin")
-async def obtener_boletin(estudiante_id: int, periodo_id: int, db: AsyncSession = Depends(get_db)):
+async def obtener_boletin(estudiante_id: int, periodo_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
     from sqlalchemy import text
 
     result_est = await db.execute(select(Estudiante).where(Estudiante.id == estudiante_id))
     estudiante = result_est.scalar_one_or_none()
     if not estudiante:
         raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    if periodo_id is None:
+        periodo_id = await _periodo_por_defecto_boletin(db, estudiante_id)
 
     result_mat = await db.execute(
         select(Matricula).options(selectinload(Matricula.detalles))
@@ -158,7 +348,7 @@ async def obtener_boletin(estudiante_id: int, periodo_id: int, db: AsyncSession 
 
     result_plan = await db.execute(
         text("""
-            SELECT p.creditos_totales, p.nombre as plan_nombre, p.nivel_formativo
+            SELECT p.creditos_totales, p.nombre as plan_nombre, p.nivel_formativo, pr.plan_estudio_id
             FROM programas_estudio pr
             JOIN planes_estudio p ON pr.plan_estudio_id = p.id
             WHERE pr.id = :prog_id
@@ -255,6 +445,10 @@ async def obtener_boletin(estudiante_id: int, periodo_id: int, db: AsyncSession 
     observ_row = result_observ.mappings().first()
     observaciones = observ_row["observaciones"] if observ_row else None
 
+    plan_estudio_id = plan_row["plan_estudio_id"] if plan_row else None
+    ciclos, ciclos_totales = await _construir_ciclos(db, estudiante_id, plan_estudio_id, periodo_id)
+    ciclos_completados = sum(1 for c in ciclos if c.get("completado"))
+
     return {
         "estudiante": {
             "foto_url": estudiante.foto_url,
@@ -282,11 +476,14 @@ async def obtener_boletin(estudiante_id: int, periodo_id: int, db: AsyncSession 
             "porcentaje": round((creditos_aprobados / creditos_totales) * 100) if creditos_totales > 0 else 0,
         },
         "cursos_periodo": cursos_periodo,
+        "ciclos": ciclos,
         "resumen": {
             "promedio_general": promedio_periodo,
             "cursos_aprobados": aprobados,
             "cursos_desaprobados": desaprobados,
             "total_cursos": len(cursos_periodo),
+            "ciclos_completados": ciclos_completados,
+            "ciclos_totales": ciclos_totales,
         },
         "historial": historial,
         "observaciones": observaciones,

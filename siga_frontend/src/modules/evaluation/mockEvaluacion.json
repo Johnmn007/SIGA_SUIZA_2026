@@ -15,7 +15,7 @@
           "nota_c1": 13,
           "nota_c2": 15,
           "nota_c3": 14,
-          "nota_final": 15,
+          "nota_final": 14,
           "promedio_curso": 14,
           "estado": "aprobado"
         },
@@ -25,7 +25,7 @@
           "nota_c1": 14,
           "nota_c2": 16,
           "nota_c3": 15,
-          "nota_final": 16,
+          "nota_final": 15,
           "promedio_curso": 15,
           "estado": "aprobado"
         },
@@ -45,7 +45,7 @@
           "nota_c1": 10,
           "nota_c2": 11,
           "nota_c3": 8,
-          "nota_final": 9,
+          "nota_final": 10,
           "promedio_curso": 10,
           "estado": "desaprobado"
         },
@@ -55,7 +55,7 @@
           "nota_c1": 15,
           "nota_c2": 15,
           "nota_c3": 16,
-          "nota_final": 16,
+          "nota_final": 15,
           "promedio_curso": 15,
           "estado": "aprobado"
         },
@@ -102,7 +102,7 @@
           "creditos_aprobados": 20
         }
       ],
-      "observaciones": "Desarrollo de Aplicaciones Moviles quedó desaprobado con nota final 9/20, por lo que sus 4 créditos no se acreditan. El estudiante debe matrricularse en el periodo de evaluación extraordinaria o repetir la unidad en el siguiente ciclo. Los 6 cursos aprobados del periodo (16 de 20 créditos) no se ven afectados, por lo que su promedio general de 15/20 y la continuidad de su plan de estudios se mantienen."
+      "observaciones": "Desarrollo de Aplicaciones Moviles quedó desaprobado con nota final 10/20 (C1: 10, C2: 11, C3: 8 → promedio 10), por lo que sus 4 créditos no se acreditan. El estudiante debe matricularse en el periodo de evaluación extraordinaria o repetir la unidad en el siguiente ciclo. Los 6 cursos aprobados del periodo (16 de 20 créditos) no se ven afectados, por lo que su promedio general de 15/20 y la continuidad de su plan de estudios se mantienen."
     }
   ]
 }
