@@ -588,7 +588,6 @@ export function StudentReportCard() {
               onSelect={handleSelectStudent}
               searchLoading={searchLoading}
               recentStudents={recentStudents}
-              setShowDropdown={setShowDropdown}
               onRemoveRecent={handleRemoveRecent}
             />
           </div>
@@ -639,7 +638,6 @@ export function StudentReportCard() {
               onSelect={handleSelectStudent}
               searchLoading={searchLoading}
               recentStudents={recentStudents}
-              setShowDropdown={setShowDropdown}
               onRemoveRecent={handleRemoveRecent}
             />
           </div>
