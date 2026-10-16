@@ -30,7 +30,8 @@ import {
   RotateCcw,
   Sparkles,
   Award,
-  Briefcase
+  Briefcase,
+  Trash2
 } from 'lucide-react';
 
 export function AcademicDashboard() {
@@ -47,6 +48,9 @@ export function AcademicDashboard() {
   const [createError, setCreateError] = useState('');
   const [editingProgram, setEditingProgram] = useState(null);
   const [configProgram, setConfigProgram] = useState(null);
+  const [programToDelete, setProgramToDelete] = useState(null);
+  const [deletingProgram, setDeletingProgram] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   
   // Import modal state
   const [importFile, setImportFile] = useState(null);
@@ -281,6 +285,26 @@ export function AcademicDashboard() {
       alert('Error al guardar la configuración de la carrera');
     } finally {
       setSavingProgram(false);
+    }
+  };
+
+  // Delete Program Handler
+  const handleDeleteProgram = async () => {
+    if (!programToDelete) return;
+    setDeletingProgram(true);
+    setDeleteError('');
+    try {
+      await apiClient.request(`/api/mod-programas-estudio/programas/${programToDelete.id}`, {
+        method: 'DELETE'
+      });
+      setProgramToDelete(null);
+      await fetchData();
+    } catch (error) {
+      console.error('Error al eliminar programa:', error);
+      const detail = error.response?.data?.detail || error.message || 'Error al eliminar el programa de estudio.';
+      setDeleteError(detail);
+    } finally {
+      setDeletingProgram(false);
     }
   };
 
@@ -824,36 +848,47 @@ export function AcademicDashboard() {
                       </div>
 
                       {/* Quick Action Buttons */}
-                      <div className="pt-3.5 border-t border-slate-100 flex items-center gap-2">
-                        <button 
-                          className="flex-1 py-2 px-3 bg-primary text-white hover:bg-primary-dark font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-                          onClick={() => {
-                            setSelectedProgram(program.id);
-                            setView('mesh');
-                          }}
-                          title="Explorar Malla Curricular y Unidades Didácticas"
-                        >
-                          <span>Ver Malla</span>
-                          <ArrowRight size={13} />
-                        </button>
+                      <div className="pt-3.5 border-t border-slate-100 mt-auto">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button 
+                            className="py-2.5 px-3 bg-primary text-white hover:bg-primary-dark font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm hover:shadow cursor-pointer"
+                            onClick={() => {
+                              setSelectedProgram(program.id);
+                              setView('mesh');
+                            }}
+                            title="Explorar Malla Curricular y Unidades Didácticas"
+                          >
+                            <span>Ver Malla</span>
+                            <ArrowRight size={13} />
+                          </button>
 
-                        <button 
-                          className="py-2 px-2.5 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-xl border border-slate-200 text-xs transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
-                          onClick={() => handleOpenConfigModal(program)}
-                          title="Configurar turnos, cupos y coordinación"
-                        >
-                          <Sliders size={13} className="text-slate-500" />
-                          <span className="hidden sm:inline">Parametrización</span>
-                        </button>
+                          <button 
+                            className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium rounded-xl border border-slate-200/90 text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer"
+                            onClick={() => handleOpenConfigModal(program)}
+                            title="Configurar turnos, cupos y coordinación"
+                          >
+                            <Sliders size={13} className="text-slate-500 shrink-0" />
+                            <span>Parametrización</span>
+                          </button>
 
-                        <button 
-                          className="py-2 px-2.5 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-xl border border-slate-200 text-xs transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
-                          onClick={() => setEditingProgram({ ...program })}
-                          title="Editar información de la carrera"
-                        >
-                          <Edit3 size={13} className="text-slate-500" />
-                          <span className="hidden sm:inline">Editar</span>
-                        </button>
+                          <button 
+                            className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium rounded-xl border border-slate-200/90 text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer"
+                            onClick={() => setEditingProgram({ ...program })}
+                            title="Editar información de la carrera"
+                          >
+                            <Edit3 size={13} className="text-slate-500 shrink-0" />
+                            <span>Editar</span>
+                          </button>
+
+                          <button 
+                            className="py-2.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 font-medium rounded-xl border border-rose-200/90 text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer"
+                            onClick={() => { setDeleteError(''); setProgramToDelete(program); }}
+                            title="Eliminar programa de estudio"
+                          >
+                            <Trash2 size={13} className="text-rose-500 shrink-0" />
+                            <span>Eliminar</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -956,6 +991,13 @@ export function AcademicDashboard() {
                                 title="Editar Carrera"
                               >
                                 <Edit3 size={14} />
+                              </button>
+                              <button
+                                onClick={() => { setDeleteError(''); setProgramToDelete(program); }}
+                                className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg transition-colors cursor-pointer"
+                                title="Eliminar Carrera"
+                              >
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </td>
@@ -1573,6 +1615,65 @@ export function AcademicDashboard() {
           onClose={() => setShowPeriodManager(false)} 
           onUpdate={fetchData} 
         />
+      )}
+
+      {/* ================= MODAL: CONFIRMAR ELIMINACIÓN DE CARRERA ================= */}
+      {programToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                <Trash2 size={24} />
+              </div>
+              
+              <div>
+                <h4 className="text-lg font-bold text-slate-900 tracking-tight">¿Eliminar Carrera Profesional?</h4>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  ¿Está seguro de que desea eliminar la carrera <span className="font-bold text-slate-800">{programToDelete.nombre}</span> (<span className="font-mono font-semibold">{programToDelete.codigo}</span>)?
+                </p>
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200/80 rounded-lg p-2.5 mt-2.5 text-left">
+                  ⚠️ Esta acción removerá el registro del programa del catálogo institucional. Si tiene estudiantes asociados, el sistema bloqueará la eliminación por seguridad.
+                </p>
+              </div>
+
+              {deleteError && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-left flex items-start gap-2.5 text-rose-700 text-xs font-semibold">
+                  <AlertCircle size={16} className="text-rose-500 shrink-0 mt-0.5" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setProgramToDelete(null); setDeleteError(''); }}
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  disabled={deletingProgram}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteProgram}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  disabled={deletingProgram}
+                >
+                  {deletingProgram ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Eliminando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={14} />
+                      <span>Sí, Eliminar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
