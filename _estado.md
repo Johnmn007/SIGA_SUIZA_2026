@@ -44,6 +44,7 @@ D:\SIGA\
 ### 3.3 Refinamiento de Fase 3 (Correcciones y Evaluaciones)
 - **Correcciones Rápidas de Tipeo:** Se implementó `EditStudentModal.jsx` en la vista de Maestro de Estudiantes (Secretaría) para permitir corregir errores de tipeo menores inmediatamente, diferenciándolo de los trámites legales de la Fase 4.
 - **Simplificación del Ingreso de Notas:** Por decisión de diseño (reducción de fricción de adopción), se eliminó la matriz compleja de 3 evaluaciones en `EvaluationDashboard.jsx`. Ahora el docente ingresa directamente un único **Promedio Final**. Se ajustó el esquema de la BD (`nota_final`) y la UI.
+- **Alineación de Endpoint Docker para `mod-evaluacion`:** Se corrigió `manifest.yaml` de `mod-evaluacion` (apuntaba erróneamente a `http://localhost:8008` en lugar de `http://mod-evaluacion:8008`), logrando que el 100% de los 7 microservicios reporten estado `healthy` a través del Core Gateway.
 
 ### 3.4 Boletín de Notas — "Notas por Ciclos" con histórico (fase frontend)
 - **Problema:** el menú Boletín de Notas solo renderizaba el Ciclo V: `evaluacion_registros` está vacía en la BD (0 filas) y el único dato de notas provenía de `mockEvaluacion.json` (1 estudiante, solo periodo 2026-I = unidades 329-335 = Ciclo 5).

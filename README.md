@@ -7,3 +7,6 @@ Toda la documentación arquitectónica, técnica y de negocio oficial se encuent
 👉 **[Ver Documentación Principal (Índice Maestro)](docs/00-INDICE.md)**
 
 Para conocer el estado actual y los siguientes pasos, revisa el [Informe de Estado](_estado.md).
+
+## Contribuir
+Ver [CONTRIBUTING.md](CONTRIBUTING.md). Configuración local: copiar `siga_backend/.env.example` a `.env`.

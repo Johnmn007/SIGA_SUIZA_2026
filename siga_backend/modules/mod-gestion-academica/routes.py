@@ -647,6 +647,8 @@ from schemas import (
 )
 from models import SolicitudTramite, ResolucionConvalidacion, ConvalidacionDetalle, BeneficioEstudiante
 
+ESTADOS_TRAMITE = {"pendiente", "en_proceso", "emitido", "rechazado", "aprobado"}
+
 @router.post("/tramites/", response_model=SolicitudTramiteResponse, status_code=status.HTTP_201_CREATED)
 async def crear_tramite(data: SolicitudTramiteCreate, db: AsyncSession = Depends(get_db)):
     db_tramite = SolicitudTramite(**data.model_dump())
@@ -662,6 +664,8 @@ async def obtener_tramites(db: AsyncSession = Depends(get_db)):
 
 @router.put("/tramites/{tramite_id}/estado", response_model=SolicitudTramiteResponse)
 async def actualizar_estado_tramite(tramite_id: int, estado: str, db: AsyncSession = Depends(get_db)):
+    if estado not in ESTADOS_TRAMITE:
+        raise HTTPException(status_code=400, detail=f"Estado inválido. Use: {', '.join(sorted(ESTADOS_TRAMITE))}")
     result = await db.execute(select(SolicitudTramite).where(SolicitudTramite.id == tramite_id))
     db_tramite = result.scalar_one_or_none()
     if not db_tramite:
@@ -677,6 +681,11 @@ async def actualizar_estado_tramite(tramite_id: int, estado: str, db: AsyncSessi
 
 @router.post("/convalidaciones/", response_model=ResolucionConvalidacionResponse, status_code=status.HTTP_201_CREATED)
 async def registrar_convalidacion(data: ResolucionConvalidacionCreate, db: AsyncSession = Depends(get_db)):
+    existente = await db.execute(select(ResolucionConvalidacion).where(ResolucionConvalidacion.numero_resolucion == data.numero_resolucion))
+    if existente.scalars().first():
+        raise HTTPException(status_code=409, detail="Ya existe una resolución con ese número")
+    if not data.detalles:
+        raise HTTPException(status_code=400, detail="Debe indicar al menos una unidad convalidada")
     conval_data = data.model_dump(exclude={"detalles"})
     db_resolucion = ResolucionConvalidacion(**conval_data)
     db.add(db_resolucion)
@@ -691,6 +700,15 @@ async def registrar_convalidacion(data: ResolucionConvalidacionCreate, db: Async
     result = await db.execute(select(ResolucionConvalidacion).options(selectinload(ResolucionConvalidacion.detalles)).where(ResolucionConvalidacion.id == db_resolucion.id))
     return result.scalar_one()
 
+@router.get("/convalidaciones/", response_model=List[ResolucionConvalidacionResponse])
+async def listar_convalidaciones(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ResolucionConvalidacion)
+        .options(selectinload(ResolucionConvalidacion.detalles))
+        .order_by(ResolucionConvalidacion.fecha_emision.desc(), ResolucionConvalidacion.id.desc())
+    )
+    return result.scalars().all()
+
 @router.get("/convalidaciones/estudiante/{estudiante_id}", response_model=List[ResolucionConvalidacionResponse])
 async def obtener_convalidaciones_estudiante(estudiante_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(ResolucionConvalidacion).options(selectinload(ResolucionConvalidacion.detalles)).where(ResolucionConvalidacion.estudiante_id == estudiante_id))
@@ -698,8 +716,26 @@ async def obtener_convalidaciones_estudiante(estudiante_id: int, db: AsyncSessio
 
 @router.post("/beneficios/", response_model=BeneficioEstudianteResponse, status_code=status.HTTP_201_CREATED)
 async def registrar_beneficio(data: BeneficioEstudianteCreate, db: AsyncSession = Depends(get_db)):
+    if not 0 < data.porcentaje_descuento <= 100:
+        raise HTTPException(status_code=400, detail="El porcentaje de descuento debe estar entre 0 y 100")
     db_beneficio = BeneficioEstudiante(**data.model_dump())
     db.add(db_beneficio)
+    await db.commit()
+    await db.refresh(db_beneficio)
+    return db_beneficio
+
+@router.get("/beneficios/", response_model=List[BeneficioEstudianteResponse])
+async def listar_beneficios(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(BeneficioEstudiante).order_by(BeneficioEstudiante.id.desc()))
+    return result.scalars().all()
+
+@router.put("/beneficios/{beneficio_id}/desactivar", response_model=BeneficioEstudianteResponse)
+async def desactivar_beneficio(beneficio_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(BeneficioEstudiante).where(BeneficioEstudiante.id == beneficio_id))
+    db_beneficio = result.scalar_one_or_none()
+    if not db_beneficio:
+        raise HTTPException(status_code=404, detail="Beneficio no encontrado")
+    db_beneficio.activo = False
     await db.commit()
     await db.refresh(db_beneficio)
     return db_beneficio
