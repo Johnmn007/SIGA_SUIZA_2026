@@ -1,6 +1,6 @@
 # INFORME DE ESTADO - SIGA
 
-> **Última actualización:** 29 Jun 2026 | **Sesión:** 4 (Validaciones E2E y Refinamiento UI/UX de Roles)
+> **Última actualización:** 16 Oct 2026 | **Sesión:** 5 (Módulo de Finanzas, Docker y Sincronización DUQUE)
 
 ---
 
@@ -44,6 +44,12 @@ D:\SIGA\
 ### 3.3 Refinamiento de Fase 3 (Correcciones y Evaluaciones)
 - **Correcciones Rápidas de Tipeo:** Se implementó `EditStudentModal.jsx` en la vista de Maestro de Estudiantes (Secretaría) para permitir corregir errores de tipeo menores inmediatamente, diferenciándolo de los trámites legales de la Fase 4.
 - **Simplificación del Ingreso de Notas:** Por decisión de diseño (reducción de fricción de adopción), se eliminó la matriz compleja de 3 evaluaciones en `EvaluationDashboard.jsx`. Ahora el docente ingresa directamente un único **Promedio Final**. Se ajustó el esquema de la BD (`nota_final`) y la UI.
+
+### 3.4 Módulo de Finanzas, Búsqueda de Estudiantes y Proxy Docker (Rama DUQUE)
+- **Conexión de API y Proxy Vite:** Se configuró el proxy Vite hacia `http://siga-core:8000` y conexión de endpoints mediante `API_BASE` para cargar los 788 estudiantes correctamente.
+- **Búsqueda Instantánea y Registro de Estudiantes:** Búsqueda rápida por DNI, visualización del nombre completo y consulta del historial de pagos anuales.
+- **Caja Bento y Tasas TUPA:** Tablero moderno de tesorería estilo Bento Grid, cobro de tasas administrativas según catálogo TUPA, emisión de recibos digitales y arqueo de caja.
+- **Entorno Docker:** Sincronización y levantamiento completo de contenedores.
 
 ---
 
