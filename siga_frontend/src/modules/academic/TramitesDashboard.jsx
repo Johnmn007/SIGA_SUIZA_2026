@@ -9,28 +9,27 @@ export function TramitesDashboard() {
   // States for Solicitudes (TUPA)
   const [solicitudes, setSolicitudes] = useState([]);
   
+  const [error, setError] = useState('');
+
   const fetchSolicitudes = async () => {
     setLoading(true);
+    setError('');
     try {
-      const res = await apiClient.request('/api/mod-gestion-academica/tramites/').catch(() => []);
-      // If db is empty, mock some data for the UI demonstration
-      if (res.length === 0) {
-        setSolicitudes([
-          { id: 1, estudiante_id: 101, nombre_alumno: 'Perez, Juan', tipo_tramite: 'Reserva de Matrícula', estado: 'pendiente', fecha_solicitud: '2026-06-25' },
-          { id: 2, estudiante_id: 102, nombre_alumno: 'Gomez, Maria', tipo_tramite: 'Constancia de Egreso', estado: 'en_proceso', fecha_solicitud: '2026-06-26' },
-          { id: 3, estudiante_id: 103, nombre_alumno: 'Salas, Luis', tipo_tramite: 'Certificado de Estudios', estado: 'emitido', fecha_solicitud: '2026-06-20' },
-        ]);
-      } else {
-        setSolicitudes(res);
-      }
-    } catch (error) {
-      console.error(error);
+      const [tramites, estudiantes] = await Promise.all([
+        apiClient.request('/api/mod-gestion-academica/tramites/'),
+        apiClient.request('/api/mod-gestion-academica/estudiantes/').catch(() => []),
+      ]);
+      const nombres = new Map((estudiantes || []).map(e => [e.id, `${e.apellidos}, ${e.nombres}`]));
+      setSolicitudes((tramites || []).map(t => ({ ...t, nombre_alumno: nombres.get(t.estudiante_id) })));
+    } catch (err) {
+      console.error(err);
+      setError('No se pudieron cargar los trámites.');
+      setSolicitudes([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Mock data fetching since we don't have full data seeding for tramites yet
   useEffect(() => {
     if (activeTab === 'solicitudes') {
       fetchSolicitudes();
@@ -38,8 +37,15 @@ export function TramitesDashboard() {
   }, [activeTab]);
 
   const handleEstadoChange = async (id, newEstado) => {
-    // In a real scenario, this would call PUT /api/mod-gestion-academica/tramites/{id}/estado
+    const anterior = solicitudes;
     setSolicitudes(prev => prev.map(s => s.id === id ? { ...s, estado: newEstado } : s));
+    try {
+      await apiClient.request(`/api/mod-gestion-academica/tramites/${id}/estado?estado=${newEstado}`, { method: 'PUT' });
+    } catch (err) {
+      console.error(err);
+      setSolicitudes(anterior);
+      setError('No se pudo actualizar el estado del trámite.');
+    }
   };
 
   const renderTabHeader = (id, label, icon) => (
@@ -84,6 +90,7 @@ export function TramitesDashboard() {
                 </button>
               </div>
               
+              {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}
               {loading ? (
                 <div className="text-center py-10"><div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div></div>
               ) : (
@@ -98,6 +105,9 @@ export function TramitesDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
+                    {solicitudes.length === 0 && (
+                      <tr><td colSpan={5} className="py-10 text-center text-slate-400">No hay solicitudes registradas.</td></tr>
+                    )}
                     {solicitudes.map(s => (
                       <tr key={s.id} className="hover:bg-primary/5 transition-colors">
                         <td className="py-3 px-4">

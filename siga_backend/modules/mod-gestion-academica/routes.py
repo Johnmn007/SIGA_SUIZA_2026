@@ -283,6 +283,8 @@ from schemas import (
 )
 from models import SolicitudTramite, ResolucionConvalidacion, ConvalidacionDetalle, BeneficioEstudiante
 
+ESTADOS_TRAMITE = {"pendiente", "en_proceso", "emitido", "rechazado", "aprobado"}
+
 @router.post("/tramites/", response_model=SolicitudTramiteResponse, status_code=status.HTTP_201_CREATED)
 async def crear_tramite(data: SolicitudTramiteCreate, db: AsyncSession = Depends(get_db)):
     db_tramite = SolicitudTramite(**data.model_dump())
@@ -298,6 +300,8 @@ async def obtener_tramites(db: AsyncSession = Depends(get_db)):
 
 @router.put("/tramites/{tramite_id}/estado", response_model=SolicitudTramiteResponse)
 async def actualizar_estado_tramite(tramite_id: int, estado: str, db: AsyncSession = Depends(get_db)):
+    if estado not in ESTADOS_TRAMITE:
+        raise HTTPException(status_code=400, detail=f"Estado inválido. Use: {', '.join(sorted(ESTADOS_TRAMITE))}")
     result = await db.execute(select(SolicitudTramite).where(SolicitudTramite.id == tramite_id))
     db_tramite = result.scalar_one_or_none()
     if not db_tramite:
