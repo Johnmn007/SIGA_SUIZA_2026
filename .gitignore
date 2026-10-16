@@ -1,1 +1,61 @@
+# Python
 __pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+.vite/
+
+# Secretos y entorno (usar .env.example como plantilla)
+.env
+.env.*
+!.env.example
+
+# Temporales y logs
+*.log
+core_logs.txt
+tmp_*
+scratch/
+*.tmp
+*.bak
+
+# Editores / SO
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Herramientas de IA / agentes (config personal)
+.agents/
+.claude/
+CLAUDE.md
+
+# Scripts de parcheo y pruebas sueltas (no son parte del producto)
+/update_*.py
+/patch_*.py
+/fix_*.py
+/add_*.py
+/test_proxy.py
+siga_backend/diagnose_issues.py
+siga_backend/mock_module.py
+siga_backend/test_api.py
+siga_backend/tools/*compilado*
+siga_backend/tools/gen_structure.js
+
+# Artefactos de Vite/PWA y copia obsoleta del front
+siga_frontend/public/dev-sw.js
+siga_frontend/public/src/
+
+# Plantillas de GitHub locales
+.github/
