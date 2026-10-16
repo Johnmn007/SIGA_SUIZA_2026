@@ -1,138 +1,1030 @@
-import { useState, useEffect } from 'react';
-import { API_BASE } from '../../core/api/client';
-import { Search, Wallet, CheckCircle2, AlertTriangle, Banknote } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '../../core/auth/useAuth';
+import { 
+  Wallet, 
+  Search, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Banknote, 
+  Receipt, 
+  CreditCard, 
+  Building2, 
+  QrCode, 
+  Filter, 
+  Download, 
+  Printer, 
+  Lock, 
+  Unlock, 
+  Sparkles, 
+  TrendingUp, 
+  Clock, 
+  Users, 
+  FileSpreadsheet, 
+  LayoutGrid, 
+  List, 
+  Check, 
+  ArrowUpRight, 
+  ShieldCheck, 
+  Plus, 
+  RotateCcw,
+  GraduationCap,
+  Calendar,
+  Layers,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
+import { TUPA_CONCEPTS, PAYMENT_METHODS, CAREERS_MAP } from './tupaCatalog';
+import { PaymentModal } from './PaymentModal';
+import { ReceiptModal } from './ReceiptModal';
+
+const STORAGE_KEY_TRANSACTIONS = 'siga_transacciones_caja_2026';
+
+// Transacciones semilla iniciales alineadas a los estudiantes ya pagados en la BD
+const INITIAL_TRANSACTIONS = [
+  {
+    id: 1718000001,
+    codigoRecibo: 'REC-2026-00108',
+    estudianteId: 2314,
+    estudianteNombre: 'Leonardo Cahuana Tello',
+    dni: '77648746',
+    codigoEstudiante: '2024-77648746',
+    carreraNombre: 'Desarrollo de Sistemas de Información',
+    conceptoId: 'MAT-01',
+    conceptoCodigo: 'MAT-01',
+    conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
+    conceptoCategoria: 'Matrícula',
+    monto: 120.00,
+    metodoPagoId: 'banco_nacion',
+    metodoPagoNombre: 'Banco de la Nación (BN)',
+    numeroOperacion: 'BN-849201',
+    cajero: 'Caja Central - Tesorería',
+    fechaHora: '15/10/2026, 09:30:15',
+    timestamp: Date.now() - 86400000,
+    liberaMatricula: true
+  },
+  {
+    id: 1718000002,
+    codigoRecibo: 'REC-2026-00109',
+    estudianteId: 2313,
+    estudianteNombre: 'Ricardo Arevalo Villacorta',
+    dni: '60832237',
+    codigoEstudiante: '2025-60832237',
+    carreraNombre: 'Desarrollo de Sistemas de Información',
+    conceptoId: 'MAT-01',
+    conceptoCodigo: 'MAT-01',
+    conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
+    conceptoCategoria: 'Matrícula',
+    monto: 120.00,
+    metodoPagoId: 'efectivo',
+    metodoPagoNombre: 'Efectivo en Ventanilla',
+    numeroOperacion: 'PAGO EN VENTANILLA',
+    cajero: 'Caja Central - Tesorería',
+    fechaHora: '15/10/2026, 10:14:20',
+    timestamp: Date.now() - 82000000,
+    liberaMatricula: true
+  },
+  {
+    id: 1718000003,
+    codigoRecibo: 'REC-2026-00110',
+    estudianteId: 2031,
+    estudianteNombre: 'KEVIN MANUEL MARICHI GROMEZ',
+    dni: '75983142',
+    codigoEstudiante: '2026-75983142',
+    carreraNombre: 'Desarrollo de Sistemas de Información',
+    conceptoId: 'MAT-01',
+    conceptoCodigo: 'MAT-01',
+    conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
+    conceptoCategoria: 'Matrícula',
+    monto: 120.00,
+    metodoPagoId: 'yape_plin',
+    metodoPagoNombre: 'Billetera Digital (Yape / Plin)',
+    numeroOperacion: 'YP-918234',
+    cajero: 'Caja Central - Tesorería',
+    fechaHora: '15/10/2026, 11:45:00',
+    timestamp: Date.now() - 75000000,
+    liberaMatricula: true
+  },
+  {
+    id: 1718000004,
+    codigoRecibo: 'REC-2026-00111',
+    estudianteId: 2029,
+    estudianteNombre: 'DILBER ALEX MARICHI GORMEZ',
+    dni: '75975159',
+    codigoEstudiante: '2026-75975159',
+    carreraNombre: 'Desarrollo de Sistemas de Información',
+    conceptoId: 'CAR-01',
+    conceptoCodigo: 'CAR-01',
+    conceptoNombre: 'Carnet Estudiantil / Fotocheck Institucional',
+    conceptoCategoria: 'Identificación',
+    monto: 15.00,
+    metodoPagoId: 'efectivo',
+    metodoPagoNombre: 'Efectivo en Ventanilla',
+    numeroOperacion: 'PAGO EN VENTANILLA',
+    cajero: 'Caja Central - Tesorería',
+    fechaHora: '15/10/2026, 12:05:40',
+    timestamp: Date.now() - 70000000,
+    liberaMatricula: false
+  },
+  {
+    id: 1718000005,
+    codigoRecibo: 'REC-2026-00112',
+    estudianteId: 1887,
+    estudianteNombre: 'ASHLEY AMPUERO TAMANI',
+    dni: '75933316',
+    codigoEstudiante: '2026-75933316',
+    carreraNombre: 'Desarrollo de Sistemas de Información',
+    conceptoId: 'MAT-01',
+    conceptoCodigo: 'MAT-01',
+    conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
+    conceptoCategoria: 'Matrícula',
+    monto: 120.00,
+    metodoPagoId: 'banco_nacion',
+    metodoPagoNombre: 'Banco de la Nación (BN)',
+    numeroOperacion: 'BN-902341',
+    cajero: 'Caja Central - Tesorería',
+    fechaHora: '16/10/2026, 08:30:00',
+    timestamp: Date.now() - 14000000,
+    liberaMatricula: true
+  }
+];
 
 export function FinancesDashboard() {
-  const [searchTerm, setSearchTerm] = useState('');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('caja'); // 'caja' | 'historial' | 'arqueo'
+  
+  // Data states
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  
+  // Modals
+  const [payingStudent, setPayingStudent] = useState(null);
+  const [viewingReceipt, setViewingReceipt] = useState(null);
 
+  // Filters
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCareer, setFilterCareer] = useState('todas');
+  const [filterStatus, setFilterStatus] = useState('todos'); // 'todos' | 'con_deuda' | 'habilitados'
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
+  const [historyMethodFilter, setHistoryMethodFilter] = useState('todos');
+  const [historySearch, setHistorySearch] = useState('');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = viewMode === 'grid' ? 6 : 10;
+
+  // Cargar transacciones desde localStorage
   useEffect(() => {
-    handleSearch('');
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_TRANSACTIONS);
+      if (stored) {
+        setTransactions(JSON.parse(stored));
+      } else {
+        localStorage.setItem(STORAGE_KEY_TRANSACTIONS, JSON.stringify(INITIAL_TRANSACTIONS));
+        setTransactions(INITIAL_TRANSACTIONS);
+      }
+    } catch (e) {
+      console.error('Error cargando transacciones:', e);
+      setTransactions(INITIAL_TRANSACTIONS);
+    }
   }, []);
 
-  const handleSearch = async (val) => {
-    setSearchTerm(val);
-    if (val.length > 0 && val.length < 3) {
-      return;
-    }
+  // Fetch de Estudiantes desde la API
+  const fetchStudents = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/mod-gestion-academica/estudiantes/', {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      if (!Array.isArray(data)) {
-        console.error("Data is not an array:", data);
+      if (Array.isArray(data)) {
+        setStudents(data);
+      } else {
         setStudents([]);
-        return;
       }
-      
-      const filtered = data.filter(s => {
-        const d = s.dni || '';
-        const n = s.nombres || '';
-        const a = s.apellidos || '';
-        const c = s.codigo_estudiante || '';
-        return d.includes(val) || 
-               n.toLowerCase().includes(val.toLowerCase()) || 
-               a.toLowerCase().includes(val.toLowerCase()) || 
-               c.includes(val);
-      });
-      setStudents(filtered);
     } catch (e) {
-      console.error(e);
+      console.error('Error al obtener estudiantes:', e);
     } finally {
       setLoading(false);
     }
   };
 
-  const registerPayment = async (estudianteId) => {
-    if (!window.confirm("¿Confirmar recepción de pago físico de matrícula?")) return;
-    
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  // Métricas Financieras en Vivo
+  const financialStats = useMemo(() => {
+    const totalEstudiantes = students.length || 1;
+    const estudiantesHabilitados = students.filter(s => s.pago_matricula).length;
+    const estudiantesConDeuda = totalEstudiantes - estudiantesHabilitados;
+    const porcentajeHabilitados = Math.round((estudiantesHabilitados / totalEstudiantes) * 100);
+
+    // Suma total recaudada desde transacciones
+    const totalRecaudado = transactions.reduce((acc, t) => acc + (parseFloat(t.monto) || 0), 0);
+
+    // Recaudación del día de hoy
+    const hoyStr = new Date().toLocaleDateString();
+    const recaudadoHoy = transactions
+      .filter(t => new Date(t.timestamp).toLocaleDateString() === hoyStr)
+      .reduce((acc, t) => acc + (parseFloat(t.monto) || 0), 0);
+
+    return {
+      totalRecaudado,
+      recaudadoHoy,
+      totalEstudiantes,
+      estudiantesHabilitados,
+      estudiantesConDeuda,
+      porcentajeHabilitados,
+      totalTransacciones: transactions.length
+    };
+  }, [students, transactions]);
+
+  // Filtro de Estudiantes
+  const filteredStudents = useMemo(() => {
+    return students.filter(s => {
+      const q = searchTerm.toLowerCase().trim();
+      const matchesSearch = !q || 
+        (s.dni && s.dni.includes(q)) ||
+        (s.codigo_estudiante && s.codigo_estudiante.toLowerCase().includes(q)) ||
+        (s.nombres && s.nombres.toLowerCase().includes(q)) ||
+        (s.apellidos && s.apellidos.toLowerCase().includes(q));
+
+      const matchesCareer = filterCareer === 'todas' || String(s.programa_id) === String(filterCareer);
+
+      const matchesStatus = 
+        filterStatus === 'todos' ||
+        (filterStatus === 'con_deuda' && !s.pago_matricula) ||
+        (filterStatus === 'habilitados' && s.pago_matricula);
+
+      return matchesSearch && matchesCareer && matchesStatus;
+    });
+  }, [students, searchTerm, filterCareer, filterStatus]);
+
+  // Reset de página al cambiar filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterCareer, filterStatus, viewMode]);
+
+  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage) || 1;
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredStudents.slice(start, start + itemsPerPage);
+  }, [filteredStudents, currentPage, itemsPerPage]);
+
+  // Filtro de Transacciones para el Libro Diario
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const q = historySearch.toLowerCase().trim();
+      const matchesQ = !q ||
+        (t.codigoRecibo && t.codigoRecibo.toLowerCase().includes(q)) ||
+        (t.estudianteNombre && t.estudianteNombre.toLowerCase().includes(q)) ||
+        (t.dni && t.dni.includes(q)) ||
+        (t.conceptoNombre && t.conceptoNombre.toLowerCase().includes(q)) ||
+        (t.numeroOperacion && t.numeroOperacion.toLowerCase().includes(q));
+
+      const matchesMethod = historyMethodFilter === 'todos' || t.metodoPagoId === historyMethodFilter;
+
+      return matchesQ && matchesMethod;
+    });
+  }, [transactions, historySearch, historyMethodFilter]);
+
+  // Manejador de pago completado con éxito
+  const handlePaymentSuccess = (receiptPayload) => {
+    // 1. Guardar en transactions
+    const updated = [receiptPayload, ...transactions];
+    setTransactions(updated);
     try {
-      const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${estudianteId}/pago_matricula?pagado=true`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      
-      if (res.ok) {
-        alert("Pago registrado con éxito. Estudiante habilitado financieramente.");
-        // Refrescar lista
-        handleSearch(searchTerm);
-      } else {
-        alert("Error al registrar pago.");
-      }
+      localStorage.setItem(STORAGE_KEY_TRANSACTIONS, JSON.stringify(updated));
     } catch (e) {
-      console.error(e);
-      alert("Error de red al registrar pago.");
+      console.error('Error guardando transacción en localStorage:', e);
     }
+
+    // 2. Refrescar lista de estudiantes para reflejar liberación de candado
+    fetchStudents();
+
+    // 3. Cerrar modal de pago y abrir recibo para visualización/impresión
+    setPayingStudent(null);
+    setViewingReceipt(receiptPayload);
   };
 
+  // Exportar Libro Diario a CSV
+  const handleExportCSV = () => {
+    if (transactions.length === 0) {
+      alert('No hay transacciones registradas para exportar.');
+      return;
+    }
+
+    const headers = ['N° Recibo', 'Fecha y Hora', 'Estudiante', 'DNI', 'Código', 'Carrera', 'Concepto', 'Categoría', 'Método de Pago', 'N° Operación', 'Monto (S/)', 'Cajero'];
+    const rows = transactions.map(t => [
+      t.codigoRecibo,
+      `"${t.fechaHora}"`,
+      `"${t.estudianteNombre}"`,
+      t.dni,
+      t.codigoEstudiante,
+      `"${t.carreraNombre}"`,
+      `"${t.conceptoNombre}"`,
+      `"${t.conceptoCategoria}"`,
+      `"${t.metodoPagoNombre}"`,
+      `"${t.numeroOperacion || ''}"`,
+      parseFloat(t.monto).toFixed(2),
+      `"${t.cajero}"`
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Arqueo_Caja_IESTP_Suiza_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Desglose por método de pago para Arqueo
+  const arqueoPorMetodo = useMemo(() => {
+    const summary = {
+      efectivo: 0,
+      banco_nacion: 0,
+      yape_plin: 0,
+      tarjeta_pos: 0,
+      total: 0
+    };
+    transactions.forEach(t => {
+      const m = parseFloat(t.monto) || 0;
+      if (t.metodoPagoId === 'efectivo') summary.efectivo += m;
+      else if (t.metodoPagoId === 'banco_nacion') summary.banco_nacion += m;
+      else if (t.metodoPagoId === 'yape_plin') summary.yape_plin += m;
+      else if (t.metodoPagoId === 'tarjeta_pos') summary.tarjeta_pos += m;
+      summary.total += m;
+    });
+    return summary;
+  }, [transactions]);
+
   return (
-    <div className="animate-fade-in p-6">
-      <div className="mb-8">
-        <h3 className="text-3xl font-bold tracking-tight text-slate-text flex items-center">
-          <Wallet className="w-9 h-9 mr-3 text-primary" />
-          Caja y <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark ml-2">Finanzas</span>
-        </h3>
-        <p className="text-slate-500 text-sm mt-1">Módulo de recaudación física y liberación de candados financieros.</p>
-      </div>
+    <div className="animate-fade-in space-y-8 pb-12">
+      
+      {/* 1. Bento Hero Banner con Aurora Glow & KPIs Financieros */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#071329] via-[#0A2552] to-[#00388F] text-white p-6 sm:p-8 shadow-2xl border border-blue-500/20">
+        {/* Luces Aurora */}
+        <div className="absolute -top-32 -left-32 w-80 h-80 bg-blue-500/25 rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-emerald-400/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/4 right-1/4 w-72 h-72 bg-indigo-500/15 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-400/10 via-transparent to-transparent pointer-events-none" />
 
-      <div className="glass-card p-4 mb-8 flex items-center max-w-2xl bg-white border border-slate-200">
-        <Search className="w-5 h-5 text-slate-400 mx-4" />
-        <input 
-          type="text" 
-          className="w-full bg-transparent border-none focus:ring-0 py-2 text-slate-text placeholder-slate-400 outline-none"
-          placeholder="Buscar estudiante por DNI, Nombre o Código..."
-          value={searchTerm} 
-          onChange={(e) => handleSearch(e.target.value)}
-        />
-        {loading && <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-4"></div>}
-      </div>
+        {/* Cabecera del Banner */}
+        <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-6 border-b border-white/10">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold text-blue-100 mb-3">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              </span>
+              <span className="tracking-wide">IESTP SUIZA · TESORERÍA Y CAJA CENTRAL</span>
+              <span className="text-white/40">|</span>
+              <span className="text-emerald-300 font-bold">ARANCELES TUPA 2026</span>
+            </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {students.length === 0 ? (
-          <div className="col-span-full flex flex-col items-center justify-center py-16">
-            <div className="w-20 h-20 mb-4 rounded-full bg-primary-soft flex items-center justify-center text-primary"><Wallet className="w-10 h-10" /></div>
-            <p className="text-slate-500 font-medium">Usa el buscador para ubicar a un estudiante y registrar su pago</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white flex items-center gap-3">
+              <span>Caja y Finanzas Institucionales</span>
+              <Sparkles className="w-6 h-6 text-amber-300 animate-pulse hidden sm:inline-block" />
+            </h1>
+            <p className="text-blue-100/80 text-sm sm:text-base max-w-2xl mt-2 leading-relaxed">
+              Administración central de recaudación de tasas TUPA, cobro en ventanilla/banca, emisión de boletas digitales y desbloqueo financiero de matrículas.
+            </p>
           </div>
-        ) : (
-          students.map(s => (
-            <div key={s.id} className={`glass-card p-6 flex flex-col h-full border-t-4 transition-all ${s.pago_matricula ? 'border-t-emerald-500 bg-emerald-50/30' : 'border-t-amber-400 bg-white'}`}>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h6 className="font-bold text-slate-text leading-tight">{s.nombres} {s.apellidos}</h6>
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{s.codigo_estudiante} | DNI: {s.dni}</span>
-                </div>
-                {s.pago_matricula ? (
-                  <span className="bg-emerald-100 text-emerald-700 p-1.5 rounded-full" title="Habilitado Financieramente">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </span>
-                ) : (
-                  <span className="bg-amber-100 text-amber-700 p-1.5 rounded-full" title="Deuda Pendiente">
-                    <AlertTriangle className="w-5 h-5" />
-                  </span>
-                )}
-              </div>
+
+          {/* Acciones Rápidas del Banner */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-semibold text-xs border border-white/20 shadow-sm hover:shadow-lg transition cursor-pointer"
+            >
+              <FileSpreadsheet size={16} className="text-emerald-300" />
+              <span>Exportar Libro Diario</span>
+            </button>
+            <div className="px-3.5 py-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Caja Abierta: Turno Diurno</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bento Grid: 4 KPIs Financieros en Vivo */}
+        <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-6">
+          
+          {/* Card 1: Recaudación Acumulada */}
+          <div className="group bg-white/10 hover:bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/15 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/30">
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-10 h-10 rounded-xl bg-blue-500/25 border border-blue-400/30 flex items-center justify-center text-cyan-300 group-hover:scale-110 transition-transform">
+                <Banknote size={20} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-cyan-300 bg-cyan-500/20 px-2 py-0.5 rounded-full border border-cyan-400/30">
+                Periodo 2026-I
+              </span>
+            </div>
+            <div className="text-3xl font-extrabold text-white tracking-tight font-mono">
+              S/ {financialStats.totalRecaudado.toFixed(2)}
+            </div>
+            <div className="text-xs font-semibold text-blue-200 mt-1">
+              Recaudación Total
+            </div>
+            <p className="text-[11px] text-blue-200/60 mt-0.5">
+              Ingresos por aranceles y matrículas
+            </p>
+          </div>
+
+          {/* Card 2: Recaudación Hoy */}
+          <div className="group bg-white/10 hover:bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/15 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-900/20">
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-10 h-10 rounded-xl bg-emerald-500/25 border border-emerald-400/30 flex items-center justify-center text-emerald-300 group-hover:scale-110 transition-transform">
+                <TrendingUp size={20} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/30">
+                Jornada de Hoy
+              </span>
+            </div>
+            <div className="text-3xl font-extrabold text-white tracking-tight font-mono">
+              S/ {financialStats.recaudadoHoy.toFixed(2)}
+            </div>
+            <div className="text-xs font-semibold text-blue-200 mt-1">
+              Arqueo del Día en Caja
+            </div>
+            <p className="text-[11px] text-blue-200/60 mt-0.5">
+              Recaudación de la sesión actual
+            </p>
+          </div>
+
+          {/* Card 3: Solvencia y Matrículas */}
+          <div className="group bg-white/10 hover:bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/15 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-900/20">
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-10 h-10 rounded-xl bg-amber-500/25 border border-amber-400/30 flex items-center justify-center text-amber-300 group-hover:scale-110 transition-transform">
+                <Users size={20} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/30">
+                {financialStats.porcentajeHabilitados}% Al Día
+              </span>
+            </div>
+            <div className="text-3xl font-extrabold text-white tracking-tight">
+              {financialStats.estudiantesHabilitados} <span className="text-sm font-semibold text-blue-200 font-normal">/ {financialStats.totalEstudiantes}</span>
+            </div>
+            <div className="text-xs font-semibold text-blue-200 mt-1">
+              Estudiantes Habilitados
+            </div>
+            <p className="text-[11px] text-blue-200/60 mt-0.5">
+              {financialStats.estudiantesConDeuda} con candado financiero activo
+            </p>
+          </div>
+
+          {/* Card 4: Transacciones Emitidas */}
+          <div className="group bg-white/10 hover:bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/15 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-900/20">
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-10 h-10 rounded-xl bg-purple-500/25 border border-purple-400/30 flex items-center justify-center text-purple-300 group-hover:scale-110 transition-transform">
+                <Receipt size={20} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded-full border border-purple-400/30">
+                Libro Diario
+              </span>
+            </div>
+            <div className="text-3xl font-extrabold text-white tracking-tight">
+              {financialStats.totalTransacciones}
+            </div>
+            <div className="text-xs font-semibold text-blue-200 mt-1">
+              Recibos de Caja Emitidos
+            </div>
+            <p className="text-[11px] text-blue-200/60 mt-0.5">
+              Boletas con código correlativo
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      {/* 2. Barra de Navegación de Pestañas */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          onClick={() => setActiveTab('caja')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+            activeTab === 'caja'
+              ? 'bg-primary text-white shadow-md shadow-primary/25'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <Wallet size={16} />
+          <span>Ventanilla de Cobranza (Caja)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('historial')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+            activeTab === 'historial'
+              ? 'bg-primary text-white shadow-md shadow-primary/25'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <Receipt size={16} />
+          <span>Libro Diario de Transacciones ({transactions.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('arqueo')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+            activeTab === 'arqueo'
+              ? 'bg-primary text-white shadow-md shadow-primary/25'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <FileSpreadsheet size={16} />
+          <span>Arqueo y Cierre de Caja</span>
+        </button>
+      </div>
+
+      {/* 3. CONTENIDO: PESTAÑA 1 - VENTANILLA DE COBRANZA */}
+      {activeTab === 'caja' && (
+        <div className="space-y-6 animate-fade-in">
+          
+          {/* Barra de Filtros y Búsqueda */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
+            
+            {/* Buscador de Estudiante */}
+            <div className="flex-1 relative">
+              <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Buscar por DNI, Nombres, Apellidos o Código de Alumno..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
+              />
+            </div>
+
+            {/* Filtros Dropdown */}
+            <div className="flex flex-wrap items-center gap-2.5">
               
-              <div className="mt-auto pt-4 flex space-x-3">
-                <button 
-                  className={`w-full py-2.5 rounded-lg font-bold text-sm transition-colors flex items-center justify-center space-x-2 ${
-                    s.pago_matricula 
-                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                      : 'btn-primary'
-                  }`}
-                  disabled={s.pago_matricula}
-                  onClick={() => registerPayment(s.id)}
+              {/* Filtro por Carrera */}
+              <select
+                value={filterCareer}
+                onChange={(e) => setFilterCareer(e.target.value)}
+                className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="todas">Todas las Carreras (11)</option>
+                {Object.entries(CAREERS_MAP).map(([id, name]) => (
+                  <option key={id} value={id}>{name}</option>
+                ))}
+              </select>
+
+              {/* Filtro por Estado */}
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="todos">Todos los Estados</option>
+                <option value="con_deuda">Con Deuda de Matrícula (Bloqueados)</option>
+                <option value="habilitados">Habilitados / Matrícula Pagada</option>
+              </select>
+
+              {/* Vista Grid/Table */}
+              <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-lg transition ${viewMode === 'grid' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-800'}`}
+                  title="Vista en Tarjetas"
                 >
-                  {s.pago_matricula ? <CheckCircle2 className="w-4 h-4" /> : <Banknote className="w-4 h-4" />}
-                  <span>{s.pago_matricula ? 'Pagado' : 'Registrar Pago Físico'}</span>
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`p-1.5 rounded-lg transition ${viewMode === 'table' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-800'}`}
+                  title="Vista en Tabla"
+                >
+                  <List size={16} />
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Contador de Resultados */}
+          <div className="flex justify-between items-center text-xs text-slate-500 px-1">
+            <span>Mostrando <strong className="text-slate-800">{filteredStudents.length}</strong> estudiantes encontrados</span>
+            {(searchTerm || filterCareer !== 'todas' || filterStatus !== 'todos') && (
+              <button
+                onClick={() => { setSearchTerm(''); setFilterCareer('todas'); setFilterStatus('todos'); }}
+                className="text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw size={12} />
+                <span>Restablecer Filtros</span>
+              </button>
+            )}
+          </div>
+
+          {/* VISTA EN GRID DE TARJETAS */}
+          {loading ? (
+            <div className="py-20 text-center">
+              <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-sm font-semibold text-slate-500">Cargando base de datos de tesorería...</p>
+            </div>
+          ) : paginatedStudents.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200">
+              <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                <Search size={28} />
+              </div>
+              <h4 className="font-bold text-slate-800 text-sm">No se encontraron estudiantes</h4>
+              <p className="text-xs text-slate-500 mt-1">Prueba con otros términos de búsqueda o cambia los filtros de carrera.</p>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {paginatedStudents.map(student => {
+                const career = CAREERS_MAP[student.programa_id] || 'Programa de Estudio General';
+                const isPaid = student.pago_matricula;
+
+                return (
+                  <div
+                    key={student.id}
+                    className={`bento-card flex flex-col justify-between border-t-4 transition-all duration-300 ${
+                      isPaid 
+                        ? 'border-t-emerald-500 bg-white hover:border-emerald-500' 
+                        : 'border-t-amber-400 bg-white hover:border-amber-500'
+                    }`}
+                  >
+                    <div>
+                      {/* Top status & badge */}
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                          isPaid
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {isPaid ? <Unlock size={12} className="text-emerald-600" /> : <Lock size={12} className="text-amber-600" />}
+                          <span>{isPaid ? 'Habilitado' : 'Bloqueo Financiero'}</span>
+                        </span>
+
+                        <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                          DNI: {student.dni}
+                        </span>
+                      </div>
+
+                      {/* Student info */}
+                      <h4 className="font-extrabold text-slate-900 text-base leading-snug">
+                        {student.nombres} {student.apellidos}
+                      </h4>
+
+                      <div className="mt-2 space-y-1 text-xs">
+                        <div className="flex items-center gap-1.5 text-slate-500">
+                          <GraduationCap size={14} className="text-primary flex-shrink-0" />
+                          <span className="font-semibold text-slate-700 line-clamp-1">{career}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-400 font-mono text-[11px]">
+                          <span>Cód: {student.codigo_estudiante}</span>
+                        </div>
+                      </div>
+
+                      {/* Aviso de Matrícula */}
+                      <div className={`mt-4 p-3 rounded-xl text-xs flex items-center gap-2.5 ${
+                        isPaid 
+                          ? 'bg-emerald-50/60 border border-emerald-100 text-emerald-800' 
+                          : 'bg-amber-50/60 border border-amber-100 text-amber-800'
+                      }`}>
+                        {isPaid ? (
+                          <>
+                            <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
+                            <span className="font-medium text-[11px]">
+                              Derecho de matrícula regular 2026-I acreditado.
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle size={16} className="text-amber-600 flex-shrink-0" />
+                            <span className="font-medium text-[11px]">
+                              Pendiente de pago. Requiere liberación para matricularse.
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Botón de Acción */}
+                    <div className="mt-5 pt-3 border-t border-slate-100 flex items-center gap-2">
+                      <button
+                        onClick={() => setPayingStudent(student)}
+                        className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition shadow-sm cursor-pointer ${
+                          isPaid
+                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                            : 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-emerald-600/20 hover:shadow-emerald-600/30'
+                        }`}
+                      >
+                        <Banknote size={15} />
+                        <span>{isPaid ? 'Cobrar Otro Concepto TUPA' : 'Cobrar y Liberar Matrícula'}</span>
+                      </button>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* VISTA EN TABLA */
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3.5 px-4">Estudiante</th>
+                      <th className="py-3.5 px-4">DNI / Código</th>
+                      <th className="py-3.5 px-4">Programa de Estudio</th>
+                      <th className="py-3.5 px-4">Estado Financiero</th>
+                      <th className="py-3.5 px-4 text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedStudents.map(student => {
+                      const career = CAREERS_MAP[student.programa_id] || 'General';
+                      const isPaid = student.pago_matricula;
+                      return (
+                        <tr key={student.id} className="hover:bg-slate-50/80 transition">
+                          <td className="py-3.5 px-4 font-bold text-slate-900">
+                            {student.nombres} {student.apellidos}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-slate-600">
+                            {student.dni} <span className="text-slate-400 block text-[10px]">{student.codigo_estudiante}</span>
+                          </td>
+                          <td className="py-3.5 px-4 font-medium text-slate-700">
+                            {career}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              isPaid
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              {isPaid ? <Unlock size={10} /> : <Lock size={10} />}
+                              <span>{isPaid ? 'Habilitado' : 'Bloqueado'}</span>
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <button
+                              onClick={() => setPayingStudent(student)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                            >
+                              <Banknote size={14} />
+                              <span>Cobrar TUPA</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+              <span className="text-xs text-slate-500">
+                Página <strong className="text-slate-800">{currentPage}</strong> de {totalPages}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 disabled:opacity-40 transition cursor-pointer"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 disabled:opacity-40 transition cursor-pointer"
+                >
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          )}
+
+        </div>
+      )}
+
+      {/* 4. CONTENIDO: PESTAÑA 2 - LIBRO DIARIO DE TRANSACCIONES */}
+      {activeTab === 'historial' && (
+        <div className="space-y-6 animate-fade-in">
+          
+          {/* Barra de Filtros del Libro Diario */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div className="flex-1 w-full relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Buscar por N° Recibo, Estudiante, DNI o N° Operación..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <select
+                value={historyMethodFilter}
+                onChange={(e) => setHistoryMethodFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700"
+              >
+                <option value="todos">Todos los Métodos de Pago</option>
+                <option value="efectivo">Efectivo en Ventanilla</option>
+                <option value="banco_nacion">Banco de la Nación</option>
+                <option value="yape_plin">Billetera Digital (Yape/Plin)</option>
+                <option value="tarjeta_pos">Tarjeta POS</option>
+              </select>
+
+              <button
+                onClick={handleExportCSV}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-bold text-xs shadow-sm transition cursor-pointer flex-shrink-0"
+              >
+                <Download size={14} />
+                <span>Exportar CSV</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Tabla de Transacciones */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3.5 px-4">N° Recibo</th>
+                    <th className="py-3.5 px-4">Fecha y Hora</th>
+                    <th className="py-3.5 px-4">Estudiante</th>
+                    <th className="py-3.5 px-4">Concepto TUPA</th>
+                    <th className="py-3.5 px-4">Método de Pago</th>
+                    <th className="py-3.5 px-4 text-right">Monto (S/)</th>
+                    <th className="py-3.5 px-4 text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        No se encontraron registros en el libro diario.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTransactions.map(t => (
+                      <tr key={t.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3.5 px-4 font-mono font-bold text-primary-dark">
+                          {t.codigoRecibo}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500">
+                          {t.fechaHora}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="font-bold text-slate-900 block">{t.estudianteNombre}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">DNI: {t.dni}</span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="font-medium text-slate-800 block">{t.conceptoNombre}</span>
+                          <span className="text-[10px] text-slate-400">{t.conceptoCategoria}</span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="font-semibold text-slate-700 block">{t.metodoPagoNombre}</span>
+                          {t.numeroOperacion && (
+                            <span className="text-[10px] font-mono text-indigo-600 block">{t.numeroOperacion}</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-sm text-slate-900">
+                          S/ {parseFloat(t.monto).toFixed(2)}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            onClick={() => setViewingReceipt(t)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-primary hover:text-white text-slate-700 font-semibold text-xs transition cursor-pointer"
+                            title="Ver e imprimir boleta oficial"
+                          >
+                            <Printer size={13} />
+                            <span>Boleta</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* 5. CONTENIDO: PESTAÑA 3 - ARQUEO Y CIERRE DE CAJA */}
+      {activeTab === 'arqueo' && (
+        <div className="space-y-6 animate-fade-in">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            {/* Efectivo */}
+            <div className="bento-card bg-white border border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase">Efectivo en Ventanilla</span>
+                <Banknote size={20} className="text-emerald-600" />
+              </div>
+              <div className="text-2xl font-black text-slate-900 font-mono">
+                S/ {arqueoPorMetodo.efectivo.toFixed(2)}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Custodia física en caja central</p>
+            </div>
+
+            {/* Banco de la Nación */}
+            <div className="bento-card bg-white border border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase">Banco de la Nación</span>
+                <Building2 size={20} className="text-indigo-600" />
+              </div>
+              <div className="text-2xl font-black text-slate-900 font-mono">
+                S/ {arqueoPorMetodo.banco_nacion.toFixed(2)}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Cta. Cte. N° 00-521-029481</p>
+            </div>
+
+            {/* Billeteras Digitales */}
+            <div className="bento-card bg-white border border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase">Yape / Plin</span>
+                <QrCode size={20} className="text-purple-600" />
+              </div>
+              <div className="text-2xl font-black text-slate-900 font-mono">
+                S/ {arqueoPorMetodo.yape_plin.toFixed(2)}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Transferencias móviles verificadas</p>
+            </div>
+
+            {/* Tarjeta POS */}
+            <div className="bento-card bg-white border border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase">Tarjetas POS</span>
+                <CreditCard size={20} className="text-blue-600" />
+              </div>
+              <div className="text-2xl font-black text-slate-900 font-mono">
+                S/ {arqueoPorMetodo.tarjeta_pos.toFixed(2)}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Cobros vía terminal POS</p>
+            </div>
+
+          </div>
+
+          {/* Tarjeta de Control de Cierre de Caja */}
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 mb-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Caja Abierta · Operativa</span>
+              </div>
+              <h3 className="font-extrabold text-xl text-slate-900">Cuadre y Arqueo Diario de Tesorería</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Responsable de turno: <strong className="text-slate-800">{user?.full_name || 'Cajero Central'}</strong> ({user?.email || 'admin@siga.edu'})
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExportCSV}
+                className="px-5 py-3 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer"
+              >
+                Descargar Reporte Detallado
+              </button>
+              <button
+                onClick={() => alert(`Arqueo conforme registrado con éxito.\nTotal recaudado: S/ ${arqueoPorMetodo.total.toFixed(2)}\nComprobantes emitidos: ${transactions.length}`)}
+                className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/25 transition cursor-pointer"
+              >
+                Cierre de Turno y Arqueo Conforme
+              </button>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* MODAL 1: REGISTRAR COBRO TUPA */}
+      {payingStudent && (
+        <PaymentModal
+          student={payingStudent}
+          cashierName={user?.full_name || 'Caja Central'}
+          onClose={() => setPayingStudent(null)}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
+
+      {/* MODAL 2: VER / IMPRIMIR RECIBO ELECTRÓNICO */}
+      {viewingReceipt && (
+        <ReceiptModal
+          receipt={viewingReceipt}
+          onClose={() => setViewingReceipt(null)}
+        />
+      )}
+
     </div>
   );
 }
