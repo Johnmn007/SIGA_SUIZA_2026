@@ -4,10 +4,10 @@ from sqlalchemy.orm import declarative_base
 
 # Auditoría vive en el schema core (siga_core) al igual que identidades y auth
 DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "siga_core")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "JczOVLFMaftfNTLBMxnofQmEsUOjjiYU")
+DB_HOST = os.getenv("DB_HOST", "reseau.proxy.rlwy.net")
+DB_PORT = os.getenv("DB_PORT", "10791")
+DB_NAME = os.getenv("DB_NAME", "railway")
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 

@@ -19,12 +19,18 @@ class SIGAApiClient {
 
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+    const { timeoutMs, ...fetchOptions } = options;
+    const controller = timeoutMs ? new AbortController() : null;
+    const timeoutId = controller
+      ? setTimeout(() => controller.abort(), timeoutMs)
+      : null;
     const config = {
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...fetchOptions.headers,
       },
-      ...options,
+      ...fetchOptions,
+      ...(controller && !fetchOptions.signal ? { signal: controller.signal } : {}),
     };
 
     if (this.token) {
@@ -55,6 +61,8 @@ class SIGAApiClient {
     } catch (error) {
       console.error('API Request failed:', error);
       throw error;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -66,7 +74,7 @@ class SIGAApiClient {
   }
 
   async getCurrentUser() {
-    return this.request('/auth/me');
+    return this.request('/auth/me', { timeoutMs: 10000 });
   }
 
   async register(email, password, fullName) {

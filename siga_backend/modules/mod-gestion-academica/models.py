@@ -35,7 +35,6 @@ class Matricula(BaseModel):
     observaciones = Column(String(255))
 
     # Relación con el detalle de la matrícula (las UDs matriculadas)
-    from sqlalchemy.orm import relationship
     detalles = relationship("MatriculaDetalle", back_populates="matricula", cascade="all, delete-orphan")
 
 class MatriculaDetalle(BaseModel):
