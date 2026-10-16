@@ -4172,6 +4172,7 @@ COPY public.core_role_permissions (role_id, permission_id) FROM stdin;
 4	1
 4	3
 4	4
+4	6
 6	1
 6	4
 6	5
