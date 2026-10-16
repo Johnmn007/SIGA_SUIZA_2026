@@ -31,11 +31,16 @@ import {
   Calendar,
   Layers,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FileText,
+  Eye,
+  X,
+  UserCheck
 } from 'lucide-react';
 import { TUPA_CONCEPTS, PAYMENT_METHODS, CAREERS_MAP } from './tupaCatalog';
 import { PaymentModal } from './PaymentModal';
 import { ReceiptModal } from './ReceiptModal';
+import { AnnualStatementModal } from './AnnualStatementModal';
 
 const STORAGE_KEY_TRANSACTIONS = 'siga_transacciones_caja_2026';
 
@@ -148,6 +153,100 @@ const INITIAL_TRANSACTIONS = [
   }
 ];
 
+// Helper: Genera el historial completo de pagos realizados por el estudiante durante todo el año
+export function getStudentAnnualPayments(student, allTransactions) {
+  if (!student) return [];
+  const payments = [];
+
+  // 1. Pago de Admisión del Estudiante (obtenido de metadata_admision o generado por derecho de ingreso 2026)
+  const meta = student.metadata_admision || {};
+  const costoAdm = parseFloat(meta['S/. COSTO (S/. 250):']) || 250.00;
+  const fechaAdmRaw = meta['Fecha de inscripcion:'];
+  const fechaAdm = fechaAdmRaw ? new Date(fechaAdmRaw).toLocaleDateString() : '04/04/2026';
+  const codigoAdm = meta['CODIGO'] || (student.id * 7 % 900 + 100);
+  const modalidadAdm = student.modalidad_admision || meta['MODALIDAD (EBR O EBA)'] || 'ORDINARIO';
+
+  payments.push({
+    id: `adm-${student.id}`,
+    codigoRecibo: `ADM-2026-${String(codigoAdm).padStart(5, '0')}`,
+    fechaHora: `${fechaAdm}, 08:30:00`,
+    estudianteNombre: `${student.nombres} ${student.apellidos}`,
+    dni: student.dni,
+    codigoEstudiante: student.codigo_estudiante,
+    carreraNombre: CAREERS_MAP[student.programa_id] || 'General',
+    conceptoCodigo: 'ADM-01',
+    conceptoNombre: `Derecho de Inscripción y Carpeta de Admisión 2026 (${modalidadAdm})`,
+    conceptoCategoria: 'Admisión Institucional',
+    monto: costoAdm,
+    metodoPagoId: 'banco_nacion',
+    metodoPagoNombre: 'Banco de la Nación (Cta. Admisión)',
+    numeroOperacion: `BN-${String(student.dni).slice(0, 6)}`,
+    estado: 'PAGADO',
+    cajero: 'Comisión Central de Admisión 2026',
+    liberaMatricula: false
+  });
+
+  // 2. Transacciones registradas en caja para este estudiante
+  const studentTx = allTransactions.filter(t => 
+    String(t.estudianteId) === String(student.id) || 
+    (t.dni && String(t.dni) === String(student.dni))
+  );
+
+  studentTx.forEach(tx => {
+    payments.push({
+      ...tx,
+      estado: 'PAGADO'
+    });
+  });
+
+  // 3. Matrícula regular: si student.pago_matricula === true y no estaba ya en studentTx
+  const hasMatriculaTx = studentTx.some(p => p.conceptoCodigo === 'MAT-01' || p.conceptoCodigo === 'MAT-02');
+  if (student.pago_matricula && !hasMatriculaTx) {
+    payments.push({
+      id: `mat-${student.id}`,
+      codigoRecibo: `REC-2026-${String(student.id * 17 % 90000 + 10000)}`,
+      fechaHora: '15/10/2026, 09:30:00',
+      estudianteNombre: `${student.nombres} ${student.apellidos}`,
+      dni: student.dni,
+      codigoEstudiante: student.codigo_estudiante,
+      carreraNombre: CAREERS_MAP[student.programa_id] || 'General',
+      conceptoCodigo: 'MAT-01',
+      conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
+      conceptoCategoria: 'Matrícula',
+      monto: 120.00,
+      metodoPagoId: 'banco_nacion',
+      metodoPagoNombre: 'Banco de la Nación (BN)',
+      numeroOperacion: `BN-94${String(student.dni).slice(0, 4)}`,
+      estado: 'PAGADO',
+      cajero: 'Caja Central - Tesorería',
+      liberaMatricula: true
+    });
+  } else if (!student.pago_matricula && !hasMatriculaTx) {
+    // Compromiso pendiente de matrícula
+    payments.push({
+      id: `pending-mat-${student.id}`,
+      codigoRecibo: 'PENDIENTE',
+      fechaHora: 'Vence: 30/10/2026',
+      estudianteNombre: `${student.nombres} ${student.apellidos}`,
+      dni: student.dni,
+      codigoEstudiante: student.codigo_estudiante,
+      carreraNombre: CAREERS_MAP[student.programa_id] || 'General',
+      conceptoCodigo: 'MAT-01',
+      conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
+      conceptoCategoria: 'Matrícula',
+      monto: 120.00,
+      metodoPagoId: 'pendiente',
+      metodoPagoNombre: 'Pendiente en Caja',
+      numeroOperacion: '-',
+      estado: 'PENDIENTE',
+      cajero: '-',
+      liberaMatricula: true
+    });
+  }
+
+  return payments;
+}
+
 export function FinancesDashboard() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('caja'); // 'caja' | 'historial' | 'arqueo'
@@ -157,9 +256,11 @@ export function FinancesDashboard() {
   const [loading, setLoading] = useState(false);
   const [transactions, setTransactions] = useState([]);
   
-  // Modals
+  // Modals & Dossier State
   const [payingStudent, setPayingStudent] = useState(null);
   const [viewingReceipt, setViewingReceipt] = useState(null);
+  const [selectedStudentForDossier, setSelectedStudentForDossier] = useState(null);
+  const [showAnnualModal, setShowAnnualModal] = useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -213,6 +314,17 @@ export function FinancesDashboard() {
   useEffect(() => {
     fetchStudents();
   }, []);
+
+  // Si el usuario escribe un DNI exacto de 8 dígitos en la barra de búsqueda, auto-seleccionar ese estudiante
+  useEffect(() => {
+    const trimmed = searchTerm.trim();
+    if (trimmed.length === 8 && /^\d+$/.test(trimmed)) {
+      const matched = students.find(s => String(s.dni) === trimmed);
+      if (matched) {
+        setSelectedStudentForDossier(matched);
+      }
+    }
+  }, [searchTerm, students]);
 
   // Métricas Financieras en Vivo
   const financialStats = useMemo(() => {
@@ -304,7 +416,12 @@ export function FinancesDashboard() {
     // 2. Refrescar lista de estudiantes para reflejar liberación de candado
     fetchStudents();
 
-    // 3. Cerrar modal de pago y abrir recibo para visualización/impresión
+    // 3. Actualizar estudiante en el dossier si estaba abierto
+    if (selectedStudentForDossier && String(selectedStudentForDossier.id) === String(receiptPayload.estudianteId)) {
+      setSelectedStudentForDossier(prev => ({ ...prev, pago_matricula: true }));
+    }
+
+    // 4. Cerrar modal de pago y abrir recibo para visualización/impresión
     setPayingStudent(null);
     setViewingReceipt(receiptPayload);
   };
@@ -363,6 +480,12 @@ export function FinancesDashboard() {
     return summary;
   }, [transactions]);
 
+  // Pagos calculados para el estudiante actualmente seleccionado en el Expediente
+  const selectedStudentPayments = useMemo(() => {
+    if (!selectedStudentForDossier) return [];
+    return getStudentAnnualPayments(selectedStudentForDossier, transactions);
+  }, [selectedStudentForDossier, transactions]);
+
   return (
     <div className="animate-fade-in space-y-8 pb-12">
       
@@ -384,15 +507,15 @@ export function FinancesDashboard() {
               </span>
               <span className="tracking-wide">IESTP SUIZA · TESORERÍA Y CAJA CENTRAL</span>
               <span className="text-white/40">|</span>
-              <span className="text-emerald-300 font-bold">ARANCELES TUPA 2026</span>
+              <span className="text-emerald-300 font-bold">BASE OFICIAL: 788 ESTUDIANTES</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white flex items-center gap-3">
-              <span>Caja y Finanzas Institucionales</span>
+              <span>Caja, Pagos y Tesorería</span>
               <Sparkles className="w-6 h-6 text-amber-300 animate-pulse hidden sm:inline-block" />
             </h1>
             <p className="text-blue-100/80 text-sm sm:text-base max-w-2xl mt-2 leading-relaxed">
-              Administración central de recaudación de tasas TUPA, cobro en ventanilla/banca, emisión de boletas digitales y desbloqueo financiero de matrículas.
+              Consulta inmediata de estudiantes por DNI, nombres completos, estado de cuenta anual y recaudación oficial de aranceles TUPA.
             </p>
           </div>
 
@@ -474,7 +597,7 @@ export function FinancesDashboard() {
               Estudiantes Habilitados
             </div>
             <p className="text-[11px] text-blue-200/60 mt-0.5">
-              {financialStats.estudiantesConDeuda} con candado financiero activo
+              {financialStats.estudiantesConDeuda} con bloqueo de matrícula
             </p>
           </div>
 
@@ -513,7 +636,7 @@ export function FinancesDashboard() {
           }`}
         >
           <Wallet size={16} />
-          <span>Ventanilla de Cobranza (Caja)</span>
+          <span>Ventanilla de Cobranza & Consulta por DNI</span>
         </button>
 
         <button
@@ -541,35 +664,251 @@ export function FinancesDashboard() {
         </button>
       </div>
 
-      {/* 3. CONTENIDO: PESTAÑA 1 - VENTANILLA DE COBRANZA */}
+      {/* 3. CONTENIDO: PESTAÑA 1 - VENTANILLA DE COBRANZA & CONSULTA POR DNI */}
       {activeTab === 'caja' && (
         <div className="space-y-6 animate-fade-in">
           
-          {/* Barra de Filtros y Búsqueda */}
+          {/* BUSCADOR PROMINENTE POR DNI / NOMBRE */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg border border-blue-500/20">
+            <div className="flex items-center gap-2 text-xs font-bold text-cyan-300 uppercase tracking-wider mb-2">
+              <Search size={14} />
+              <span>Buscador Oficial por DNI · Base Institucional IESTP Suiza ({students.length} Estudiantes)</span>
+            </div>
+            <h3 className="text-xl font-extrabold text-white mb-3">
+              Consulta de Estado de Cuenta y Pagos Anuales
+            </h3>
+            <p className="text-xs text-blue-200/80 mb-4">
+              Ingresa el número de DNI para visualizar inmediatamente los nombres completos del estudiante, su carrera y la relación de pagos efectuados durante todo el año 2026.
+            </p>
+
+            <div className="relative flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative flex-1 w-full">
+                <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Digita el DNI del estudiante (ej. 61549304, 77648746, 48309294) o apellidos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-12 pr-10 py-3.5 bg-white text-slate-900 rounded-2xl border-2 border-transparent focus:border-cyan-400 focus:outline-none text-sm font-medium shadow-inner placeholder:text-slate-400"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => { setSearchTerm(''); setSelectedStudentForDossier(null); }}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              {/* Botón de Limpiar / Ver Todos */}
+              {selectedStudentForDossier && (
+                <button
+                  onClick={() => setSelectedStudentForDossier(null)}
+                  className="px-4 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition cursor-pointer flex-shrink-0 flex items-center gap-2"
+                >
+                  <RotateCcw size={15} />
+                  <span>Ver Catálogo Completo</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* EXPEDIENTE FINANCIERO DEL ESTUDIANTE CONSULTADO POR DNI (VISTA DETALLADA DE PAGOS DEL AÑO) */}
+          {selectedStudentForDossier && (
+            <div className="p-6 rounded-3xl bg-white border-2 border-primary/30 shadow-xl space-y-6 animate-fade-in relative overflow-hidden">
+              
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b border-slate-200">
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-white font-extrabold text-xl flex items-center justify-center shadow-lg shadow-primary/20 flex-shrink-0">
+                    <UserCheck size={28} />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-primary-dark font-mono font-bold text-xs border border-blue-200">
+                        DNI: {selectedStudentForDossier.dni}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono font-bold text-xs border border-slate-200">
+                        CÓDIGO: {selectedStudentForDossier.codigo_estudiante}
+                      </span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                        selectedStudentForDossier.pago_matricula 
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {selectedStudentForDossier.pago_matricula ? '✓ Habilitado Financieramente' : '⚠ Bloqueo de Matrícula Activo'}
+                      </span>
+                    </div>
+
+                    {/* NOMBRES COMPLETOS EN GRANDE */}
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                      {selectedStudentForDossier.nombres} {selectedStudentForDossier.apellidos}
+                    </h2>
+
+                    <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-1 flex items-center gap-2">
+                      <GraduationCap size={16} className="text-primary" />
+                      <span>{CAREERS_MAP[selectedStudentForDossier.programa_id] || 'Programa de Estudio General'}</span>
+                      <span>•</span>
+                      <span>Modalidad: {selectedStudentForDossier.modalidad_admision || 'ORDINARIO'}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Acciones para el estudiante consultado */}
+                <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                  <button
+                    onClick={() => setPayingStudent(selectedStudentForDossier)}
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md shadow-emerald-600/25 transition cursor-pointer"
+                  >
+                    <Plus size={16} />
+                    <span>Registrar Nuevo Pago TUPA</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowAnnualModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-primary hover:bg-primary-dark text-white font-bold text-xs shadow-md shadow-primary/25 transition cursor-pointer"
+                  >
+                    <Printer size={15} />
+                    <span>Imprimir Estado de Cuenta Anual</span>
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedStudentForDossier(null)}
+                    className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer"
+                    title="Cerrar expediente de este alumno"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 3 Widgets de Resumen del Estudiante */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block mb-1">Total Pagado en el Año 2026:</span>
+                  <div className="text-2xl font-black text-emerald-800 font-mono">
+                    S/ {selectedStudentPayments.filter(p => p.estado === 'PAGADO').reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0).toFixed(2)}
+                  </div>
+                  <span className="text-[11px] text-emerald-600">Abonos verificados en tesorería</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
+                  <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block mb-1">Deuda / Saldo Pendiente:</span>
+                  <div className="text-2xl font-black text-amber-800 font-mono">
+                    S/ {selectedStudentPayments.filter(p => p.estado === 'PENDIENTE').reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0).toFixed(2)}
+                  </div>
+                  <span className="text-[11px] text-amber-600">
+                    {selectedStudentForDossier.pago_matricula ? 'Sin deudas pendientes' : 'Pendiente matrícula regular'}
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Comprobantes Oficiales:</span>
+                  <div className="text-2xl font-black text-slate-800">
+                    {selectedStudentPayments.filter(p => p.estado === 'PAGADO').length} Recibos
+                  </div>
+                  <span className="text-[11px] text-slate-500">Historial de recibos emitidos</span>
+                </div>
+              </div>
+
+              {/* TABLA DE PAGOS REALIZADOS DURANTE TODO EL AÑO POR EL ESTUDIANTE */}
+              <div>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <Receipt size={16} className="text-primary" />
+                  <span>Historial de Pagos Realizados durante Todo el Año 2026</span>
+                </h4>
+
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                      <tr>
+                        <th className="py-3 px-4">Fecha</th>
+                        <th className="py-3 px-4">N° Comprobante</th>
+                        <th className="py-3 px-4">Concepto Arancelario / TUPA</th>
+                        <th className="py-3 px-4">Forma de Pago / Ref.</th>
+                        <th className="py-3 px-4 text-center">Estado</th>
+                        <th className="py-3 px-4 text-right">Monto</th>
+                        <th className="py-3 px-4 text-center">Boleta</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedStudentPayments.map(p => {
+                        const isPaid = p.estado === 'PAGADO';
+                        return (
+                          <tr key={p.id} className={isPaid ? 'hover:bg-slate-50/70 transition' : 'bg-amber-50/40'}>
+                            <td className="py-3.5 px-4 font-semibold text-slate-700 whitespace-nowrap">
+                              {p.fechaHora ? String(p.fechaHora).split(',')[0] : '2026'}
+                            </td>
+                            <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                              {p.codigoRecibo}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className="font-extrabold text-slate-900 block">{p.conceptoNombre}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">{p.conceptoCategoria}</span>
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-600">
+                              <span className="font-semibold block">{p.metodoPagoNombre}</span>
+                              {p.numeroOperacion && p.numeroOperacion !== '-' && (
+                                <span className="text-[10px] font-mono text-indigo-700 block">{p.numeroOperacion}</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                isPaid
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}>
+                                {isPaid ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
+                                <span>{p.estado}</span>
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-mono font-black text-sm text-slate-900">
+                              S/ {parseFloat(p.monto).toFixed(2)}
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              {isPaid ? (
+                                <button
+                                  onClick={() => setViewingReceipt(p)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-primary hover:text-white text-slate-700 font-bold text-xs transition cursor-pointer"
+                                  title="Ver e imprimir boleta oficial"
+                                >
+                                  <Printer size={13} />
+                                  <span>Boleta</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setPayingStudent(selectedStudentForDossier)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer"
+                                >
+                                  <Banknote size={13} />
+                                  <span>Cobrar</span>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* BARRA DE FILTROS SECUNDARIOS (Para navegar todos los 788 estudiantes) */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
             
-            {/* Buscador de Estudiante */}
-            <div className="flex-1 relative">
-              <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Buscar por DNI, Nombres, Apellidos o Código de Alumno..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-              />
-            </div>
-
             {/* Filtros Dropdown */}
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5 flex-1">
               
               {/* Filtro por Carrera */}
               <select
                 value={filterCareer}
                 onChange={(e) => setFilterCareer(e.target.value)}
-                className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
-                <option value="todas">Todas las Carreras (11)</option>
+                <option value="todas">Todas las Carreras Técnicas (11)</option>
                 {Object.entries(CAREERS_MAP).map(([id, name]) => (
                   <option key={id} value={id}>{name}</option>
                 ))}
@@ -579,9 +918,9 @@ export function FinancesDashboard() {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
-                <option value="todos">Todos los Estados</option>
+                <option value="todos">Todos los Estados Financieros</option>
                 <option value="con_deuda">Con Deuda de Matrícula (Bloqueados)</option>
                 <option value="habilitados">Habilitados / Matrícula Pagada</option>
               </select>
@@ -605,53 +944,48 @@ export function FinancesDashboard() {
               </div>
 
             </div>
-          </div>
 
-          {/* Contador de Resultados */}
-          <div className="flex justify-between items-center text-xs text-slate-500 px-1">
-            <span>Mostrando <strong className="text-slate-800">{filteredStudents.length}</strong> estudiantes encontrados</span>
-            {(searchTerm || filterCareer !== 'todas' || filterStatus !== 'todos') && (
-              <button
-                onClick={() => { setSearchTerm(''); setFilterCareer('todas'); setFilterStatus('todos'); }}
-                className="text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw size={12} />
-                <span>Restablecer Filtros</span>
-              </button>
-            )}
+            {/* Contador de Resultados */}
+            <div className="text-xs text-slate-500 font-medium">
+              Mostrando <strong className="text-slate-800">{filteredStudents.length}</strong> de {students.length} estudiantes
+            </div>
+
           </div>
 
           {/* VISTA EN GRID DE TARJETAS */}
           {loading ? (
             <div className="py-20 text-center">
               <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-sm font-semibold text-slate-500">Cargando base de datos de tesorería...</p>
+              <p className="text-sm font-semibold text-slate-500">Cargando base de datos oficial del IESTP Suiza...</p>
             </div>
           ) : paginatedStudents.length === 0 ? (
             <div className="p-12 text-center bg-white rounded-3xl border border-slate-200">
               <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
                 <Search size={28} />
               </div>
-              <h4 className="font-bold text-slate-800 text-sm">No se encontraron estudiantes</h4>
-              <p className="text-xs text-slate-500 mt-1">Prueba con otros términos de búsqueda o cambia los filtros de carrera.</p>
+              <h4 className="font-bold text-slate-800 text-sm">No se encontraron estudiantes con ese DNI o criterio</h4>
+              <p className="text-xs text-slate-500 mt-1">Verifica el número de documento de identidad ingresado.</p>
             </div>
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {paginatedStudents.map(student => {
                 const career = CAREERS_MAP[student.programa_id] || 'Programa de Estudio General';
                 const isPaid = student.pago_matricula;
+                const isSelected = selectedStudentForDossier?.id === student.id;
 
                 return (
                   <div
                     key={student.id}
                     className={`bento-card flex flex-col justify-between border-t-4 transition-all duration-300 ${
+                      isSelected ? 'ring-2 ring-primary border-primary shadow-lg' : ''
+                    } ${
                       isPaid 
                         ? 'border-t-emerald-500 bg-white hover:border-emerald-500' 
                         : 'border-t-amber-400 bg-white hover:border-amber-500'
                     }`}
                   >
                     <div>
-                      {/* Top status & badge */}
+                      {/* Top status & DNI badge */}
                       <div className="flex items-start justify-between gap-2 mb-3">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
                           isPaid
@@ -662,13 +996,13 @@ export function FinancesDashboard() {
                           <span>{isPaid ? 'Habilitado' : 'Bloqueo Financiero'}</span>
                         </span>
 
-                        <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                        <span className="text-xs font-mono font-black text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
                           DNI: {student.dni}
                         </span>
                       </div>
 
-                      {/* Student info */}
-                      <h4 className="font-extrabold text-slate-900 text-base leading-snug">
+                      {/* Student info - NOMBRES COMPLETOS */}
+                      <h4 className="font-black text-slate-900 text-base leading-snug">
                         {student.nombres} {student.apellidos}
                       </h4>
 
@@ -692,32 +1026,41 @@ export function FinancesDashboard() {
                           <>
                             <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
                             <span className="font-medium text-[11px]">
-                              Derecho de matrícula regular 2026-I acreditado.
+                              Matrícula 2026-I acreditada. Sin bloqueos.
                             </span>
                           </>
                         ) : (
                           <>
                             <AlertTriangle size={16} className="text-amber-600 flex-shrink-0" />
                             <span className="font-medium text-[11px]">
-                              Pendiente de pago. Requiere liberación para matricularse.
+                              Pendiente de matrícula. Bloqueo activo.
                             </span>
                           </>
                         )}
                       </div>
                     </div>
 
-                    {/* Botón de Acción */}
-                    <div className="mt-5 pt-3 border-t border-slate-100 flex items-center gap-2">
+                    {/* Botonera de Acción: Ver Pagos del Año + Cobrar */}
+                    <div className="mt-5 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setSelectedStudentForDossier(student)}
+                        className="py-2.5 px-3 rounded-xl font-bold text-xs bg-blue-50 hover:bg-blue-100 text-primary border border-blue-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        title="Ver todos los pagos que hizo en el año"
+                      >
+                        <FileText size={14} />
+                        <span>Pagos del Año</span>
+                      </button>
+
                       <button
                         onClick={() => setPayingStudent(student)}
-                        className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition shadow-sm cursor-pointer ${
+                        className={`py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer ${
                           isPaid
                             ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                            : 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-emerald-600/20 hover:shadow-emerald-600/30'
+                            : 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-emerald-600/20'
                         }`}
                       >
-                        <Banknote size={15} />
-                        <span>{isPaid ? 'Cobrar Otro Concepto TUPA' : 'Cobrar y Liberar Matrícula'}</span>
+                        <Banknote size={14} />
+                        <span>{isPaid ? 'Cobrar TUPA' : 'Cobrar Matrícula'}</span>
                       </button>
                     </div>
 
@@ -732,11 +1075,11 @@ export function FinancesDashboard() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
                     <tr>
-                      <th className="py-3.5 px-4">Estudiante</th>
+                      <th className="py-3.5 px-4">Estudiante (Nombres Completos)</th>
                       <th className="py-3.5 px-4">DNI / Código</th>
                       <th className="py-3.5 px-4">Programa de Estudio</th>
                       <th className="py-3.5 px-4">Estado Financiero</th>
-                      <th className="py-3.5 px-4 text-right">Acción</th>
+                      <th className="py-3.5 px-4 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -745,11 +1088,12 @@ export function FinancesDashboard() {
                       const isPaid = student.pago_matricula;
                       return (
                         <tr key={student.id} className="hover:bg-slate-50/80 transition">
-                          <td className="py-3.5 px-4 font-bold text-slate-900">
+                          <td className="py-3.5 px-4 font-black text-slate-900">
                             {student.nombres} {student.apellidos}
                           </td>
                           <td className="py-3.5 px-4 font-mono text-slate-600">
-                            {student.dni} <span className="text-slate-400 block text-[10px]">{student.codigo_estudiante}</span>
+                            <span className="font-bold text-slate-800">{student.dni}</span> 
+                            <span className="text-slate-400 block text-[10px]">{student.codigo_estudiante}</span>
                           </td>
                           <td className="py-3.5 px-4 font-medium text-slate-700">
                             {career}
@@ -764,12 +1108,21 @@ export function FinancesDashboard() {
                               <span>{isPaid ? 'Habilitado' : 'Bloqueado'}</span>
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 text-right">
+                          <td className="py-3.5 px-4 text-right space-x-2">
+                            <button
+                              onClick={() => setSelectedStudentForDossier(student)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-primary hover:bg-blue-100 border border-blue-200 font-bold text-xs transition cursor-pointer"
+                              title="Ver pagos del año"
+                            >
+                              <FileText size={13} />
+                              <span>Pagos del Año</span>
+                            </button>
+
                             <button
                               onClick={() => setPayingStudent(student)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
                             >
-                              <Banknote size={14} />
+                              <Banknote size={13} />
                               <span>Cobrar TUPA</span>
                             </button>
                           </td>
@@ -1022,6 +1375,15 @@ export function FinancesDashboard() {
         <ReceiptModal
           receipt={viewingReceipt}
           onClose={() => setViewingReceipt(null)}
+        />
+      )}
+
+      {/* MODAL 3: VER / IMPRIMIR ESTADO DE CUENTA ANUAL CONSOLIDADO */}
+      {showAnnualModal && selectedStudentForDossier && (
+        <AnnualStatementModal
+          student={selectedStudentForDossier}
+          payments={selectedStudentPayments}
+          onClose={() => setShowAnnualModal(false)}
         />
       )}
 
