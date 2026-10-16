@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
 import { Plus, Eye, FileText, Repeat, GraduationCap } from 'lucide-react';
 import { ConvalidacionesTab } from './ConvalidacionesTab';
+import { BecasTab } from './BecasTab';
 
 export function TramitesDashboard() {
   const [activeTab, setActiveTab] = useState('solicitudes');
@@ -152,18 +153,7 @@ export function TramitesDashboard() {
 
           {activeTab === 'convalidaciones' && <ConvalidacionesTab />}
 
-          {activeTab === 'becas' && (
-            <div className="space-y-6 animate-fade-in text-center py-16">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-primary-soft text-primary flex items-center justify-center">
-                <GraduationCap size={36} />
-              </div>
-              <h3 className="text-2xl font-bold text-slate-700 mb-2">Gestión de Becas y Convenios</h3>
-              <p className="text-slate-500 max-w-lg mx-auto">
-                Asigne beneficios económicos a estudiantes (PRONABEC, Excelencia, Convenios Institucionales). Estos descuentos se aplicarán automáticamente en el Módulo de Tesorería.
-              </p>
-              <button className="btn-primary mt-6 px-6 py-2.5 rounded-xl">Asignar Beneficio a Estudiante</button>
-            </div>
-          )}
+          {activeTab === 'becas' && <BecasTab />}
         </div>
       </div>
     </div>

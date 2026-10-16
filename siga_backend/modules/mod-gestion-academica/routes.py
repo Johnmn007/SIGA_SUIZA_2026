@@ -352,8 +352,26 @@ async def obtener_convalidaciones_estudiante(estudiante_id: int, db: AsyncSessio
 
 @router.post("/beneficios/", response_model=BeneficioEstudianteResponse, status_code=status.HTTP_201_CREATED)
 async def registrar_beneficio(data: BeneficioEstudianteCreate, db: AsyncSession = Depends(get_db)):
+    if not 0 < data.porcentaje_descuento <= 100:
+        raise HTTPException(status_code=400, detail="El porcentaje de descuento debe estar entre 0 y 100")
     db_beneficio = BeneficioEstudiante(**data.model_dump())
     db.add(db_beneficio)
+    await db.commit()
+    await db.refresh(db_beneficio)
+    return db_beneficio
+
+@router.get("/beneficios/", response_model=List[BeneficioEstudianteResponse])
+async def listar_beneficios(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(BeneficioEstudiante).order_by(BeneficioEstudiante.id.desc()))
+    return result.scalars().all()
+
+@router.put("/beneficios/{beneficio_id}/desactivar", response_model=BeneficioEstudianteResponse)
+async def desactivar_beneficio(beneficio_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(BeneficioEstudiante).where(BeneficioEstudiante.id == beneficio_id))
+    db_beneficio = result.scalar_one_or_none()
+    if not db_beneficio:
+        raise HTTPException(status_code=404, detail="Beneficio no encontrado")
+    db_beneficio.activo = False
     await db.commit()
     await db.refresh(db_beneficio)
     return db_beneficio
