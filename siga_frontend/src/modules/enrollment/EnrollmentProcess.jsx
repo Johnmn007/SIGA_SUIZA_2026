@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { ArrowLeft, Search, BookOpen, CheckCircle2, ClipboardList, AlertTriangle } from 'lucide-react';
 
 export function EnrollmentProcess({ initialStudent, onCancel }) {
   const [step, setStep] = useState(initialStudent ? 2 : 1);
@@ -188,7 +189,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       setStep(4);
     } catch (e) { 
       console.error(e);
-      alert(`❌ Error al matricular: ${e.message || "Verifique que cumpla los créditos requeridos."}`);
+      alert(`Error al matricular: ${e.message || "Verifique que cumpla los créditos requeridos."}`);
     }
     setLoading(false);
   };
@@ -207,13 +208,13 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           {onCancel && (
             <button 
               onClick={onCancel}
-              className="absolute left-0 top-0 p-2 text-slate-400 hover:text-slate-600 transition-colors"
+              className="absolute left-0 top-0 p-2 text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1 text-sm font-semibold"
               title="Volver al listado"
             >
-              ← Volver
+              <ArrowLeft size={16} /> Volver
             </button>
           )}
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-800 mb-2">
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-text mb-2">
             Proceso de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Matrícula Académica</span>
           </h2>
           <p className="text-slate-500 font-medium">Motor Flexible de Matrícula (Selección Asistida)</p>
@@ -234,9 +235,9 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           {/* Paso 1: Ubicar Estudiante */}
           {step === 1 && (
             <div className="animate-fade-in-right bg-white/40 p-6 rounded-xl border border-white/60 min-h-[400px]">
-              <h5 className="font-bold text-xl text-slate-800 mb-6">1. Identificar Estudiante Maestro</h5>
+              <h5 className="font-bold text-xl text-slate-text mb-6">1. Identificar Estudiante Maestro</h5>
               <div className="mb-6 relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input 
                   type="text" 
                   className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/50 focus:border-primary/50 outline-none transition-all shadow-sm" 
@@ -274,8 +275,10 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           {/* Paso 2: Selección Académica */}
           {step === 2 && (
             <div className="animate-fade-in-right bg-white/40 p-6 rounded-xl border border-white/60 flex flex-col min-h-[400px]">
-              <h5 className="font-bold text-xl text-slate-800 mb-6 flex items-center">
-                <span className="text-2xl mr-3">📚</span>
+              <h5 className="font-bold text-xl text-slate-text mb-6 flex items-center">
+                <span className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center mr-3">
+                  <BookOpen size={18} />
+                </span>
                 2. Selección de Programa y Periodo
               </h5>
               
@@ -320,10 +323,10 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
               </div>
               <div className="mt-auto pt-6 border-t border-slate-200/50 flex gap-4">
                 {!initialStudent && (
-                  <button className="px-6 py-2.5 font-semibold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={() => setStep(1)}>Volver</button>
+                  <button className="btn-ghost px-6" onClick={() => setStep(1)}>Volver</button>
                 )}
                 {initialStudent && onCancel && (
-                  <button className="px-6 py-2.5 font-semibold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={onCancel}>Cancelar</button>
+                  <button className="btn-ghost px-6" onClick={onCancel}>Cancelar</button>
                 )}
                 <button 
                   className={`flex-1 py-2.5 font-semibold rounded-lg transition-all ${!selection.program || !selection.period ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'btn-primary'}`} 
@@ -340,11 +343,13 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           {step === 3 && (
             <div className="animate-fade-in-up bg-white/40 p-6 rounded-xl border border-white/60 flex flex-col min-h-[600px]">
               <div className="flex justify-between items-center mb-6">
-                <h4 className="font-bold text-xl text-slate-800 tracking-tight flex items-center">
-                  <span className="text-2xl mr-3">☑️</span>
+                <h4 className="font-bold text-xl text-slate-text tracking-tight flex items-center">
+                  <span className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center mr-3">
+                    <ClipboardList size={18} />
+                  </span>
                   3. Selección de Unidades Didácticas
                 </h4>
-                <div className={`px-4 py-2 rounded-lg font-bold text-sm ${totalCreditos < 1 || totalCreditos > 40 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                <div className={`badge text-sm py-1.5 px-3 ${totalCreditos < 1 || totalCreditos > 40 ? 'badge-amber' : 'badge-green'}`}>
                   Créditos Seleccionados: {totalCreditos} {totalCreditos > 40 && '(Excede el límite)'}
                 </div>
               </div>
@@ -397,7 +402,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
               </div>
               
               <div className="flex gap-4 mt-6 pt-4 border-t border-slate-200">
-                <button className="flex-1 py-3 font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={() => setStep(2)}>Volver</button>
+                <button className="btn-ghost flex-1 py-3" onClick={() => setStep(2)}>Volver</button>
                 <button 
                   className={`flex-1 py-3 font-semibold rounded-lg transition-all ${totalCreditos === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'btn-primary'}`}
                   onClick={handleEnroll} 
@@ -417,10 +422,10 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           {/* Paso 4: Éxito */}
           {step === 4 && (
             <div className="animate-bounce-in bg-white/60 backdrop-blur-sm p-6 rounded-xl border border-white flex flex-col items-center justify-center min-h-[400px]">
-              <div className="w-24 h-24 bg-green-100 text-green-500 rounded-full flex items-center justify-center text-5xl mb-6 shadow-lg shadow-green-100">
-                ✅
+              <div className="w-24 h-24 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100">
+                <CheckCircle2 size={52} />
               </div>
-              <h3 className="font-extrabold text-3xl text-slate-800 mb-3">¡Matrícula Exitosa!</h3>
+              <h3 className="font-extrabold text-3xl text-slate-text mb-3">¡Matrícula Exitosa!</h3>
               <p className="text-slate-500 text-center max-w-sm mb-10 text-lg">El estudiante ha sido matriculado y vinculado correctamente con las unidades seleccionadas.</p>
               
               <button 

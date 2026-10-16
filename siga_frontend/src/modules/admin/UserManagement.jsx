@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { Plus, Pencil, X, UserX, Users, ShieldCheck } from 'lucide-react';
 
 export function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -114,22 +115,20 @@ export function UserManagement() {
       <div className="glass-card overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white/40">
         <div>
-          <h5 className="text-xl font-bold text-slate-800">Gestión de Usuarios</h5>
+          <h5 className="text-xl font-bold text-slate-text">Gestión de Usuarios</h5>
           <p className="text-sm text-slate-500 mt-1">Control de acceso basado en roles (RBAC)</p>
         </div>
         <button 
           className="btn-primary flex items-center shadow-md shadow-primary/30"
           onClick={openNewUserModal}
         >
-          <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <Plus className="w-5 h-5 mr-2" />
           Nuevo Usuario
         </button>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="data-table w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
               <th className="px-6 py-4 font-semibold">Usuario</th>
@@ -140,14 +139,14 @@ export function UserManagement() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {users.map(user => (
-              <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
+              <tr key={user.id} className="hover:bg-primary-soft/40 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center text-white font-bold shadow-sm">
+                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white font-bold shadow-sm">
                       {user.full_name.charAt(0).toUpperCase()}
                     </div>
                     <div className="ml-4">
-                      <div className="font-bold text-slate-800 flex items-center">
+                      <div className="font-bold text-slate-text flex items-center">
                         {user.full_name}
                         {user.is_superuser && (
                           <span className="ml-2 bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide">
@@ -162,7 +161,7 @@ export function UserManagement() {
                 <td className="px-6 py-4">
                   <div className="flex flex-wrap gap-1">
                     {user.roles.map(r => (
-                      <span key={r.id} className="bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-semibold px-2 py-0.5 rounded-full">
+                      <span key={r.id} className="bg-primary-soft text-primary border border-primary/20 text-xs font-semibold px-2 py-0.5 rounded-full">
                         {r.name}
                       </span>
                     ))}
@@ -170,9 +169,7 @@ export function UserManagement() {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
+                  <span className={`badge ${user.is_active ? 'badge-green' : 'badge-red'}`}>
                     {user.is_active ? 'Activo' : 'Inactivo'}
                   </span>
                 </td>
@@ -180,12 +177,10 @@ export function UserManagement() {
                   <div className="flex items-center justify-end space-x-2">
                     <button 
                       onClick={() => openEditUserModal(user)}
-                      className="text-slate-400 hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-primary/10"
+                      className="text-slate-400 hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-primary-soft"
                       title="Editar"
                     >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
+                      <Pencil className="w-5 h-5" />
                     </button>
                     {user.is_active && (
                       <button 
@@ -193,9 +188,7 @@ export function UserManagement() {
                         className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"
                         title="Desactivar"
                       >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                        </svg>
+                        <UserX className="w-5 h-5" />
                       </button>
                     )}
                   </div>
@@ -210,17 +203,16 @@ export function UserManagement() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 className="text-xl font-bold text-slate-800">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-primary to-primary-dark">
+              <h3 className="text-xl font-bold text-white flex items-center">
+                <Users className="w-5 h-5 mr-2" />
                 {editingId ? 'Editar Usuario' : 'Nuevo Usuario'}
               </h3>
               <button 
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-white/80 hover:text-white transition-colors"
               >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="w-6 h-6" />
               </button>
             </div>
             
@@ -276,9 +268,9 @@ export function UserManagement() {
                         checked={formData.is_superuser} 
                         onChange={handleInputChange} 
                       />
-                      <div className="w-10 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                      <div className="w-10 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
                     </div>
-                    <span className="text-sm font-medium text-slate-700 group-hover:text-amber-600 transition-colors">Privilegios de Superusuario</span>
+                    <span className="text-sm font-medium text-slate-700 group-hover:text-primary transition-colors">Privilegios de Superusuario</span>
                   </label>
                   
                   <label className="flex items-center space-x-3 cursor-pointer group">
@@ -297,7 +289,9 @@ export function UserManagement() {
                 </div>
                 
                 <div className="pt-4 border-t border-slate-100">
-                  <label className="label text-slate-700 mb-3">Roles Asignados</label>
+                  <label className="label text-slate-700 mb-3 flex items-center">
+                    <ShieldCheck className="w-4 h-4 mr-2 text-primary" /> Roles Asignados
+                  </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {roles.map(role => (
                       <label key={role.id} className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${
@@ -318,7 +312,7 @@ export function UserManagement() {
                 <div className="flex justify-end space-x-3 pt-6 border-t border-slate-100 mt-6">
                   <button 
                     type="button" 
-                    className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition-colors"
+                    className="btn-ghost"
                     onClick={() => setShowModal(false)}
                   >
                     Cancelar

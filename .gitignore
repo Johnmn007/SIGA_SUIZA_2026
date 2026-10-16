@@ -1,1 +1,10 @@
 __pycache__/
+**/__pycache__/
+*.pyc
+siga_backend/venv/
+siga_backend/.venv_fixed/
+siga_frontend/dist/
+.env
+.env.*
+scratch/
+*.dump

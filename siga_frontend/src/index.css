@@ -30,3 +30,479 @@
     @apply block text-sm font-medium text-slate-600 mb-1;
   }
 }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out both;
+}
+
+@media print {
+  body {
+    background: white !important;
+    background-image: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* === OCULTAR EN IMPRESIÓN === */
+  .no-print,
+  nav,
+  aside,
+  [data-sidebar],
+  .sidebar,
+  .fixed.bottom-4 {
+    display: none !important;
+  }
+
+  /* Ocultar sidebar: primer hijo del flex container */
+  .flex.lg\:flex-row > div:first-child {
+    display: none !important;
+  }
+
+  /* Expandir contenido principal a ancho completo */
+  .flex.lg\:flex-row > div:last-child {
+    width: 100% !important;
+    flex: none !important;
+  }
+
+  /* Expandir contenedor max-width */
+  .max-w-7xl {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  /* === MOSTRAR EN IMPRESIÓN === */
+  .print-only {
+    display: block !important;
+  }
+
+  /* === FLATTEN GLASS EFFECTS === */
+  .glass-card,
+  .glass-panel {
+    background: white !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+    break-inside: avoid;
+  }
+
+  /* === DESHABILITAR ANIMACIONES === */
+  .animate-fade-in,
+  .animate-fade-in-up {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* === CONTENIDO DEL BOLETÍN === */
+  .boletin-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    space-y: 0 !important;
+  }
+
+  .boletin-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 12px;
+  }
+
+  /* === TABLA DE NOTAS === */
+  .boletin-table {
+    font-size: 11px;
+  }
+
+  .boletin-table th,
+  .boletin-table td {
+    padding: 6px 8px !important;
+  }
+
+  .boletin-table thead {
+    background: #f1f5f9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* === BARRA DE PROGRESO → TEXTO EN IMPRESIÓN === */
+  .progress-bar-print-hide {
+    display: none !important;
+  }
+
+  .progress-text-print {
+    display: block !important;
+  }
+
+  /* === MÁRGENES A4 === */
+  @page {
+    margin: 1.2cm;
+    size: A4 portrait;
+  }
+}
+
+/* Fuera de impresión: ocultar el texto alternativo del progreso */
+.progress-text-print {
+  display: none;
+}
+
+.print-only {
+  display: none;
+}
+
+/* ============================================================
+   BOLETÍN IMPRESO — documento A4 de una sola hoja
+   (solo visible al imprimir: .print-only)
+   ============================================================ */
+.boletin-print {
+  color: #12365c;
+  font-family: Inter, 'Segoe UI', Arial, sans-serif;
+  font-size: 10px;
+  line-height: 1.35;
+  width: 100%;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* --- Encabezado institucional --- */
+.bp-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.bp-deco {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.bp-deco span {
+  display: block;
+  height: 100%;
+  transform: skewX(-22deg);
+}
+
+.bp-deco .bp-d-navy {
+  width: 36px;
+  background: #12365c;
+}
+
+.bp-deco .bp-d-teal {
+  width: 14px;
+  background: #2fb3c3;
+}
+
+.bp-deco--mirror {
+  flex-direction: row-reverse;
+}
+
+.bp-inst {
+  flex: 1;
+  text-align: center;
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #12365c;
+}
+
+/* --- Título --- */
+.bp-title {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.bp-title h2 {
+  font-size: 31px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #12365c;
+  line-height: 1.1;
+}
+
+.bp-title p {
+  font-size: 15px;
+  font-weight: 800;
+  color: #2fb3c3;
+  margin-top: 3px;
+}
+
+/* --- Ficha del estudiante --- */
+.bp-info {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #eef6fc;
+  border: 1.5px solid #c7ddec;
+}
+
+.bp-info > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #d7e7f3;
+  min-width: 0;
+}
+
+.bp-info > div:nth-child(odd) {
+  border-right: 1px solid #d7e7f3;
+}
+
+.bp-info > div:nth-child(n + 3) {
+  border-bottom: none;
+}
+
+.bp-info b {
+  font-size: 11px;
+  font-weight: 800;
+  color: #12365c;
+  white-space: nowrap;
+}
+
+.bp-info span {
+  font-size: 11px;
+  font-weight: 500;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Grid de ciclos --- */
+.bp-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.bp-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+}
+
+.bp-card {
+  border: 1px solid #cfe0ee;
+  background: #ffffff;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  overflow: hidden;
+}
+
+.bp-card-t {
+  background: #12365c;
+  color: #ffffff;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 5px 6px;
+}
+
+.bp-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.bp-table th {
+  background: #dceef9;
+  color: #12365c;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-align: left;
+  padding: 5px 7px;
+  border-bottom: 1px solid #cfe0ee;
+}
+
+.bp-table th:nth-child(1) { width: 62%; }
+.bp-table th:nth-child(2) { width: 20%; text-align: center; }
+.bp-table th:nth-child(3) { width: 18%; text-align: center; }
+
+.bp-table td {
+  font-size: 10px;
+  color: #1f2f45;
+  padding: 4.5px 7px;
+  border-bottom: 1px solid #e4eef7;
+  overflow-wrap: break-word;
+}
+
+.bp-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.bp-table td:nth-child(2),
+.bp-table td:nth-child(3) {
+  text-align: center;
+}
+
+.bp-table td:nth-child(3) {
+  font-weight: 800;
+  color: #12365c;
+}
+
+.bp-table tfoot td {
+  background: #dceef9;
+  color: #12365c;
+  font-weight: 800;
+  font-size: 10.5px;
+  border-top: 1.5px solid #b9d6ea;
+  border-bottom: none;
+  padding: 5px 7px;
+}
+
+.bp-table tfoot td:last-child {
+  text-align: right;
+  font-size: 12px;
+}
+
+.bp-empty {
+  margin-top: 14px;
+  padding: 18px;
+  text-align: center;
+  color: #64748b;
+  font-weight: 600;
+  border: 1px dashed #cfe0ee;
+  background: #f8fbfe;
+}
+
+/* --- Barra de resumen --- */
+.bp-summary {
+  margin-top: 14px;
+  display: flex;
+  align-items: stretch;
+  background: #12365c;
+  color: #ffffff;
+  padding: 7px 10px;
+  gap: 10px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.bp-sum-block {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 6px;
+}
+
+.bp-sum-label {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.bp-sum-value {
+  background: #2fb3c3;
+  color: #0b2a45;
+  font-size: 17px;
+  font-weight: 800;
+  padding: 3px 14px;
+  min-width: 86px;
+  text-align: center;
+}
+
+.bp-sum-sep {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* --- Escala --- */
+.bp-scale {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #475569;
+  margin-top: 10px;
+}
+
+/* --- Firmas --- */
+.bp-signs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  margin-top: 18px;
+  padding: 0 28px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.bp-sign {
+  text-align: center;
+}
+
+.bp-sign .line {
+  border-top: 1.5px solid #94a3b8;
+}
+
+.bp-sign p {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #334155;
+  padding-top: 5px;
+}
+
+/* --- Pie de página --- */
+.bp-foot {
+  margin-top: 16px;
+  background: #dceef9;
+  border: 1px solid #cfe0ee;
+  text-align: center;
+  padding: 5px 8px;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #12365c;
+}
+
+/* --- Modo denso (muchos ciclos/unidades en una hoja) --- */
+.bp-dense {
+  line-height: 1.2;
+}
+.bp-dense .bp-top { gap: 12px; }
+.bp-dense .bp-deco { height: 20px; }
+.bp-dense .bp-deco .bp-d-navy { width: 30px; }
+.bp-dense .bp-deco .bp-d-teal { width: 12px; }
+.bp-dense .bp-inst { font-size: 13px; }
+.bp-dense .bp-title { margin-top: 6px; }
+.bp-dense .bp-title h2 { font-size: 24px; }
+.bp-dense .bp-title p { font-size: 12.5px; margin-top: 1px; }
+.bp-dense .bp-info { margin-top: 8px; }
+.bp-dense .bp-info > div { padding: 4px 9px; }
+.bp-dense .bp-info b,
+.bp-dense .bp-info span { font-size: 10px; }
+.bp-dense .bp-grid { gap: 6px; margin-top: 8px; }
+.bp-dense .bp-card-t { font-size: 9.5px; padding: 3px; letter-spacing: 0.12em; }
+.bp-dense .bp-table th { font-size: 8.4px; padding: 3px 5px; }
+.bp-dense .bp-table td { font-size: 8.6px; padding: 2px 5px; }
+.bp-dense .bp-table tfoot td { font-size: 9px; padding: 3px 5px; }
+.bp-dense .bp-table tfoot td:last-child { font-size: 10px; }
+.bp-dense .bp-summary { padding: 5px 8px; margin-top: 8px; gap: 8px; }
+.bp-dense .bp-sum-label { font-size: 12.5px; }
+.bp-dense .bp-sum-value { font-size: 14px; padding: 2px 10px; min-width: 70px; }
+.bp-dense .bp-scale { margin-top: 6px; font-size: 9.5px; }
+.bp-dense .bp-signs { margin-top: 11px; padding: 0 24px; gap: 40px; }
+.bp-dense .bp-sign p { font-size: 10px; padding-top: 4px; }
+.bp-dense .bp-foot { margin-top: 9px; padding: 4px 8px; font-size: 8px; }
