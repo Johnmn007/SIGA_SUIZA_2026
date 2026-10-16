@@ -7,7 +7,41 @@ const ROMANOS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'X
 const tituloCiclo = (numero) =>
   ROMANOS[numero - 1] ? `CICLO ${ROMANOS[numero - 1]}` : `CICLO ${numero}`;
 
-const ESTUDIANTES = new Map((boletinData.estudiantes || []).map(e => [e.id, e]));
+export const estudiantesBoletin = boletinData.estudiantes || [];
+
+const ESTUDIANTES_BY_ID = new Map(estudiantesBoletin.map(e => [Number(e.id), e]));
+const ESTUDIANTES_BY_DNI = new Map(estudiantesBoletin.map(e => [String(e.dni).trim(), e]));
+const ESTUDIANTES_BY_COD = new Map(estudiantesBoletin.map(e => [String(e.codigo_estudiante).trim().toUpperCase(), e]));
+
+export function buscarEstudianteEnJson(identifier) {
+  if (identifier == null) return null;
+  if (typeof identifier === 'object') {
+    if (identifier.id != null && ESTUDIANTES_BY_ID.has(Number(identifier.id))) {
+      return ESTUDIANTES_BY_ID.get(Number(identifier.id));
+    }
+    if (identifier.dni != null && ESTUDIANTES_BY_DNI.has(String(identifier.dni).trim())) {
+      return ESTUDIANTES_BY_DNI.get(String(identifier.dni).trim());
+    }
+    if (identifier.codigo_estudiante != null && ESTUDIANTES_BY_COD.has(String(identifier.codigo_estudiante).trim().toUpperCase())) {
+      return ESTUDIANTES_BY_COD.get(String(identifier.codigo_estudiante).trim().toUpperCase());
+    }
+    return null;
+  }
+  const num = Number(identifier);
+  if (!isNaN(num) && ESTUDIANTES_BY_ID.has(num)) {
+    return ESTUDIANTES_BY_ID.get(num);
+  }
+  const str = String(identifier).trim();
+  if (ESTUDIANTES_BY_DNI.has(str)) {
+    return ESTUDIANTES_BY_DNI.get(str);
+  }
+  const cod = str.toUpperCase();
+  if (ESTUDIANTES_BY_COD.has(cod)) {
+    return ESTUDIANTES_BY_COD.get(cod);
+  }
+  return null;
+}
+
 const PERIODOS = new Map((boletinData.periodos || []).map(p => [p.id, p]));
 const REGISTROS = new Map((boletinData.registros || []).map(r => [r.matricula_detalle_id, r]));
 const DOCENTES = new Map((boletinData.docentes || []).map(d => [d.id, d.nombre]));
@@ -24,8 +58,8 @@ const estadoDeNota = (nota, estadoGuardado) => {
  * 2026-I=III, 2026-II=IV). El campo `ciclo` del JSON NO se usa como ancla
  * porque quedo desfasado respecto a los periodos realmente matriculados.
  */
-export function obtenerNotasPorCiclo(estudianteId) {
-  const estudiante = ESTUDIANTES.get(Number(estudianteId));
+export function obtenerNotasPorCiclo(estudianteId, studentExtra = null) {
+  const estudiante = buscarEstudianteEnJson(estudianteId) || (studentExtra ? buscarEstudianteEnJson(studentExtra) : null);
   if (!estudiante) return null;
 
   const matriculas = (boletinData.matriculas || [])
@@ -177,4 +211,60 @@ export function construirListaCiclos(planCiclos, notasJson, notasDemo) {
         completado: unidades.length > 0 && unidades.every(u => u.estado === 'aprobado'),
       };
     });
+}
+
+/**
+ * Genera el objeto completo del boletín cuando no existe registro en backend DB
+ * pero sí está presente en boletin.json.
+ */
+export function generarBoletinDesdeJson(estudianteId, studentExtra = null) {
+  const estudiante = buscarEstudianteEnJson(estudianteId) || (studentExtra ? buscarEstudianteEnJson(studentExtra) : null);
+  if (!estudiante) return null;
+
+  const notasJson = obtenerNotasPorCiclo(estudiante.id);
+  if (!notasJson) return null;
+
+  const periodoActual = resumenDesdeJson(notasJson);
+  const ciclos = construirListaCiclos([], notasJson, null);
+
+  const totalAprobados = ciclos.reduce((s, c) => s + (c.creditos_aprobados || 0), 0);
+  const creditosTotales = 126;
+
+  return {
+    estudiante: {
+      foto_url: null,
+      nombres: estudiante.nombres,
+      apellidos: estudiante.apellidos,
+      codigo_estudiante: estudiante.codigo_estudiante,
+      dni: estudiante.dni,
+      celular: estudiante.celular,
+      email_personal: estudiante.email,
+      programa_nombre: estudiante.programa?.nombre || 'DESARROLLO DE SISTEMAS DE INFORMACION',
+      periodo_codigo: notasJson.periodoActual,
+      fecha_emision: new Date().toLocaleDateString('es-PE'),
+    },
+    matricula_estado: {
+      pago_matricula: true,
+      tipo_ingreso: 'regular',
+      estado_matricula: estudiante.estado_academico || 'matriculado',
+      fecha_fin_matricula_regular: null,
+      fecha_fin_matricula_extemporanea: null,
+    },
+    estado_academico: estudiante.estado_academico || 'matriculado',
+    progreso_creditos: {
+      creditos_aprobados: totalAprobados,
+      creditos_totales: creditosTotales,
+      porcentaje: Math.round((totalAprobados / creditosTotales) * 100),
+    },
+    cursos_periodo: periodoActual.cursos_periodo,
+    ciclos: ciclos,
+    resumen: {
+      ...periodoActual.resumen,
+      ciclos_completados: ciclos.filter(c => c.completado).length,
+      ciclos_totales: 6,
+    },
+    historial: [],
+    observaciones: 'El estudiante mantiene su plan de estudios regular.',
+    _notasJson: notasJson,
+  };
 }
