@@ -122,3 +122,97 @@ export const CAREERS_MAP = {
   11: 'Manejo Forestal',
   15: 'Desarrollo de Sistemas de Información'
 };
+
+// Helper: Genera el historial completo de pagos realizados por el estudiante durante todo el año
+export function getStudentAnnualPayments(student, allTransactions = []) {
+  if (!student) return [];
+  const payments = [];
+
+  // 1. Pago de Admisión del Estudiante (obtenido de metadata_admision o generado por derecho de ingreso 2026)
+  const meta = student.metadata_admision || {};
+  const costoAdm = parseFloat(meta['S/. COSTO (S/. 250):']) || 250.00;
+  const fechaAdmRaw = meta['Fecha de inscripcion:'];
+  const fechaAdm = fechaAdmRaw ? new Date(fechaAdmRaw).toLocaleDateString() : '04/04/2026';
+  const codigoAdm = meta['CODIGO'] || (student.id * 7 % 900 + 100);
+  const modalidadAdm = student.modalidad_admision || meta['MODALIDAD (EBR O EBA)'] || 'ORDINARIO';
+
+  payments.push({
+    id: `adm-${student.id}`,
+    codigoRecibo: `ADM-2026-${String(codigoAdm).padStart(5, '0')}`,
+    fechaHora: `${fechaAdm}, 08:30:00`,
+    estudianteNombre: `${student.nombres} ${student.apellidos}`,
+    dni: student.dni,
+    codigoEstudiante: student.codigo_estudiante,
+    carreraNombre: CAREERS_MAP[student.programa_id] || 'General',
+    conceptoCodigo: 'ADM-01',
+    conceptoNombre: `Derecho de Inscripción y Carpeta de Admisión 2026 (${modalidadAdm})`,
+    conceptoCategoria: 'Admisión Institucional',
+    monto: costoAdm,
+    metodoPagoId: 'banco_nacion',
+    metodoPagoNombre: 'Banco de la Nación (Cta. Admisión)',
+    numeroOperacion: `BN-${String(student.dni).slice(0, 6)}`,
+    estado: 'PAGADO',
+    cajero: 'Comisión Central de Admisión 2026',
+    liberaMatricula: false
+  });
+
+  // 2. Transacciones registradas en caja para este estudiante
+  const studentTx = allTransactions.filter(t => 
+    String(t.estudianteId) === String(student.id) || 
+    (t.dni && String(t.dni) === String(student.dni))
+  );
+
+  studentTx.forEach(tx => {
+    payments.push({
+      ...tx,
+      estado: 'PAGADO'
+    });
+  });
+
+  // 3. Matrícula regular: si student.pago_matricula === true y no estaba ya en studentTx
+  const hasMatriculaTx = studentTx.some(p => p.conceptoCodigo === 'MAT-01' || p.conceptoCodigo === 'MAT-02');
+  if (student.pago_matricula && !hasMatriculaTx) {
+    payments.push({
+      id: `mat-${student.id}`,
+      codigoRecibo: `REC-2026-${String(student.id * 17 % 90000 + 10000)}`,
+      fechaHora: '15/10/2026, 09:30:00',
+      estudianteNombre: `${student.nombres} ${student.apellidos}`,
+      dni: student.dni,
+      codigoEstudiante: student.codigo_estudiante,
+      carreraNombre: CAREERS_MAP[student.programa_id] || 'General',
+      conceptoCodigo: 'MAT-01',
+      conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
+      conceptoCategoria: 'Matrícula',
+      monto: 120.00,
+      metodoPagoId: 'banco_nacion',
+      metodoPagoNombre: 'Banco de la Nación (BN)',
+      numeroOperacion: `BN-94${String(student.dni).slice(0, 4)}`,
+      estado: 'PAGADO',
+      cajero: 'Caja Central - Tesorería',
+      liberaMatricula: true
+    });
+  } else if (!student.pago_matricula && !hasMatriculaTx) {
+    // Compromiso pendiente de matrícula
+    payments.push({
+      id: `pending-mat-${student.id}`,
+      codigoRecibo: 'PENDIENTE',
+      fechaHora: 'Vence: 30/10/2026',
+      estudianteNombre: `${student.nombres} ${student.apellidos}`,
+      dni: student.dni,
+      codigoEstudiante: student.codigo_estudiante,
+      carreraNombre: CAREERS_MAP[student.programa_id] || 'General',
+      conceptoCodigo: 'MAT-01',
+      conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
+      conceptoCategoria: 'Matrícula',
+      monto: 120.00,
+      metodoPagoId: 'pendiente',
+      metodoPagoNombre: 'Pendiente en Caja',
+      numeroOperacion: '-',
+      estado: 'PENDIENTE',
+      cajero: '-',
+      liberaMatricula: true
+    });
+  }
+
+  return payments;
+}

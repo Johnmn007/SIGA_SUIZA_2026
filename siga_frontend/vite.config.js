@@ -9,5 +9,15 @@ export default defineConfig({
       usePolling: true,
     },
     host: true, // needed for docker
+    proxy: {
+      '/api': {
+        target: 'http://siga-core:8000',
+        changeOrigin: true
+      },
+      '/auth': {
+        target: 'http://siga-core:8000',
+        changeOrigin: true
+      }
+    }
   }
 })

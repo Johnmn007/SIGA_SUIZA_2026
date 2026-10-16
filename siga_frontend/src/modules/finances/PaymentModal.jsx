@@ -14,6 +14,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { TUPA_CONCEPTS, PAYMENT_METHODS, CAREERS_MAP } from './tupaCatalog';
+import { API_BASE, apiClient } from '../../core/api/client';
 
 export function PaymentModal({ student, cashierName, onClose, onSuccess }) {
   const [selectedConceptId, setSelectedConceptId] = useState('MAT-01');
@@ -62,7 +63,7 @@ export function PaymentModal({ student, cashierName, onClose, onSuccess }) {
       // Si el concepto libera matrícula, actualizamos en el backend
       if (selectedConcept.liberaMatricula) {
         const token = localStorage.getItem('token');
-        const res = await fetch(`/api/mod-gestion-academica/estudiantes/${student.id}/pago_matricula?pagado=true`, {
+        const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${student.id}/pago_matricula?pagado=true`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`
