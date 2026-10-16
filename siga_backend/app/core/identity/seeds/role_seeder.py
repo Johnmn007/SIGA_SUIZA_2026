@@ -26,7 +26,7 @@ class RoleSeeder(BaseSeeder):
         
         roles_data = [
             {"name": "superadmin", "description": "Administrador de TI"},
-            {"name": "tesoreria", "description": "Caja y Finanzas"},
+            {"name": "caja_tesoreria", "description": "Caja y Finanzas"},
             {"name": "secretaria_academica", "description": "Secretaría Central"},
             {"name": "secretaria_programa", "description": "Secretaría de Programa de Estudios"},
             {"name": "coordinador_programa", "description": "Coordinador de Programa de Estudios"},

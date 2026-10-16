@@ -13,6 +13,7 @@ class EstudianteBase(BaseModel):
     email_personal: Optional[EmailStr] = None
     celular: Optional[str] = None
     direccion_domicilio: Optional[str] = None
+    foto_url: Optional[str] = None
     pago_matricula: Optional[bool] = False
     documentos_completos: Optional[bool] = True
     fecha_limite_documentos: Optional[datetime] = None
