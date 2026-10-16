@@ -330,6 +330,19 @@ from models import CargaLectiva, HorarioPeriodo
 
 @router.post("/programas/{programa_id}/carga-lectiva", response_model=CargaLectivaResponse, status_code=status.HTTP_201_CREATED)
 async def crear_carga_lectiva(programa_id: int, carga: CargaLectivaCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    duplicada = await db.execute(
+        select(CargaLectiva).where(
+            CargaLectiva.programa_id == programa_id,
+            CargaLectiva.periodo_id == carga.periodo_id,
+            CargaLectiva.unidad_didactica_id == carga.unidad_didactica_id,
+            CargaLectiva.seccion == carga.seccion,
+        )
+    )
+    if duplicada.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Esa unidad didáctica ya tiene un docente asignado en este periodo y sección",
+        )
     db_carga = CargaLectiva(**carga.model_dump(), programa_id=programa_id)
     db.add(db_carga)
     await db.commit()

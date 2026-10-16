@@ -87,13 +87,16 @@ export function CoordinatorSupervision() {
       setLoading(true);
       try {
         const res = await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/malla`);
-        // We simulate a completion percentage for the MVP dashboard
+        // Avance real de notas por unidad (matriculados vs. notas registradas)
+        const resumen = selectedPeriod
+          ? await apiClient.request(`/api/mod-evaluacion/resumen/periodo/${selectedPeriod}`).catch(() => [])
+          : [];
+        const avancePorUnidad = new Map((resumen || []).map(r => [r.unidad_didactica_id, r.porcentaje]));
         const enhancedMalla = (res || []).map(modulo => ({
           ...modulo,
           unidades: modulo.unidades.map(u => ({
             ...u,
-            // Mock completion percentage for visual dashboard (in a real app, this would come from a backend aggregation endpoint)
-            completion: Math.floor(Math.random() * 40) + 60, // random 60-100%
+            completion: avancePorUnidad.get(u.id) ?? 0,
             isEmpleabilidad: /comunicaci|ingl[eé]s|ofim[aá]tica|emprendimiento/i.test(u.nombre) || /empleabilidad|transversal/i.test(modulo.nombre)
           }))
         }));
@@ -104,7 +107,7 @@ export function CoordinatorSupervision() {
       setLoading(false);
     };
     fetchMalla();
-  }, [selectedProgram]);
+  }, [selectedProgram, selectedPeriod]);
 
   const handleViewActa = async (unidad, moduloNombre) => {
     if (!selectedPeriod) {

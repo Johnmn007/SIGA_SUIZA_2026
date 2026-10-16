@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from typing import List
 from datetime import datetime
 import uuid
@@ -45,6 +45,28 @@ async def listar_registros_por_unidad(unidad_id: int, periodo_id: int, db: Async
         .where(RegistroEvaluacion.periodo_id == periodo_id)
     )
     return result.scalars().all()
+
+@router.get("/resumen/periodo/{periodo_id}")
+async def resumen_avance_notas(periodo_id: int, db: AsyncSession = Depends(get_db)):
+    """Avance real de registro de notas por unidad didáctica (para supervisión del coordinador)."""
+    result = await db.execute(
+        select(
+            RegistroEvaluacion.unidad_didactica_id,
+            func.count(RegistroEvaluacion.id),
+            func.count(RegistroEvaluacion.nota_final),
+        )
+        .where(RegistroEvaluacion.periodo_id == periodo_id)
+        .group_by(RegistroEvaluacion.unidad_didactica_id)
+    )
+    return [
+        {
+            "unidad_didactica_id": unidad_id,
+            "total": total,
+            "calificados": calificados,
+            "porcentaje": round(calificados * 100 / total) if total else 0,
+        }
+        for unidad_id, total, calificados in result.all()
+    ]
 
 @router.put("/registros/{registro_id}", response_model=RegistroEvaluacionResponse)
 async def actualizar_notas(registro_id: int, data: RegistroEvaluacionUpdate, request: Request, db: AsyncSession = Depends(get_db)):
