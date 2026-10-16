@@ -59,3 +59,11 @@ siga_frontend/public/src/
 
 # Plantillas de GitHub locales
 .github/
+
+# Aportes de main
+.venv_fixed/
+siga_backend/.venv_fixed/
+*.dump
+
+# Volcado local (ya no se versiona; main lo elimino)
+dump_railway.sql

@@ -233,7 +233,6 @@ async def eliminar_usuario(usuario_id: int, request: Request, db: AsyncSession =
         payload={"id": db_user.id, "metadata": {"request_id": request_id}}
     )
     db.add(event)
-    db.add(event)
     await db.commit()
     return {"message": "Usuario desactivado correctamente"}
 

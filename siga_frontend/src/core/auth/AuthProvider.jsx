@@ -17,9 +17,12 @@ export function AuthProvider({ children }) {
           setPermissions(userData.permissions || []);
         } catch {
           apiClient.clearToken();
+        } finally {
+          setLoading(false);
         }
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     initAuth();
