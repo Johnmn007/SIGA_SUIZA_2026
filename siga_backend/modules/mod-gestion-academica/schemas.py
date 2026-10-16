@@ -28,6 +28,7 @@ class EstudianteUpdate(BaseModel):
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
     fecha_nacimiento: Optional[date] = None
+    programa_id: Optional[int] = None
     email_institucional: Optional[EmailStr] = None
     email_personal: Optional[EmailStr] = None
     celular: Optional[str] = None
@@ -98,6 +99,32 @@ class IngestaMasivaRequest(BaseModel):
     admitidos: List[IngestaAdmitido]
 
 # ================================
+# BOLETIN DE NOTAS
+class BoletinCurso(BaseModel):
+    unidad_nombre: str
+    creditos: int
+    nota_c1: Optional[int] = None
+    nota_c2: Optional[int] = None
+    nota_c3: Optional[int] = None
+    nota_final: Optional[int] = None
+    estado: str = "cursando"
+
+class BoletinHistorial(BaseModel):
+    periodo_codigo: str
+    promedio: Optional[int] = None
+    cursos_aprobados: int = 0
+    cursos_desaprobados: int = 0
+
+class BoletinResponse(BaseModel):
+    estudiante: dict
+    matricula_estado: dict
+    estado_academico: str
+    progreso_creditos: dict
+    cursos_periodo: List[BoletinCurso]
+    resumen: dict
+    historial: List[BoletinHistorial]
+    observaciones: Optional[str] = None
+
 # FASE 4: CASUISTICAS Y TRAMITES
 # ================================
 

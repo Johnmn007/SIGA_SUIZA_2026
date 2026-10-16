@@ -202,7 +202,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                     active={currentView === 'report_card'}
                     onClick={() => onNavigate('report_card')}
                     icon={BookOpen}
-                    label="Boletín (Estudiante)"
+                    label="Boletín de Notas"
                   />
                 )}
                 {['caja_tesoreria', 'superadmin', 'admin'].some(r => userRoles.includes(r)) && (

@@ -24,7 +24,7 @@ async def get_manifest():
         "name": "mod-evaluacion",
         "version": "1.0.0",
         "api_version": "v1",
-        "endpoints": {"http": f"http://localhost:{port}"},
+        "endpoints": {"http": f"http://mod-evaluacion:{port}"},
         "health_check": "/health"
     }
 

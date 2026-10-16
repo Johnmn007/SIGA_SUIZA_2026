@@ -12,9 +12,11 @@ if [ "$SKIP_MIGRATIONS" != "true" ]; then
     fi
 
     echo "Running database migrations..."
-    alembic upgrade head
-    echo "Ensuring all core tables exist (association tables, etc.)..."
-    python ensure_tables.py
+    if alembic upgrade head; then
+        echo "Migrations applied successfully."
+    else
+        echo "WARNING: alembic upgrade head failed — starting without migrations."
+    fi
 fi
 
 if [ "$#" -eq 0 ]; then

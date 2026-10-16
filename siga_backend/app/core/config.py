@@ -38,6 +38,7 @@ class CoreSettings(BaseSettings):
     # 🔄 RESILIENCIA - Configuraciones nuevas
     # Cache distribuido
     cache_enabled: bool = Field(default=True, description="Habilitar cache distribuido")
+    redis_url: Optional[str] = Field(default=None, description="URL completa de Redis (sobreescribe host/port)")
     redis_host: str = Field(default="localhost", description="Host de Redis")
     redis_port: int = Field(default=6379, description="Puerto de Redis")
     redis_password: Optional[str] = Field(default=None, description="Password de Redis")
@@ -72,6 +73,14 @@ class CoreSettings(BaseSettings):
                 url = url.replace("postgresql+asyncpg://", "postgresql://", 1)
             return url
         return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+    
+    @property
+    def redis_url_effective(self) -> str:
+        """Retorna la URL efectiva de Redis: redis_url si está definida, o construida desde host/port"""
+        if self.redis_url:
+            return self.redis_url
+        auth = f":{self.redis_password}@" if self.redis_password else ""
+        return f"redis://{auth}{self.redis_host}:{self.redis_port}"
 
     class Config:
         env_file = ".env"
