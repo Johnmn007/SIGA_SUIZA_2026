@@ -3,12 +3,15 @@ import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
 import { CoordinatorReview } from './CoordinatorReview';
 import { CoordinatorTutorias } from './CoordinatorTutorias';
-import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink } from 'lucide-react';
+import { ScheduleBuilder } from './ScheduleBuilder';
+import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle } from 'lucide-react';
+import { AssignmentModal } from './AssignmentModal';
 
 export function CoordinatorAcademic() {
   const { user } = useAuth();
   
   const [activeTab, setActiveTab] = useState('carga'); // 'carga', 'horarios'
+  const [horariosSubTab, setHorariosSubTab] = useState('visual'); // 'excel', 'visual'
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -45,11 +48,17 @@ export function CoordinatorAcademic() {
         setPeriods(perRes);
         setPersonal(personalRes || []);
         
+        let hasProgram = false;
         if (personalRes && user) {
-          const myProfile = personalRes.find(p => p.usuario?.id === user.id);
+          const myProfile = personalRes.find(p => p?.usuario?.id === user.id);
           if (myProfile?.perfil?.programa_estudio_id) {
             setSelectedProgram(myProfile.perfil.programa_estudio_id.toString());
+            hasProgram = true;
           }
+        }
+        
+        if (!hasProgram && progRes && progRes.length > 0) {
+          setSelectedProgram(progRes[0].id.toString());
         }
         
         if (perRes && perRes.length > 0) {
@@ -76,9 +85,10 @@ export function CoordinatorAcademic() {
     
     // Filter personal for the selected program and exclude secretaries
     const filteredStaff = personal.filter(p => 
-      p.perfil && 
+      p?.perfil && 
       (p.perfil.programa_estudio_id === parseInt(selectedProgram) || p.perfil.programa_estudio_id == selectedProgram) &&
-      p.perfil.cargo_funcional !== 'SECRETARIA_PROGRAMA'
+      p.perfil.cargo_funcional !== 'SECRETARIA_PROGRAMA' &&
+      p?.usuario
     );
     // Map to the format the form expects (d.id, d.full_name)
     const staffFormat = filteredStaff.map(p => p.usuario);
@@ -192,6 +202,28 @@ export function CoordinatorAcademic() {
     }
   };
 
+  const handleDeleteCarga = async (id) => {
+    if (!window.confirm("¿Seguro que desea eliminar esta asignación?")) return;
+    try {
+      await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva/${id}`, { method: 'DELETE' });
+      fetchCargaYHorarios();
+    } catch (error) {
+      console.error("Error deleting carga", error);
+      alert("No se pudo eliminar la carga");
+    }
+  };
+
+  const handleDeleteHorario = async (id) => {
+    if (!window.confirm("¿Seguro que desea eliminar este horario?")) return;
+    try {
+      await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/horarios/${id}`, { method: 'DELETE' });
+      fetchCargaYHorarios();
+    } catch (error) {
+      console.error("Error deleting horario", error);
+      alert("No se pudo eliminar el horario");
+    }
+  };
+
   const getDocenteName = (id) => {
     const doc = docentes.find(d => d.id === id);
     return doc ? doc.full_name || doc.email : `ID: ${id}`;
@@ -202,138 +234,56 @@ export function CoordinatorAcademic() {
     return ud ? ud.nombre : `ID: ${id}`;
   };
 
-  // Render Modal helper
-  const renderModal = () => {
-    if (!isModalOpen) return null;
-    
-    const periodoObj = periods.find(p => p.id == selectedPeriod);
-    const isOdd = periodoObj?.codigo?.endsWith('-I');
-    const isEven = periodoObj?.codigo?.endsWith('-II');
-    
-    const filteredUnidades = unidadesFlat.filter(u => {
-      if (isOdd) return [1, 3, 5].includes(u.periodo_sugerido);
-      if (isEven) return [2, 4, 6].includes(u.periodo_sugerido);
-      return true; // Fallback if no strict matching
-    });
-
-    // Group by cycle for better UI
-    const grouped = filteredUnidades.reduce((acc, u) => {
-      acc[u.periodo_sugerido] = acc[u.periodo_sugerido] || [];
-      acc[u.periodo_sugerido].push(u);
-      return acc;
-    }, {});
-
-    const toggleCurso = (id) => {
-      const idStr = String(id);
-      let newIds = [...cargaForm.unidades_didacticas_ids];
-      if (newIds.includes(idStr)) {
-        newIds = newIds.filter(i => i !== idStr);
-      } else {
-        newIds.push(idStr);
-      }
-      setCargaForm({ ...cargaForm, unidades_didacticas_ids: newIds });
-    };
-
-    return (
-      <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-            <div>
-              <h3 className="text-xl font-bold text-slate-800">Asignar Cursos - {getDocenteName(parseInt(cargaForm.docente_id))}</h3>
-              <p className="text-sm text-slate-500">Periodo: {periodoObj?.codigo} (Filtrado automáticamente)</p>
-            </div>
-            <button onClick={() => setIsModalOpen(false)} className="btn-icon text-slate-400 hover:text-slate-600" aria-label="Cerrar">
-              <X size={20} />
-            </button>
-          </div>
-          
-          <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
-            {Object.keys(grouped).sort().map(ciclo => (
-              <div key={ciclo} className="mb-6">
-                <h4 className="font-bold text-slate-700 border-b pb-2 mb-3 text-sm uppercase tracking-wider flex items-center">
-                  <span className="w-6 h-6 rounded-full bg-primary-soft text-primary-dark flex items-center justify-center mr-2 text-xs font-bold">{ciclo}</span>
-                  Ciclo {ciclo}
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {grouped[ciclo].map(u => (
-                    <label key={u.id} className={`flex items-start p-3 rounded-xl border cursor-pointer transition-all ${cargaForm.unidades_didacticas_ids.includes(String(u.id)) ? 'border-primary bg-primary-soft/50 shadow-sm' : 'border-slate-200 bg-white hover:border-primary-light'}`}>
-                      <div className="flex-shrink-0 mt-0.5">
-                        <input 
-                          type="checkbox" 
-                          className="w-4 h-4 text-primary rounded border-slate-300 focus:ring-primary"
-                          checked={cargaForm.unidades_didacticas_ids.includes(String(u.id))}
-                          onChange={() => toggleCurso(u.id)}
-                        />
-                      </div>
-                      <div className="ml-3">
-                        <span className="block text-sm font-semibold text-slate-text leading-tight">{u.nombre}</span>
-                        <span className="block text-xs text-slate-500 mt-1">{u.creditos} Créditos</span>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-            
-            {filteredUnidades.length === 0 && (
-              <div className="text-center py-10 text-slate-500">
-                No hay cursos disponibles para este periodo.
-              </div>
-            )}
-          </div>
-          
-          <div className="p-4 border-t border-slate-100 bg-white flex justify-between items-center">
-            <div className="text-sm text-slate-600 font-medium">
-              <span className="text-primary-dark font-bold">{cargaForm.unidades_didacticas_ids.length}</span> cursos seleccionados
-            </div>
-            
-            <div className="flex space-x-3 items-center">
-              <div className="flex space-x-2 mr-4">
-                <select 
-                  className="input-field text-sm"
-                  value={cargaForm.turno}
-                  onChange={e => setCargaForm({...cargaForm, turno: e.target.value})}
-                >
-                  <option value="Mañana">Mañana</option>
-                  <option value="Tarde">Tarde</option>
-                  <option value="Noche">Noche</option>
-                </select>
-                <select 
-                  className="input-field text-sm"
-                  value={cargaForm.seccion}
-                  onChange={e => setCargaForm({...cargaForm, seccion: e.target.value})}
-                >
-                  <option value="A">Sec A</option>
-                  <option value="B">Sec B</option>
-                  <option value="C">Sec C</option>
-                </select>
-              </div>
-              
-              <button 
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="btn-ghost"
-              >
-                Cancelar
-              </button>
-              <button 
-                type="button"
-                onClick={handleCreateCarga}
-                disabled={saving || cargaForm.unidades_didacticas_ids.length === 0}
-                className="btn-primary disabled:opacity-50"
-              >
-                {saving ? 'Guardando...' : 'Guardar Asignación'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  const handleExportCSV = () => {
+    const headers = "Unidad Didactica,Docente,Turno,Seccion,Estado\n";
+    const rows = cargaLectiva.map(c => `"${getUDName(c.unidad_didactica_id)}","${getDocenteName(c.docente_id)}",${c.turno},${c.seccion},${c.estado}`).join('\n');
+    const blob = new Blob(["\uFEFF" + headers + rows], { type: 'text/csv;charset=utf-8;' }); // \uFEFF para soportar caracteres UTF-8 en Excel
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Carga_Lectiva_${selectedProgram}_${selectedPeriod}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
+
+  const handleCloneCarga = async () => {
+    const prevPeriodId = prompt("Ingrese el ID del periodo anterior desde el cual desea clonar (Ej. 1):");
+    if (!prevPeriodId) return;
+    setLoading(true);
+    try {
+      const res = await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva/clonar`, {
+        method: 'POST',
+        body: JSON.stringify({ from_periodo_id: parseInt(prevPeriodId), to_periodo_id: parseInt(selectedPeriod) })
+      });
+      alert(res.message);
+      fetchCargaYHorarios();
+    } catch (e) {
+      alert("Error al clonar la carga lectiva. Verifique que el periodo origen tenga registros.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isCoordinador = user?.rol === 'coordinador_programa';
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-      {renderModal()}
+      <AssignmentModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        docenteId={cargaForm.docente_id}
+        docenteName={getDocenteName(parseInt(cargaForm.docente_id))}
+        periodoObj={periods.find(p => p.id == selectedPeriod)}
+        unidadesFlat={unidadesFlat}
+        cargaForm={cargaForm}
+        setCargaForm={setCargaForm}
+        handleCreateCarga={handleCreateCarga}
+        saving={saving}
+        teacherLoad={cargaLectiva.filter(c => c.docente_id === parseInt(cargaForm.docente_id)).length}
+        isOverloaded={cargaLectiva.filter(c => c.docente_id === parseInt(cargaForm.docente_id)).length >= 4}
+      />
+      
       <div className="glass-panel p-6 mb-8 flex justify-between items-center bg-gradient-to-r from-primary-soft to-primary-soft/40">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-text">
@@ -346,32 +296,89 @@ export function CoordinatorAcademic() {
       </div>
 
       {/* Contexto Operativo Informativo */}
-      {selectedProgram && selectedPeriod && (
-        <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-primary mb-8 bg-gradient-to-r from-white to-slate-50">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-              <GraduationCap size={20} />
-            </div>
-            <div>
-              <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
-              <p className="font-bold text-slate-800">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
-            </div>
+      <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-primary mb-8 bg-gradient-to-r from-white to-slate-50">
+        <div className="flex items-center space-x-3 w-full md:w-auto flex-1">
+          <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex-shrink-0 flex items-center justify-center">
+            <GraduationCap size={20} />
           </div>
-          <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-primary-soft text-primary flex items-center justify-center">
-              <Calendar size={20} />
-            </div>
-            <div>
-              <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
-              <p className="font-bold text-slate-800">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
-            </div>
+          <div className="w-full">
+            <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
+            {isCoordinador ? (
+              <div className="w-full bg-transparent font-bold text-slate-800 border-none p-0 text-sm mt-1">
+                {programs.find(p => p.id.toString() === selectedProgram)?.nombre || "Cargando..."}
+              </div>
+            ) : (
+              <select 
+                className="w-full bg-transparent font-bold text-slate-800 border-none p-0 focus:ring-0 cursor-pointer text-sm"
+                value={selectedProgram}
+                onChange={(e) => setSelectedProgram(e.target.value)}
+              >
+                <option value="" disabled>Seleccione un programa...</option>
+                {programs.map(p => (
+                  <option key={p.id} value={p.id.toString()}>{p.nombre}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
-      )}
+        <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+        <div className="flex items-center space-x-3 w-full md:w-auto">
+          <div className="w-10 h-10 rounded-full bg-primary-soft text-primary flex-shrink-0 flex items-center justify-center">
+            <Calendar size={20} />
+          </div>
+          <div className="w-full">
+            <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
+            {isCoordinador ? (
+              <div className="w-full bg-transparent font-bold text-slate-800 border-none p-0 text-sm mt-1">
+                {periods.find(p => p.id.toString() === selectedPeriod)?.codigo || "Cargando..."}
+              </div>
+            ) : (
+              <select 
+                className="w-full bg-transparent font-bold text-slate-800 border-none p-0 focus:ring-0 cursor-pointer text-sm"
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+              >
+                <option value="" disabled>Seleccione un periodo...</option>
+                {periods.map(p => (
+                  <option key={p.id} value={p.id.toString()}>{p.codigo}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+      </div>
 
       {selectedProgram && selectedPeriod && (
         <>
+          {/* Métricas Rápidas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="glass-card p-5 flex items-center justify-between border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50/50 to-white">
+              <div>
+                <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest mb-1">Cursos Asignados</p>
+                <p className="text-3xl font-black text-slate-800 flex items-baseline gap-2">
+                  {cargaLectiva.length} 
+                  <span className="text-sm font-bold text-slate-400">/ {unidadesFlat.length}</span>
+                </p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-blue-100/50 flex items-center justify-center text-blue-600 shadow-sm">
+                <BookOpen size={24} />
+              </div>
+            </div>
+            
+            <div className="glass-card p-5 flex items-center justify-between border-l-4 border-l-emerald-500 bg-gradient-to-r from-emerald-50/50 to-white">
+              <div>
+                <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest mb-1">Docentes Asignados</p>
+                <p className="text-3xl font-black text-slate-800 flex items-baseline gap-2">
+                  {new Set(cargaLectiva.map(c => c.docente_id)).size}
+                  <span className="text-sm font-bold text-slate-400">docentes</span>
+                </p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100/50 flex items-center justify-center text-emerald-600 shadow-sm">
+                <UserCog size={24} />
+              </div>
+            </div>
+          </div>
+
           {/* Tabs */}
           <div className="flex space-x-2 border-b border-slate-200 mb-6 overflow-x-auto pb-1">
             <button
@@ -412,7 +419,7 @@ export function CoordinatorAcademic() {
               {activeTab === 'carga' && (
                 <>
                   <div className="lg:col-span-1">
-                    <form className="glass-card p-6 sticky top-6">
+                    <form className="glass-card p-6 sticky top-6 mb-6">
                       <h3 className="text-lg font-semibold text-slate-text mb-4">Nueva Asignación</h3>
                       
                       <div className="space-y-4">
@@ -442,11 +449,33 @@ export function CoordinatorAcademic() {
                         )}
                       </div>
                     </form>
+                    
+                    {/* Botón de Clonar */}
+                    <div className="glass-card p-5 bg-gradient-to-br from-indigo-50 to-white border border-indigo-100">
+                      <h4 className="text-sm font-bold text-indigo-900 mb-2 flex items-center gap-2"><Copy size={16}/> Ahorra tiempo</h4>
+                      <p className="text-xs text-indigo-700/80 mb-4 leading-relaxed">¿Mismos cursos y docentes que el ciclo anterior? Copia toda la carga lectiva con un clic.</p>
+                      <button 
+                        onClick={handleCloneCarga}
+                        className="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex justify-center items-center gap-2"
+                      >
+                        Clonar periodo anterior
+                      </button>
+                    </div>
                   </div>
 
                   <div className="lg:col-span-2">
                     <div className="glass-card p-6 overflow-hidden">
-                      <h3 className="text-lg font-semibold text-slate-text mb-4">Carga Lectiva Actual</h3>
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                        <h3 className="text-lg font-semibold text-slate-text">Carga Lectiva Actual</h3>
+                        {cargaLectiva.length > 0 && (
+                          <button 
+                            onClick={handleExportCSV}
+                            className="text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors border border-emerald-200"
+                          >
+                            <Download size={16} /> Exportar CSV
+                          </button>
+                        )}
+                      </div>
                       {cargaLectiva.length === 0 ? (
                         <div className="text-center py-10 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
                           No hay asignaciones para este periodo.
@@ -460,6 +489,7 @@ export function CoordinatorAcademic() {
                                 <th className="px-4 py-3 bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Docente</th>
                                 <th className="px-4 py-3 bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Detalles</th>
                                 <th className="px-4 py-3 bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
+                                <th className="px-4 py-3 bg-slate-50 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
                               </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-100">
@@ -484,6 +514,15 @@ export function CoordinatorAcademic() {
                                       {carga.estado}
                                     </span>
                                   </td>
+                                  <td className="py-3 px-4 text-sm text-right">
+                                    <button 
+                                      onClick={() => handleDeleteCarga(carga.id)} 
+                                      className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                                      title="Eliminar asignación"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -497,8 +536,25 @@ export function CoordinatorAcademic() {
 
               {/* Horarios Tab */}
               {activeTab === 'horarios' && (
-                <>
-                  <div className="lg:col-span-1">
+                <div className="lg:col-span-3">
+                  <div className="flex space-x-2 border-b border-slate-200 mb-6">
+                    <button
+                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${horariosSubTab === 'excel' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                      onClick={() => setHorariosSubTab('excel')}
+                    >
+                      Opción 1: Subir Excel
+                    </button>
+                    <button
+                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${horariosSubTab === 'visual' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                      onClick={() => setHorariosSubTab('visual')}
+                    >
+                      Opción 2: Constructor Visual (Beta - D.S.I)
+                    </button>
+                  </div>
+
+                  {horariosSubTab === 'excel' ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      <div className="lg:col-span-1">
                     <div className="glass-card p-6">
                       <h3 className="text-lg font-bold text-slate-700 mb-4">Subir Horario General</h3>
                       <form onSubmit={handleUploadHorario} className="space-y-4">
@@ -554,7 +610,7 @@ export function CoordinatorAcademic() {
                                   )}
                                 </div>
                               </div>
-                              <div>
+                              <div className="flex items-center space-x-2">
                                 <a 
                                   href={h.archivo_excel_url} 
                                   target="_blank" 
@@ -563,6 +619,13 @@ export function CoordinatorAcademic() {
                                 >
                                   <ExternalLink size={16} className="mr-2" /> Abrir Archivo
                                 </a>
+                                <button 
+                                  onClick={() => handleDeleteHorario(h.id)} 
+                                  className="text-red-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors border border-transparent hover:border-red-100"
+                                  title="Eliminar horario"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -570,12 +633,20 @@ export function CoordinatorAcademic() {
                       )}
                     </div>
                   </div>
-                </>
+                </div>
+              ) : (
+                <ScheduleBuilder 
+                  cargaLectiva={cargaLectiva} 
+                  getUDName={getUDName} 
+                  getDocenteName={getDocenteName} 
+                />
               )}
             </div>
           )}
+        </div>
+      )}
 
-          {/* External Tabs */}
+      {/* External Tabs */}
           {!loading && activeTab === 'revision' && (
             <CoordinatorReview 
               programId={selectedProgram}
