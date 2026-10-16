@@ -28,6 +28,7 @@ class EstudianteUpdate(BaseModel):
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
     fecha_nacimiento: Optional[date] = None
+    programa_id: Optional[int] = None
     email_institucional: Optional[EmailStr] = None
     email_personal: Optional[EmailStr] = None
     celular: Optional[str] = None

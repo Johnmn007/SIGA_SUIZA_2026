@@ -1,9 +1,116 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import mockEvaluacion from './mockEvaluacion.json';
+import { BoletinImpresion } from './BoletinImpresion';
+import { obtenerNotasPorCiclo, resumenDesdeJson, construirListaCiclos } from './notasPorCiclo';
+import {
+  ArrowUpDown, BadgeCheck, BookOpen, ChevronDown,
+  ClipboardList, GraduationCap, Hash, IdCard, Mail,
+  MessageSquare, Phone, Search,
+} from 'lucide-react';
 
-const SECTION_TITLE = "text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em]";
+const normalizarTexto = (texto) =>
+  (texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+const NOTA_MIN_APROBAR = 13;
+
+const ESCALA_CALIFICACION = [
+  { min: 18, max: 20, rango: '18 – 20', sigla: 'AD', label: 'Excelente', tone: 'emerald' },
+  { min: 14, max: 17.99, rango: '14 – 17', sigla: 'AB', label: 'Bueno', tone: 'blue' },
+  { min: 13, max: 13.99, rango: '13', sigla: 'B', label: 'Aprobado', tone: 'amber' },
+  { min: 0, max: 12.99, rango: '0 – 12', sigla: 'D', label: 'Desaprobado', tone: 'red' },
+];
+
+const escalaDe = (nota) => {
+  if (nota === null || nota === undefined) return null;
+  return ESCALA_CALIFICACION.find(e => nota >= e.min && nota <= e.max) || null;
+};
+
+const hashCorto = (texto) => {
+  let h = 5381;
+  for (let i = 0; i < texto.length; i++) h = ((h << 5) + h + texto.charCodeAt(i)) >>> 0;
+  return h.toString(36).toUpperCase().padStart(7, '0').slice(0, 7);
+};
+
+const TONE_BADGE = {
+  emerald: 'bg-gradient-to-r from-emerald-400 to-teal-500 text-white border-emerald-500',
+  blue: 'bg-gradient-to-r from-sky-400 to-blue-500 text-white border-blue-500',
+  purple: 'bg-gradient-to-r from-violet-400 to-purple-500 text-white border-purple-500',
+  amber: 'bg-gradient-to-r from-amber-400 to-orange-500 text-white border-amber-500',
+  red: 'bg-gradient-to-r from-red-500 to-rose-500 text-white border-red-500',
+  slate: 'bg-slate-100 text-slate-600 border-slate-200',
+};
+
+const valorarPromedio = (nota) => {
+  if (nota === null || nota === undefined) return { label: 'Sin evaluación', tone: 'slate' };
+  if (nota >= 18) return { label: 'AD · Excelente', tone: 'emerald' };
+  if (nota >= 14) return { label: 'AB · Bueno', tone: 'blue' };
+  if (nota >= NOTA_MIN_APROBAR) return { label: 'B · Aprobado', tone: 'amber' };
+  return { label: 'D · Desaprobado', tone: 'red' };
+};
+
+const condicionTone = (estado) => {
+  const e = normalizarTexto(estado);
+  if (['matriculado', 'activo', 'cursando', 'en curso', 'promovido', 'aprobado'].includes(e)) return 'emerald';
+  if (['pendiente', 'observado', 'en proceso', 'regularizacion'].includes(e)) return 'amber';
+  if (['retirado', 'suspendido', 'excluido', 'desaprobado'].includes(e)) return 'red';
+  return 'slate';
+};
+
+const AccentStripe = () => (
+  <div className="absolute bottom-0 left-0 right-0 h-1 flex">
+    <span className="flex-1 bg-emerald-400"></span>
+    <span className="flex-1 bg-amber-400"></span>
+    <span className="flex-1 bg-fuchsia-500"></span>
+    <span className="flex-1 bg-cyan-400"></span>
+  </div>
+);
+
+function RingProgress({ percent, color, size = 'sm', children }) {
+  const isLg = size === 'lg';
+  const vb = isLg ? 128 : 56;
+  const radius = isLg ? 54 : 22;
+  const stroke = isLg ? 12 : 6;
+  const circumference = 2 * Math.PI * radius;
+  const value = Math.max(0, Math.min(100, percent || 0));
+  const dash = (value / 100) * circumference;
+  return (
+    <div className={`relative flex-shrink-0 ${isLg ? 'w-28 h-28' : 'w-14 h-14'}`}>
+      <svg className={`w-full h-full -rotate-90`} viewBox={`0 0 ${vb} ${vb}`} aria-hidden="true">
+        <circle cx={vb / 2} cy={vb / 2} r={radius} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
+        <circle
+          cx={vb / 2} cy={vb / 2} r={radius} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={`${dash} ${circumference - dash}`}
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center">
+        {children}
+      </span>
+    </div>
+  );
+}
+
+function InfoItem(props) {
+  const { icon: Icon, label, value, tone = 'blue' } = props;
+  const tones = {
+    blue: 'bg-blue-50 border-blue-200 text-blue-600',
+    cyan: 'bg-cyan-50 border-cyan-200 text-cyan-600',
+    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-600',
+    fuchsia: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-600',
+  };
+  return (
+    <div className="flex items-start gap-2.5 min-w-0">
+      <span className={`w-7 h-7 rounded-md border flex items-center justify-center flex-shrink-0 ${tones[tone] || tones.blue}`}>
+        <Icon className="w-3.5 h-3.5" strokeWidth={2.2} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.14em]">{label}</p>
+        <p className="font-semibold text-slate-800 text-sm truncate" title={value || ''}>{value || '—'}</p>
+      </div>
+    </div>
+  );
+}
 
 export function StudentReportCard() {
   const { user } = useAuth();
@@ -14,8 +121,6 @@ export function StudentReportCard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
-  const [periodoId, setPeriodoId] = useState('');
-  const [periodos, setPeriodos] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [allStudents, setAllStudents] = useState([]);
@@ -26,27 +131,15 @@ export function StudentReportCard() {
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef(null);
 
+  const [busquedaCursos, setBusquedaCursos] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [ordenCursos, setOrdenCursos] = useState('nombre');
+  const [vista, setVista] = useState('ejecutiva'); // 'ejecutiva' | 'oficial'
+  const oficial = vista === 'oficial';
+
   const [recentStudents, setRecentStudents] = useState(() => {
     try { return JSON.parse(localStorage.getItem('boletin_recent') || '[]'); } catch { return []; }
   });
-
-  useEffect(() => {
-    const fetchPeriodos = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/mod-programas-estudio/periodos`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
-        if (res.ok) {
-          const perData = await res.json();
-          setPeriodos(perData);
-          const activo = perData.find(p => p.estado === 'en_curso' || p.estado === 'matricula_abierta');
-          if (activo) setPeriodoId(String(activo.id));
-          else if (perData.length > 0) setPeriodoId(String(perData[0].id));
-        }
-      } catch (e) { console.error('Error fetching periodos', e); }
-    };
-    fetchPeriodos();
-  }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -121,7 +214,7 @@ export function StudentReportCard() {
   const effectiveStudentId = isAdmin ? selectedStudentId : user?.id;
 
   useEffect(() => {
-    if (!periodoId || !effectiveStudentId) {
+    if (!effectiveStudentId) {
       setLoading(false);
       return;
     }
@@ -130,7 +223,7 @@ export function StudentReportCard() {
       setError(null);
       try {
         const res = await fetch(
-          `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin?periodo_id=${periodoId}`,
+          `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin`,
           { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
         );
         if (!res.ok) {
@@ -138,27 +231,46 @@ export function StudentReportCard() {
           throw new Error(errData.detail || 'No se pudo cargar el boletín');
         }
         const real = await res.json();
-        const evaluacion = mockEvaluacion.evaluaciones.find(
-          e => e.codigo_estudiante === real.estudiante.codigo_estudiante
-            && e.periodo === real.estudiante.periodo_codigo
-        );
-        setData(evaluacion ? { ...real, ...evaluacion } : real);
+        const notasJson = obtenerNotasPorCiclo(effectiveStudentId);
+        if (notasJson) {
+          const periodoActual = resumenDesdeJson(notasJson);
+          setData({
+            ...real,
+            estudiante: { ...real.estudiante, periodo_codigo: notasJson.periodoActual },
+            cursos_periodo: periodoActual.cursos_periodo,
+            resumen: { ...real.resumen, ...periodoActual.resumen },
+            _notasJson: notasJson,
+          });
+        } else {
+          const evaluacion = mockEvaluacion.evaluaciones.find(
+            e => e.codigo_estudiante === real.estudiante.codigo_estudiante
+              && e.periodo === real.estudiante.periodo_codigo
+          );
+          setData(evaluacion ? { ...real, ...evaluacion } : real);
+        }
       } catch (e) { setError(e.message); }
       setLoading(false);
     };
     fetchBoletin();
-  }, [periodoId, effectiveStudentId]);
+  }, [effectiveStudentId]);
+
+  useEffect(() => {
+    setBusquedaCursos('');
+    setFiltroEstado('todos');
+    setOrdenCursos('nombre');
+  }, [data]);
 
   const Membrete = () => (
-    <div className="text-center mb-8">
-      <div className="flex items-center justify-center gap-3 mb-2">
-        <span className="text-3xl">🎓</span>
+    <div className="text-center mb-7">
+      <div className="flex items-center justify-center gap-2.5 mb-1">
+        <span className="text-2xl">🎓</span>
         <h1 className="text-2xl md:text-3xl font-extrabold text-primary tracking-wide">SIGA</h1>
       </div>
-      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-4">Sistema de Gestión Académica</p>
-      <div className="w-full h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent mb-4"></div>
+      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.28em] mb-3">Sistema de Gestión Académica</p>
+      <div className="w-full h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent mb-3"></div>
       <h2 className="text-sm font-bold text-slate-700 uppercase tracking-[0.2em]">Boletín de Notas Oficial</h2>
-      <div className="w-16 h-0.5 bg-primary mx-auto mt-3"></div>
+      <div className="w-16 h-0.5 bg-primary mx-auto mt-2.5"></div>
+      <p className="text-[10px] text-slate-400 mt-2">Conforme al Reglamento de Evaluación y Promoción del Estudiante</p>
     </div>
   );
 
@@ -168,9 +280,17 @@ export function StudentReportCard() {
         <Membrete />
         <div className="space-y-5">
           {/* Skeleton: Datos del estudiante */}
-          <div className="bg-white border border-slate-200 rounded-md p-6">
-            <div className="flex flex-col md:flex-row items-center gap-6">
-              <div className="w-20 h-20 rounded-full bg-slate-100 animate-pulse flex-shrink-0"></div>
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="h-14 bg-gradient-to-r from-[#001F58] via-primary to-[#00B8FF] opacity-60 animate-pulse relative">
+              <div className="absolute bottom-0 left-0 right-0 h-1 flex opacity-70">
+                <span className="flex-1 bg-emerald-400"></span>
+                <span className="flex-1 bg-amber-400"></span>
+                <span className="flex-1 bg-fuchsia-500"></span>
+                <span className="flex-1 bg-cyan-400"></span>
+              </div>
+            </div>
+            <div className="p-6 flex flex-col md:flex-row items-center gap-6">
+              <div className="w-24 h-24 rounded-2xl bg-slate-100 animate-pulse flex-shrink-0"></div>
               <div className="flex-1 text-center md:text-left space-y-3">
                 <div className="h-6 bg-slate-100 rounded w-64 mx-auto md:mx-0 animate-pulse"></div>
                 <div className="h-4 bg-slate-100 rounded w-48 mx-auto md:mx-0 animate-pulse"></div>
@@ -183,39 +303,25 @@ export function StudentReportCard() {
                   ))}
                 </div>
               </div>
+              <div className="hidden md:block w-40 border-l border-slate-100 pl-6 space-y-2">
+                <div className="h-2.5 bg-slate-100 rounded w-24 animate-pulse"></div>
+                <div className="h-7 bg-slate-100 rounded-full w-28 animate-pulse"></div>
+              </div>
             </div>
           </div>
-          {/* Skeleton: Estado de matrícula */}
-          <div className="bg-white border border-slate-200 rounded-md p-5">
-            <div className="flex items-start gap-4">
-              <div className="w-9 h-9 rounded bg-slate-100 animate-pulse flex-shrink-0"></div>
-              <div className="flex-1 space-y-3">
-                <div className="h-4 bg-slate-100 rounded w-36 animate-pulse"></div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="space-y-1">
-                      <div className="h-2.5 bg-slate-100 rounded w-12 animate-pulse"></div>
-                      <div className="h-3.5 bg-slate-100 rounded w-20 animate-pulse"></div>
-                    </div>
-                  ))}
+          {/* Skeleton: Franja resumen */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-2.5 bg-slate-100 rounded w-20 animate-pulse"></div>
+                  <div className="h-8 bg-slate-100 rounded w-16 animate-pulse"></div>
                 </div>
-              </div>
+              ))}
             </div>
-          </div>
-          {/* Skeleton: Progreso */}
-          <div className="bg-white border border-slate-200 rounded-md p-5">
-            <div className="flex items-center gap-4 mb-3">
-              <div className="w-9 h-9 rounded bg-slate-100 animate-pulse flex-shrink-0"></div>
-              <div className="flex-1 space-y-2">
-                <div className="h-4 bg-slate-100 rounded w-40 animate-pulse"></div>
-                <div className="h-3 bg-slate-100 rounded w-56 animate-pulse"></div>
-              </div>
-              <div className="h-7 bg-slate-100 rounded w-14 animate-pulse"></div>
-            </div>
-            <div className="w-full bg-slate-100 rounded h-2 animate-pulse"></div>
           </div>
           {/* Skeleton: Tabla */}
-          <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div className="bg-slate-50 border-b border-slate-200 p-4">
               <div className="h-4 bg-slate-200 rounded w-36 animate-pulse"></div>
             </div>
@@ -225,23 +331,21 @@ export function StudentReportCard() {
                   <div className="h-3.5 bg-slate-100 rounded flex-1 animate-pulse"></div>
                   <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
                   <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
-                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
-                  <div className="h-3.5 bg-slate-100 rounded w-10 animate-pulse"></div>
-                  <div className="h-4 bg-slate-100 rounded w-12 animate-pulse"></div>
                   <div className="h-5 bg-slate-100 rounded-full w-16 animate-pulse"></div>
                 </div>
               ))}
             </div>
           </div>
-          {/* Skeleton: Resumen */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="bg-white border border-slate-200 rounded-md p-5 text-center space-y-2">
-                <div className="h-2.5 bg-slate-100 rounded w-24 mx-auto animate-pulse"></div>
-                <div className="h-9 bg-slate-100 rounded w-14 mx-auto animate-pulse"></div>
-                <div className="h-2.5 bg-slate-100 rounded w-20 mx-auto animate-pulse"></div>
-              </div>
-            ))}
+          {/* Skeleton: Firmas */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-px bg-slate-200 rounded"></div>
+                  <div className="h-2.5 bg-slate-100 rounded w-24 animate-pulse"></div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -259,6 +363,7 @@ export function StudentReportCard() {
               setSearchTerm={setSearchTerm}
               filteredStudents={filteredStudents}
               showDropdown={showDropdown}
+              setShowDropdown={setShowDropdown}
               onSelect={handleSelectStudent}
               searchLoading={searchLoading}
               recentStudents={recentStudents}
@@ -304,6 +409,7 @@ export function StudentReportCard() {
               setSearchTerm={setSearchTerm}
               filteredStudents={filteredStudents}
               showDropdown={showDropdown}
+              setShowDropdown={setShowDropdown}
               onSelect={handleSelectStudent}
               searchLoading={searchLoading}
               recentStudents={recentStudents}
@@ -318,35 +424,103 @@ export function StudentReportCard() {
     );
   }
 
-  const { estudiante, matricula_estado, estado_academico, progreso_creditos, cursos_periodo, resumen, historial, observaciones } = data;
+  const { estudiante, matricula_estado, estado_academico, progreso_creditos, cursos_periodo, resumen, observaciones, ciclos, _notasJson } = data;
 
-  const getGradeColor = (val) => {
-    if (val === null || val === undefined) return 'text-slate-400';
-    return val >= 13 ? 'text-emerald-700 font-bold' : 'text-red-600 font-bold';
+  const iniciales = `${(estudiante.nombres || '').trim().charAt(0)}${(estudiante.apellidos || '').trim().charAt(0)}`.toUpperCase() || 'ES';
+  const creditosRestantes = Math.max(0, (progreso_creditos.creditos_totales || 0) - (progreso_creditos.creditos_aprobados || 0));
+  const condicion = condicionTone(estado_academico);
+
+  const cursosConNota = cursos_periodo.filter(c => c.nota_final != null && c.creditos > 0);
+  const sumaCreditosEval = cursosConNota.reduce((s, c) => s + c.creditos, 0);
+  const promedioPonderado = sumaCreditosEval > 0
+    ? Math.round((cursosConNota.reduce((s, c) => s + c.nota_final * c.creditos, 0) / sumaCreditosEval) * 10) / 10
+    : null;
+  const promedioAritmetico = resumen.promedio_general ?? null;
+  const promediosListos = promedioPonderado != null || promedioAritmetico != null;
+  const promedioRef = promedioPonderado ?? promedioAritmetico;
+  const valoracion = valorarPromedio(promedioRef);
+  const escalaNivel = escalaDe(promedioRef);
+  const promedioPct = promedioRef != null ? (promedioRef / 20) * 100 : 0;
+
+  const codigoVerificacion = promediosListos
+    ? `SIGA-${(estudiante.periodo_codigo || 'P').replace(/[^0-9A-Za-z]/g, '')}-${hashCorto(`${estudiante.codigo_estudiante}|${estudiante.periodo_codigo}|${estudiante.fecha_emision}`)}`
+    : null;
+
+  const matriculaVigente = matricula_estado?.pago_matricula === true;
+
+  /* ===== DOCUMENTO HISTÓRICO POR CICLOS ===== */
+  const listaCiclos = construirListaCiclos(ciclos, _notasJson, cursos_periodo);
+  const unidadesPlan = listaCiclos.flatMap(c => Array.isArray(c.unidades) ? c.unidades : []);
+
+  const notasHistoricas = unidadesPlan.filter(u => u.nota != null).map(u => u.nota);
+  const promedioGeneralHistorico = notasHistoricas.length > 0
+    ? Math.round((notasHistoricas.reduce((s, n) => s + n, 0) / notasHistoricas.length) * 100) / 100
+    : null;
+  const ciclosCompletados = _notasJson
+    ? listaCiclos.filter(c => c.completado).length
+    : (resumen?.ciclos_completados ?? listaCiclos.filter(c => c.completado).length);
+  const ciclosTotales = _notasJson ? listaCiclos.length : (resumen?.ciclos_totales ?? listaCiclos.length);
+
+  const conteoEstado = {
+    todos: unidadesPlan.length,
+    aprobados: unidadesPlan.filter(u => u.estado === 'aprobado').length,
+    desaprobados: unidadesPlan.filter(u => u.estado === 'desaprobado').length,
+  };
+
+  const ciclosVisibles = listaCiclos
+    .map(ciclo => {
+      const unidades = (Array.isArray(ciclo.unidades) ? ciclo.unidades : [])
+        .filter(u => {
+          const coincideBusqueda = !busquedaCursos
+            || normalizarTexto(u.nombre).includes(normalizarTexto(busquedaCursos));
+          const pasaFiltro = filtroEstado === 'todos'
+            || (filtroEstado === 'aprobados' && u.estado === 'aprobado')
+            || (filtroEstado === 'desaprobados' && u.estado === 'desaprobado');
+          return coincideBusqueda && pasaFiltro;
+        })
+        .sort((a, b) => {
+          switch (ordenCursos) {
+            case 'nota_desc': return (b.nota ?? -1) - (a.nota ?? -1);
+            case 'nota_asc': return (a.nota ?? 999) - (b.nota ?? 999);
+            case 'creditos_desc': return (b.creditos ?? 0) - (a.creditos ?? 0);
+            case 'estado': return String(a.estado).localeCompare(String(b.estado), 'es');
+            default: return 0;
+          }
+        });
+      return { ...ciclo, unidadesVisibles: unidades };
+    })
+    .filter(c => c.unidadesVisibles.length > 0);
+
+  const unidadesVisiblesTotal = ciclosVisibles.reduce((s, c) => s + c.unidadesVisibles.length, 0);
+
+  const getNotaChip = (val) => {
+    if (val === null || val === undefined) return 'bg-slate-50 text-slate-400 border border-slate-200';
+    if (oficial) {
+      return val >= NOTA_MIN_APROBAR
+        ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+        : 'bg-red-50 text-red-700 border border-red-300';
+    }
+    return val >= NOTA_MIN_APROBAR
+      ? 'bg-gradient-to-br from-emerald-400 to-teal-500 text-white border border-emerald-500 shadow-card'
+      : 'bg-gradient-to-br from-red-500 to-rose-500 text-white border border-red-500 shadow-card';
   };
 
   const getBadgeColor = (estado) => {
-    if (estado === 'aprobado') return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
-    if (estado === 'desaprobado') return 'bg-red-50 text-red-700 border border-red-200';
-    return 'bg-slate-50 text-slate-600 border border-slate-200';
+    if (oficial) {
+      if (estado === 'aprobado') return 'bg-emerald-50 text-emerald-800 border border-emerald-300';
+      if (estado === 'desaprobado') return 'bg-red-50 text-red-700 border border-red-300';
+      return 'bg-slate-50 text-slate-600 border border-slate-200';
+    }
+    if (estado === 'aprobado') return 'bg-gradient-to-r from-emerald-400 to-teal-500 text-white border border-emerald-500 shadow-card';
+    if (estado === 'desaprobado') return 'bg-gradient-to-r from-red-500 to-rose-500 text-white border border-red-500 shadow-card';
+    return 'bg-slate-100 text-slate-600 border border-slate-200';
   };
 
   const handlePrint = () => window.print();
 
   return (
-    <div className="animate-fade-in max-w-4xl mx-auto boletin-container">
-
-      {/* Print-only header */}
-      <div className="boletin-header-print print-only">
-        <div>
-          <p className="text-sm font-bold text-slate-800">SIGA — Sistema de Gestión Académica</p>
-          <p className="text-xs text-slate-500">Boletín de Notas Oficial</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-slate-500">Emisión: {estudiante?.fecha_emision}</p>
-          <p className="text-xs text-slate-500">Periodo: {estudiante?.periodo_codigo}</p>
-        </div>
-      </div>
+    <>
+    <div className="no-print animate-fade-in max-w-4xl mx-auto boletin-container">
 
       {/* Membrete */}
       <Membrete />
@@ -379,18 +553,27 @@ export function StudentReportCard() {
         </div>
       )}
 
-      {/* Selector de Periodo + Botón Imprimir */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 no-print">
-        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em]">Periodo:</label>
-        <select
-          className="input-field py-2 text-sm min-w-[160px]"
-          value={periodoId}
-          onChange={(e) => setPeriodoId(e.target.value)}
-        >
-          {periodos.map(p => (
-            <option key={p.id} value={p.id}>{p.codigo}</option>
+      {/* Barra de herramientas */}
+      <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 mb-6 no-print">
+        <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden bg-white shadow-sm">
+          {[
+            { id: 'ejecutiva', label: 'Ejecutiva' },
+            { id: 'oficial', label: 'Oficial' },
+          ].map(v => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setVista(v.id)}
+              aria-pressed={vista === v.id}
+              className={`px-3 py-2 text-[11px] font-bold uppercase tracking-wider cursor-pointer transition-colors ${
+                vista === v.id ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              {v.label}
+            </button>
           ))}
-        </select>
+        </div>
+
         <button onClick={handlePrint} className="btn-primary text-sm px-4 py-2 flex items-center gap-2 ml-auto">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
           Imprimir Boletín
@@ -398,295 +581,668 @@ export function StudentReportCard() {
       </div>
 
       {/* SECCION 1: Datos del Estudiante */}
-      <div className="bg-white border border-slate-200 border-l-4 border-l-primary rounded-md p-6 mb-5 boletin-section">
-        <p className={`${SECTION_TITLE} mb-4 pb-2 border-b border-slate-100`}>Datos del Estudiante</p>
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center text-3xl flex-shrink-0">
+      <section className={`bg-white border rounded-xl overflow-hidden mb-5 boletin-section ${oficial ? 'border-slate-300 shadow' : 'border-primary/25 shadow-card-lg'}`}>
+        <div className={`relative px-5 py-4 text-white overflow-hidden ${oficial ? 'bg-primary' : 'bg-gradient-to-r from-[#001F58] via-primary to-[#00B8FF]'}`}>
+          {!oficial && (
+            <>
+              <span className="absolute -top-16 -right-10 w-52 h-52 rounded-full bg-white/20"></span>
+              <span className="absolute -bottom-20 right-36 w-44 h-44 rounded-full bg-white/10"></span>
+            </>
+          )}
+          <div className="relative flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-white/25 border border-white/40 flex items-center justify-center">
+                <GraduationCap className="w-4 h-4" strokeWidth={2.4} />
+              </span>
+              Datos del Estudiante
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-3 py-1 ${oficial ? 'bg-white/20 border border-white/40' : 'bg-white/25 border border-white/40 shadow-sm'}`}>
+                Periodo {estudiante.periodo_codigo}
+              </span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-3 py-1 ${oficial ? 'bg-white/20 border border-white/40' : 'bg-cyan-400/90 text-slate-900 border border-white/50 shadow-sm'}`}>
+                Emitido {estudiante.fecha_emision}
+              </span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-3 py-1 border ${matriculaVigente ? 'bg-emerald-400/90 text-slate-900 border-emerald-200' : 'bg-amber-400/90 text-slate-900 border-amber-200'}`}>
+                Matrícula {matriculaVigente ? 'vigente' : 'pendiente'}
+              </span>
+            </div>
+          </div>
+          {!oficial && <AccentStripe />}
+        </div>
+
+        <div className="p-6 flex flex-col md:flex-row items-center gap-6">
+          <div className={`w-24 h-24 rounded-2xl border-2 flex items-center justify-center text-3xl font-extrabold overflow-hidden flex-shrink-0 ${
+            oficial
+              ? 'bg-slate-50 border-slate-300 text-primary'
+              : 'bg-gradient-to-br from-cyan-400 via-blue-500 to-primary border-white ring-4 ring-primary/20 shadow-card-lg text-white'
+          }`}>
             {estudiante.foto_url ? (
-              <img src={estudiante.foto_url} alt="Foto" className="w-full h-full rounded-full object-cover" />
-            ) : '🎓'}
+              <img src={estudiante.foto_url} alt="Foto del estudiante" className="w-full h-full object-cover" />
+            ) : iniciales}
           </div>
-          <div className="flex-1 text-center md:text-left">
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{estudiante.apellidos}, {estudiante.nombres}</h2>
-            <p className="text-slate-500 text-sm mt-0.5">{estudiante.programa_nombre}</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 mt-4">
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Código</p>
-                <p className="font-semibold text-slate-800 text-sm">{estudiante.codigo_estudiante}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">DNI</p>
-                <p className="font-semibold text-slate-800 text-sm">{estudiante.dni}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Celular</p>
-                <p className="font-semibold text-slate-800 text-sm">{estudiante.celular || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Email</p>
-                <p className="font-semibold text-slate-800 text-sm truncate" title={estudiante.email_personal}>{estudiante.email_personal || '-'}</p>
-              </div>
+
+          <div className="flex-1 min-w-0 text-center md:text-left">
+            <h2 className={`text-2xl font-extrabold tracking-tight leading-tight break-words ${oficial ? 'text-slate-900' : 'bg-gradient-to-r from-primary via-blue-600 to-cyan-500 bg-clip-text text-transparent'}`}>
+              {estudiante.apellidos}, {estudiante.nombres}
+            </h2>
+            <p className="text-sm font-semibold text-slate-600 mt-1 flex items-center justify-center md:justify-start gap-1.5">
+              <span className="w-5 h-5 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <BookOpen className="w-3 h-3 text-primary" strokeWidth={2.4} />
+              </span>
+              {estudiante.programa_nombre || 'Programa no registrado'}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-6 gap-y-3 mt-5 text-left">
+              <InfoItem icon={Hash} label="Código" value={estudiante.codigo_estudiante} tone="blue" />
+              <InfoItem icon={IdCard} label="DNI" value={estudiante.dni} tone="cyan" />
+              <InfoItem icon={Phone} label="Celular" value={estudiante.celular} tone="emerald" />
+              <InfoItem icon={Mail} label="Email" value={estudiante.email_personal} tone="fuchsia" />
             </div>
           </div>
-          <div className="text-center min-w-[130px] flex-shrink-0 border-l border-slate-200 pl-6">
-            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-1">Periodo</p>
-            <p className="text-lg font-extrabold text-slate-900">{estudiante.periodo_codigo}</p>
-            <p className="text-[10px] text-slate-400 mt-1.5">Emisión: {estudiante.fecha_emision}</p>
-          </div>
-        </div>
-      </div>
 
-      {/* RESUMEN EN LENGUAJE NATURAL (solo Admin) */}
-      {isAdmin && (
-        <div className="bg-primary/5 border border-primary/20 rounded-md px-5 py-4 mb-5 boletin-section">
-          <p className="text-sm text-slate-700 leading-relaxed">
-            <span className="font-bold text-slate-900">{estudiante.apellidos}, {estudiante.nombres}</span>
-            {cursos_periodo.length === 0 ? (
-              <> aún no tiene notas registradas para este periodo.</>
-            ) : (
-              <>
-                {' '}lleva <span className="font-bold text-primary">{progreso_creditos.creditos_aprobados}</span> de <span className="font-bold">{progreso_creditos.creditos_totales}</span> créditos aprobados (<span className="font-bold text-primary">{progreso_creditos.porcentaje}%</span>).
-                Este periodo tiene <span className="font-bold text-emerald-700">{resumen.cursos_aprobados}</span> curso{resumen.cursos_aprobados !== 1 ? 's' : ''} aprobado{resumen.cursos_aprobados !== 1 ? 's' : ''} y <span className="font-bold text-red-600">{resumen.cursos_desaprobados}</span> desaprobado{resumen.cursos_desaprobados !== 1 ? 's' : ''}, con un promedio de <span className="font-bold">{resumen.promedio_general ?? '-'}</span>.
-                {' '}Su matrícula está{' '}
-                {matricula_estado.pago_matricula ? (
-                  <span className="font-bold text-emerald-700">pagada</span>
-                ) : (
-                  <span className="font-bold text-amber-600">pendiente de pago</span>
-                )}.
-                {resumen.cursos_desaprobados > 0 && (
-                  <span className="block mt-2 text-amber-700 font-semibold">⚠️ Requiere seguimiento por cursos desaprobados.</span>
-                )}
-              </>
-            )}
-          </p>
-        </div>
-      )}
-
-      {/* SECCION 2: Estado de Matrícula */}
-      <div className={`bg-white border rounded-md p-5 mb-5 boletin-section ${matricula_estado.pago_matricula ? 'border-emerald-200' : 'border-amber-200'}`}>
-        <div className="flex items-start gap-4">
-          <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 text-sm font-bold ${matricula_estado.pago_matricula ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-            {matricula_estado.pago_matricula ? '✓' : '⚠'}
-          </div>
-          <div className="flex-1">
-            <p className={`${SECTION_TITLE} mb-3`}>Estado de Matrícula</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm">
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Pago</p>
-                <p className={`font-semibold ${matricula_estado.pago_matricula ? 'text-emerald-700' : 'text-amber-700'}`}>
-                  {matricula_estado.pago_matricula ? 'Pagado' : 'Pendiente'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Tipo Ingreso</p>
-                <p className="font-semibold text-slate-800">{matricula_estado.tipo_ingreso || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Estado</p>
-                <p className="font-semibold text-slate-800 capitalize">{matricula_estado.estado_matricula}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em]">Fin Mat. Regular</p>
-                <p className="font-semibold text-slate-800 text-xs">{matricula_estado.fecha_fin_matricula_regular ? new Date(matricula_estado.fecha_fin_matricula_regular).toLocaleDateString() : 'N/A'}</p>
-              </div>
-            </div>
-            {!matricula_estado.pago_matricula && (
-              <p className="text-amber-700 text-xs mt-3 font-medium bg-amber-50 border border-amber-200 px-3 py-1.5 rounded inline-block">
-                La matrícula tiene pagos pendientes.
+          <div className="text-center md:text-left md:border-l md:border-slate-200 md:pl-6 min-w-[160px]">
+            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-1.5">Condición académica</p>
+            <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full border text-xs font-extrabold uppercase tracking-wider ${oficial ? 'bg-slate-100 border-slate-300 text-slate-700' : `shadow-card ${TONE_BADGE[condicion]}`}`}>
+              <BadgeCheck className="w-4 h-4" strokeWidth={2.6} />
+              {estado_academico || 'No registrada'}
+            </span>
+            {codigoVerificacion && (
+              <p className="text-[10px] text-slate-400 mt-2.5 leading-snug">
+                Código de verificación<br />
+                <span className="font-mono font-bold text-slate-600">{codigoVerificacion}</span>
               </p>
             )}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* SECCION 3: Estado Académico */}
-      <div className="bg-white border border-slate-200 border-l-4 border-l-blue-500 rounded-md p-5 mb-5 boletin-section">
-        <div className="flex items-center gap-4">
-          <div className="w-9 h-9 rounded bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center flex-shrink-0 text-sm">📋</div>
-          <div>
-            <p className={`${SECTION_TITLE}`}>Estado Académico</p>
-            <p className="text-sm text-slate-700 capitalize mt-0.5 font-semibold">{estado_academico}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* SECCION 4: Progreso de Créditos */}
-      <div className="bg-white border border-slate-200 border-l-4 border-l-purple-500 rounded-md p-5 mb-5 boletin-section">
-        <div className="flex items-center gap-4 mb-3">
-          <div className="w-9 h-9 rounded bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center flex-shrink-0 text-sm">📊</div>
-          <div className="flex-1">
-            <p className={`${SECTION_TITLE}`}>Progreso de Créditos</p>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {progreso_creditos.creditos_aprobados} de {progreso_creditos.creditos_totales} créditos aprobados
-            </p>
-          </div>
-          <div className="text-right">
-            <span className="text-2xl font-extrabold text-purple-600">{progreso_creditos.porcentaje}<span className="text-sm font-bold text-purple-400">%</span></span>
-          </div>
-        </div>
-        <div className="w-full bg-slate-100 rounded h-2 overflow-hidden progress-bar-print-hide">
-          <div
-            className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded transition-all duration-500"
-            style={{ width: `${progreso_creditos.porcentaje}%` }}
-          ></div>
-        </div>
-        <p className="text-sm text-slate-600 font-semibold progress-text-print">
-          {progreso_creditos.creditos_aprobados} de {progreso_creditos.creditos_totales} créditos aprobados ({progreso_creditos.porcentaje}%)
-        </p>
-      </div>
-
-      {/* SECCION 5: Notas por Curso */}
-      <div className="bg-white border border-slate-200 rounded-md overflow-hidden mb-5 boletin-section">
-        <div className="bg-slate-800 text-white px-5 py-3.5 flex justify-between items-center">
-          <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
-            <span className="mr-2">📚</span> Notas del Periodo
-          </h4>
-          <span className="text-xs text-slate-300 font-medium">{cursos_periodo.length} cursos</span>
-        </div>
-        {cursos_periodo.length === 0 ? (
-          <div className="py-12 text-center">
-            <p className="text-slate-400 font-medium text-sm">No hay cursos registrados para este periodo.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left boletin-table">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="py-2.5 px-4 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em]">Curso / Unidad Didáctica</th>
-                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Créditos</th>
-                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 1</th>
-                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 2</th>
-                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Cap. 3</th>
-                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase text-[10px] tracking-[0.15em] text-center bg-slate-100">Final</th>
-                  <th className="py-2.5 px-3 font-bold text-slate-500 uppercase text-[10px] tracking-[0.15em] text-center">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {cursos_periodo.map((curso, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-2.5 px-4 font-medium text-slate-800 text-sm">{curso.unidad_nombre}</td>
-                    <td className="py-2.5 px-3 text-center text-slate-500 text-sm">{curso.creditos}</td>
-                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c1)}`}>
-                      {curso.nota_c1 ?? '-'}
-                    </td>
-                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c2)}`}>
-                      {curso.nota_c2 ?? '-'}
-                    </td>
-                    <td className={`py-2.5 px-3 text-center text-sm ${getGradeColor(curso.nota_c3)}`}>
-                      {curso.nota_c3 ?? '-'}
-                    </td>
-                    <td className={`py-2.5 px-3 text-center text-base bg-slate-50/80 font-bold ${getGradeColor(curso.nota_final)}`}>
-                      {curso.nota_final ?? '-'}
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${getBadgeColor(curso.estado)}`}>
-                        {curso.estado}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* SECCION 6: Resumen del Rendimiento */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5 boletin-section">
-        <div className="bg-white border border-slate-200 border-t-4 border-t-primary rounded-md p-5 text-center">
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Promedio General</p>
-          <p className={`text-4xl font-extrabold ${getGradeColor(resumen.promedio_general)}`}>
-            {resumen.promedio_general ?? '-'}
-          </p>
-          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de 20 puntos</p>
-        </div>
-        <div className="bg-white border border-slate-200 border-t-4 border-t-emerald-500 rounded-md p-5 text-center">
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Aprobados</p>
-          <p className="text-4xl font-extrabold text-emerald-700">{resumen.cursos_aprobados}</p>
-          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de {resumen.total_cursos} cursos</p>
-        </div>
-        <div className="bg-white border border-slate-200 border-t-4 border-t-red-500 rounded-md p-5 text-center">
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-2">Desaprobados</p>
-          <p className="text-4xl font-extrabold text-red-600">{resumen.cursos_desaprobados}</p>
-          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">de {resumen.total_cursos} cursos</p>
-        </div>
-      </div>
-
-      {/* SECCION 7: Historial + Observaciones */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8 boletin-section">
-        {/* Historial */}
-        <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
-          <div className="bg-slate-800 text-white px-5 py-3">
-            <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
-              <span className="mr-2">📅</span> Historial de Periodos
-            </h4>
-          </div>
-          {historial.length === 0 ? (
-            <div className="py-10 text-center">
-              <p className="text-slate-400 text-sm">Sin periodos anteriores registrados.</p>
+      {/* FRANJA RESUMEN EJECUTIVO */}
+      <section className={`mb-5 boletin-section bg-white border rounded-xl overflow-hidden ${oficial ? 'border-slate-300 shadow' : 'border-primary/25 shadow-card-lg'}`}>
+        <div className="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+          {/* Promedio ponderado */}
+          <div className={`p-5 flex items-center gap-4 ${oficial ? 'bg-white' : 'bg-gradient-to-br from-primary/5 to-cyan-50/60'}`}>
+            <RingProgress percent={promedioPct} color={promedioRef != null && promedioRef >= NOTA_MIN_APROBAR ? '#059669' : '#dc2626'} size="lg">
+              <span className="text-center leading-none">
+                <span className={`block text-2xl font-extrabold ${promedioRef != null && promedioRef >= NOTA_MIN_APROBAR ? 'text-emerald-700' : 'text-red-600'}`}>
+                  {promedioRef ?? '—'}
+                </span>
+                <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1">de 20</span>
+              </span>
+            </RingProgress>
+            <div className="min-w-0">
+              <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.15em]">Promedio ponderado</p>
+              <span className={`inline-block mt-1.5 px-2.5 py-1 rounded-full border text-[10px] font-extrabold uppercase tracking-wider ${oficial ? 'bg-slate-100 border-slate-300 text-slate-700' : `shadow-card ${TONE_BADGE[valoracion.tone]}`}`}>
+                {valoracion.label}
+              </span>
+              {promedioAritmetico != null && promedioPonderado != null && promedioAritmetico !== promedioPonderado && (
+                <p className="text-[10px] text-slate-400 mt-1.5">Aritmético: <b className="text-slate-600">{promedioAritmetico}</b></p>
+              )}
             </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {historial.map((h, idx) => (
-                <div key={idx} className="px-5 py-3 hover:bg-slate-50/50 transition-colors">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-slate-800 text-sm">{h.periodo_codigo}</span>
-                    <span className={`text-lg font-extrabold ${getGradeColor(h.promedio)}`}>
-                      {h.promedio ?? '-'}
-                    </span>
-                  </div>
-                  <div className="flex gap-4 text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-                    <span className="text-emerald-700">✓ {h.cursos_aprobados} aprobados</span>
-                    <span className="text-red-600">✗ {h.cursos_desaprobados} desaprobados</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Observaciones */}
-        <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
-          <div className="bg-slate-800 text-white px-5 py-3">
-            <h4 className="font-bold flex items-center text-sm uppercase tracking-wider">
-              <span className="mr-2">📝</span> Observaciones
-            </h4>
           </div>
+
+          {/* Resultado del periodo */}
           <div className="p-5">
-            {observaciones ? (
-              <p className="text-sm text-slate-600 leading-relaxed">{observaciones}</p>
-            ) : (
-              <p className="text-slate-400 text-sm text-center py-6">Sin observaciones registradas.</p>
+            <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.15em] mb-2.5">Resultado del periodo</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-extrabold">
+                {resumen.cursos_aprobados} <span className="text-[10px] font-bold uppercase">aprob.</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm font-extrabold">
+                {resumen.cursos_desaprobados} <span className="text-[10px] font-bold uppercase">desap.</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 text-sm font-extrabold">
+                {resumen.total_cursos} <span className="text-[10px] font-bold uppercase">cursos</span>
+              </span>
+            </div>
+            {resumen.cursos_desaprobados > 0 && (
+              <p className="mt-2.5 text-[11px] text-amber-700 font-semibold">Requiere seguimiento académico.</p>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* PIE DE PÁGINA */}
-      <div className="border-t border-slate-300 pt-6 pb-4 mb-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
-          <div>
-            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.15em] mb-1">Secretaría Académica</p>
-            <div className="w-48 border-b border-slate-400 mb-1"></div>
-            <p className="text-[10px] text-slate-400">Firma y sello</p>
+          {/* Avance de plan */}
+          <div className="p-5">
+            <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.15em] mb-2.5">Avance del plan</p>
+            <p className="text-2xl font-extrabold text-primary leading-none">
+              {progreso_creditos.porcentaje}%
+              <span className="text-sm font-bold text-slate-400 ml-1.5">
+                {progreso_creditos.creditos_aprobados}/{progreso_creditos.creditos_totales} cr.
+              </span>
+            </p>
+            <div className="mt-2.5 w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
+              <div
+                className={`h-2.5 rounded-full transition-all duration-700 ${oficial ? 'bg-primary' : 'bg-gradient-to-r from-fuchsia-500 via-violet-500 to-primary'}`}
+                style={{ width: `${Math.max(2, progreso_creditos.porcentaje)}%` }}
+              ></div>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-2 font-semibold">
+              {creditosRestantes > 0 ? `Faltan ${creditosRestantes} créditos` : 'Plan completado'}
+            </p>
           </div>
-          <p className="text-[10px] text-slate-400 text-right">
-            Documento generado el {estudiante.fecha_emision} por el Sistema SIGA
+
+          {/* Escala */}
+          <div className="p-5">
+            <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.15em] mb-2.5">Escala vigesimal</p>
+            <ul className="space-y-1.5">
+              {ESCALA_CALIFICACION.map(e => {
+                const activo = escalaNivel?.sigla === e.sigla;
+                const tones = {
+                  emerald: 'text-emerald-700 bg-emerald-50 border-emerald-300',
+                  blue: 'text-blue-700 bg-blue-50 border-blue-300',
+                  amber: 'text-amber-700 bg-amber-50 border-amber-300',
+                  red: 'text-red-600 bg-red-50 border-red-300',
+                };
+                return (
+                  <li key={e.sigla} className={`flex items-center gap-2 text-[11px] rounded-md border px-2 py-1 ${activo ? tones[e.tone] : 'border-transparent text-slate-400'}`}>
+                    <span className="font-extrabold w-6">{e.sigla}</span>
+                    <span className="font-mono font-semibold">{e.rango}</span>
+                    <span className="ml-auto uppercase tracking-wider font-bold text-[9px]">{e.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* SECCION 4: Notas del Periodo */}
+      <section className={`bg-white border rounded-xl overflow-hidden mb-5 boletin-section ${oficial ? 'border-slate-300 shadow' : 'border-primary/25 shadow-card-lg'}`}>
+        <div className={`relative text-white px-5 py-4 overflow-hidden ${oficial ? 'bg-primary' : 'bg-gradient-to-r from-[#001F58] via-primary to-[#00B8FF]'}`}>
+          {!oficial && (
+            <>
+              <span className="absolute -top-14 right-10 w-44 h-44 rounded-full bg-white/15"></span>
+              <span className="absolute -bottom-16 -left-8 w-36 h-36 rounded-full bg-white/10"></span>
+            </>
+          )}
+          <div className="relative flex flex-wrap items-center gap-3">
+            <span className="w-9 h-9 rounded-xl bg-white/25 border border-white/40 flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-4.5 h-4.5" strokeWidth={2.4} />
+            </span>
+            <div className="min-w-0 mr-auto">
+              <h4 className="font-extrabold text-sm uppercase tracking-wider">Notas por Ciclos</h4>
+              <p className="text-[11px] text-white/80 mt-0.5 font-medium">
+                {listaCiclos.length} ciclo{listaCiclos.length !== 1 ? 's' : ''} · {unidadesPlan.length} unidad{unidadesPlan.length !== 1 ? 'es' : ''} didáctica{unidadesPlan.length !== 1 ? 's' : ''} · nota mínima aprobatoria {NOTA_MIN_APROBAR}/20
+              </p>
+            </div>
+          </div>
+
+          <div className="no-print relative flex flex-wrap items-center gap-2 mt-3">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-white/80 absolute left-2.5 top-1/2 -translate-y-1/2" strokeWidth={2.2} />
+              <input
+                type="text"
+                value={busquedaCursos}
+                onChange={(e) => setBusquedaCursos(e.target.value)}
+                placeholder="Buscar unidad didáctica"
+                aria-label="Buscar unidad didáctica"
+                className="w-48 sm:w-56 bg-white/20 border border-white/30 rounded-lg px-3 py-1.5 pl-8 text-xs text-white font-medium placeholder-white/70 outline-none focus:border-white/70 focus:bg-white/30"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {[
+                { id: 'todos', label: 'Todos' },
+                { id: 'aprobados', label: 'Aprobados' },
+                { id: 'desaprobados', label: 'Desaprobados' },
+              ].map(f => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFiltroEstado(f.id)}
+                  aria-pressed={filtroEstado === f.id}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
+                    filtroEstado === f.id
+                      ? 'bg-white text-primary border-white shadow-card'
+                      : 'bg-white/15 text-white border-white/30 hover:bg-white/30'
+                  }`}
+                >
+                  {f.label}
+                  <span className={`ml-1.5 ${filtroEstado === f.id ? 'text-cyan-600' : 'text-white/70'}`}>
+                    {conteoEstado[f.id]}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <ArrowUpDown className="w-3.5 h-3.5 text-white/80 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={2.2} />
+              <select
+                value={ordenCursos}
+                onChange={(e) => setOrdenCursos(e.target.value)}
+                aria-label="Ordenar cursos"
+                className="appearance-none bg-white/20 border border-white/30 rounded-lg pl-8 pr-8 py-1.5 text-xs text-white font-medium outline-none focus:border-white/70 cursor-pointer"
+              >
+                <option className="text-slate-800" value="nombre">Curso A-Z</option>
+                <option className="text-slate-800" value="nota_desc">Nota mayor</option>
+                <option className="text-slate-800" value="nota_asc">Nota menor</option>
+                <option className="text-slate-800" value="creditos_desc">Más créditos</option>
+                <option className="text-slate-800" value="estado">Por estado</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-white/80 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={2.2} />
+            </div>
+
+            <span className="text-xs bg-white/20 border border-white/30 rounded-lg px-2.5 py-1.5 font-bold whitespace-nowrap ml-auto">
+              {unidadesVisiblesTotal} de {unidadesPlan.length}
+            </span>
+          </div>
+          {!oficial && <AccentStripe />}
+        </div>
+
+        {listaCiclos.length === 0 ? (
+          <div className="py-12 text-center">
+            <ClipboardList className="w-8 h-8 text-slate-300 mx-auto mb-2" strokeWidth={1.6} />
+            <p className="text-slate-400 font-medium text-sm">El plan de estudios no tiene ciclos registrados.</p>
+          </div>
+        ) : ciclosVisibles.length === 0 ? (
+          <div className="py-12 text-center">
+            <Search className="w-8 h-8 text-slate-300 mx-auto mb-2" strokeWidth={1.6} />
+            <p className="text-slate-400 font-medium text-sm">No se encontraron unidades con ese criterio.</p>
+            <button
+              type="button"
+              onClick={() => { setBusquedaCursos(''); setFiltroEstado('todos'); }}
+              className="mt-3 text-xs font-semibold text-primary hover:underline cursor-pointer"
+            >
+              Limpiar filtros
+            </button>
+          </div>
+        ) : (
+          <div className={`p-4 md:p-5 ${oficial ? 'bg-slate-50/60' : 'bg-gradient-to-b from-slate-50/80 to-white'}`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+              {ciclosVisibles.map(ciclo => (
+                <CicloCard
+                  key={ciclo.ciclo}
+                  ciclo={ciclo}
+                  oficial={oficial}
+                  getNotaChip={getNotaChip}
+                  getBadgeColor={getBadgeColor}
+                />
+              ))}
+            </div>
+
+            {/* RESUMEN DEL DOCUMENTO */}
+            <div className={`mt-5 boletin-section border rounded-xl overflow-hidden ${oficial ? 'border-slate-300 bg-white' : 'border-primary/25 bg-white shadow-card-lg'}`}>
+              <div className="grid grid-cols-1 sm:grid-cols-2">
+                <div className={`p-4 flex items-center justify-between gap-4 ${oficial ? 'bg-slate-100' : 'bg-gradient-to-r from-[#001F58] via-primary to-[#00B8FF]'}`}>
+                  <p className={`text-xs md:text-sm font-extrabold uppercase tracking-[0.12em] ${oficial ? 'text-slate-700' : 'text-white/90'}`}>Promedio general</p>
+                  <span className={`text-2xl md:text-3xl font-extrabold leading-none ${oficial ? 'text-primary' : 'text-white'}`}>
+                    {promedioGeneralHistorico != null ? promedioGeneralHistorico.toFixed(2) : 'S/N'}
+                  </span>
+                </div>
+                <div className={`p-4 flex items-center justify-between gap-4 border-t sm:border-t-0 sm:border-l ${oficial ? 'bg-slate-100 border-slate-200' : 'border-white/20 bg-gradient-to-r from-primary to-[#00B8FF]'}`}>
+                  <p className={`text-xs md:text-sm font-extrabold uppercase tracking-[0.12em] ${oficial ? 'text-slate-700' : 'text-white/90'}`}>Ciclos completados</p>
+                  <span className={`text-2xl md:text-3xl font-extrabold leading-none whitespace-nowrap ${oficial ? 'text-primary' : 'text-white'}`}>
+                    {ciclosCompletados} <span className="text-sm font-bold opacity-80">de {ciclosTotales}</span>
+                  </span>
+                </div>
+              </div>
+              <p className="px-4 py-2.5 text-center text-[11px] text-slate-500 font-semibold border-t border-slate-100">
+                Escala de calificación: 0 a 20 &middot; Nota mínima aprobatoria: {NOTA_MIN_APROBAR}
+              </p>
+            </div>
+
+            <div className={`boletin-section border-t mt-4 px-4 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] ${oficial ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-200'}`}>
+              <span className="text-slate-500 font-semibold">Mostrando {unidadesVisiblesTotal} de {unidadesPlan.length} unidades del plan</span>
+              <span className="ml-auto text-slate-400 font-semibold">Nota mínima aprobatoria: {NOTA_MIN_APROBAR}</span>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* OBSERVACIONES (solo si existen) */}
+      {observaciones && (
+        <div className={`mb-5 boletin-section bg-white border rounded-xl overflow-hidden ${oficial ? 'border-slate-300 shadow' : 'border-amber-200 shadow-card-lg'}`}>
+          <div className={`flex items-center gap-2.5 px-5 py-3 ${oficial ? 'bg-slate-50 border-b border-slate-200' : 'bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200'}`}>
+            <MessageSquare className="w-4 h-4 text-amber-600 flex-shrink-0" strokeWidth={2.4} />
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-amber-800">Observaciones de Secretaría Académica</p>
+          </div>
+          <div className="p-5">
+            <p className="text-sm text-slate-700 leading-relaxed">{observaciones}</p>
+          </div>
+        </div>
+      )}
+
+      {/* FIRMAS */}
+      <section className={`mb-6 boletin-section bg-white border rounded-xl px-5 py-6 ${oficial ? 'border-slate-300 shadow' : 'border-primary/25 shadow-card-lg'}`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+          <div>
+            <div className="w-full border-b border-slate-400 mb-1.5"></div>
+            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.15em]">Estudiante</p>
+            <p className="text-[11px] text-slate-600 font-semibold mt-0.5">{estudiante.apellidos}, {estudiante.nombres}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">DNI: {estudiante.dni || '—'}</p>
+          </div>
+          <div>
+            <div className="w-full border-b border-slate-400 mb-1.5"></div>
+            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.15em]">Secretaría Académica</p>
+            <p className="text-[11px] text-slate-600 font-semibold mt-0.5">Firma y sello</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Fecha de emisión: {estudiante.fecha_emision}</p>
+          </div>
+        </div>
+
+        <p className="text-[10px] text-slate-400 text-center mt-6 pt-4 border-t border-slate-100 leading-relaxed">
+          Este boletín es un documento informativo generado por SIGA. No tiene validez oficial sin la firma y sello de la Secretaría Académica.
+          <br />
+          Código de verificación: <span className="font-mono font-bold text-slate-500">{codigoVerificacion || 'N/D'}</span>
+        </p>
+      </section>
+
+    </div>
+
+    <BoletinImpresion
+      estudiante={estudiante}
+      ciclos={listaCiclos}
+      promedioGeneral={promedioGeneralHistorico}
+      ciclosCompletados={ciclosCompletados}
+      ciclosTotales={ciclosTotales}
+      codigoVerificacion={codigoVerificacion}
+    />
+    </>
+  );
+}
+
+function DetalleUnidad({ u, cicloTitulo, oficial, getNotaChip, getBadgeColor }) {
+  const esOficial = oficial;
+  const borde = esOficial ? 'border-slate-200' : 'border-primary/15';
+  const caja = `rounded-xl border ${borde} bg-white`;
+  const tituloSeccion = `text-[10px] font-extrabold uppercase tracking-[0.18em] ${esOficial ? 'text-slate-600' : 'text-primary-dark'}`;
+  const colorBarra = (n) => (n == null ? 'bg-slate-200' : n >= NOTA_MIN_APROBAR ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-red-400 to-rose-500');
+
+  const capacidades = [
+    { key: 'C1', nombre: 'Comprensión y análisis', descriptor: 'Prueba escrita: resolución de casos y preguntas teóricas', ponderacion: '33.3%', nota: u.nota_c1 },
+    { key: 'C2', nombre: 'Aplicación práctica', descriptor: 'Actividades y prácticas en laboratorio o taller', ponderacion: '33.3%', nota: u.nota_c2 },
+    { key: 'C3', nombre: 'Producto y comunicación', descriptor: 'Proyecto integrador, portafolio y exposición', ponderacion: '33.3%', nota: u.nota_c3 },
+  ];
+  const registradas = capacidades.filter(c => c.nota != null);
+  const conParciales = registradas.length > 0;
+  const sumaParciales = registradas.reduce((s, c) => s + c.nota, 0);
+  const promCalculado = conParciales ? Math.round(sumaParciales / registradas.length) : null;
+  const coincide = promCalculado != null && promCalculado === u.nota;
+  const aprobado = u.estado === 'aprobado';
+  const desaprobado = u.estado === 'desaprobado';
+  const nota = u.nota;
+  const brecha = nota != null ? nota - NOTA_MIN_APROBAR : null;
+  const pctLogro = nota != null ? Math.min(100, Math.round((nota / 20) * 100)) : 0;
+  const estadoCapacidad = (n) => {
+    if (n == null) return { texto: 'Sin registrar', color: 'text-slate-400' };
+    if (n >= NOTA_MIN_APROBAR) return { texto: 'Lograda', color: 'text-emerald-700' };
+    return { texto: 'No lograda', color: 'text-red-600' };
+  };
+  const recomendacion = nota == null
+    ? (u.estado === 'no_cursado'
+      ? 'Unidad incluida en el plan académico; aún no se encuentra matriculada. Al cursarla, el docente registrará las notas por capacidad.'
+      : 'La unidad está en curso. El detalle completo se habilitará cuando el docente registre las notas parciales o el promedio final.')
+    : aprobado
+      ? `Resultado acreditado. Se recomienda continuar con el siguiente ciclo, considerando que esta unidad aporta ${u.creditos ?? '—'} créditos al avance de su plan de estudios.`
+      : desaprobado
+        ? `Resultado no acreditado. El estudiante debe reinscribirse en la unidad o presentarse a la convocatoria de evaluación extraordinaria para recuperar ${u.creditos ?? '—'} créditos.`
+        : 'Resultado pendiente de consolidación por parte del docente responsable.';
+  const meta = [
+    { label: 'Código de unidad', value: u.codigo || '—' },
+    { label: 'Créditos', value: u.creditos ?? '—' },
+    { label: 'Horas de clase', value: u.horas != null ? `${u.horas} h` : '—' },
+    { label: 'Tipo de modalidad', value: u.tipo ? String(u.tipo).replace(/-/g, ' ') : '—' },
+    { label: 'Docente responsable', value: u.docente || 'Por asignar' },
+    { label: 'Turno / Sección', value: (u.turno || u.seccion) ? `${u.turno || '—'} · Sección ${u.seccion || '—'}` : '—' },
+    { label: 'Periodo académico', value: u.periodo_codigo || '—' },
+    { label: 'Estado registral', value: u.estado === 'no_cursado' ? 'Sin cursar' : u.estado },
+  ];
+
+  return (
+    <div className={`px-4 py-4 space-y-4 ${esOficial ? 'bg-slate-50' : 'bg-gradient-to-br from-slate-50 via-white to-cyan-50/40'}`}>
+      {/* Encabezado del detalle */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className={`text-[9px] font-extrabold uppercase tracking-[0.2em] ${esOficial ? 'text-slate-400' : 'text-primary/70'}`}>Ficha de evaluación</p>
+          <p className="text-sm font-extrabold text-slate-800 leading-snug">{u.nombre}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">
+            {cicloTitulo || 'Ciclo'}{u.codigo ? ` · ${u.codigo}` : ''}{u.tipo ? ` · ${String(u.tipo).replace(/-/g, ' ')}` : ''}
           </p>
         </div>
+        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getBadgeColor(u.estado)}`}>
+          {u.estado === 'no_cursado' ? 'Sin cursar' : u.estado}
+        </span>
       </div>
 
-      {/* Print-only footer */}
-      <div className="boletin-footer-print print-only">
-        <p>Documento generado por SIGA — Sistema de Gestión Académica</p>
-        <p>Este boletín es un documento informativo. Para versiones oficiales, consulte con la institución.</p>
+      {/* Indicadores principales */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className={`${caja} p-3`}>
+          <p className={`text-[9px] font-extrabold uppercase tracking-[0.14em] ${esOficial ? 'text-slate-500' : 'text-primary'}`}>Nota final obtenida</p>
+          <p className={`text-2xl font-extrabold mt-1 ${nota != null ? (aprobado ? 'text-emerald-700' : 'text-red-600') : 'text-slate-300'}`}>
+            {nota ?? '—'}<span className="text-xs font-bold text-slate-400">/20</span>
+          </p>
+          <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+            <div className={`h-full rounded-full ${colorBarra(nota)}`} style={{ width: `${pctLogro}%` }}></div>
+          </div>
+          <p className="mt-1 text-[9px] text-slate-400">{nota != null ? `${pctLogro}% de logro` : 'Sin registro'}</p>
+        </div>
+        <div className={`${caja} p-3`}>
+          <p className={`text-[9px] font-extrabold uppercase tracking-[0.14em] ${esOficial ? 'text-slate-500' : 'text-primary'}`}>Mínimo aprobatorio</p>
+          <p className="text-2xl font-extrabold mt-1 text-slate-700">{NOTA_MIN_APROBAR}<span className="text-xs font-bold text-slate-400">/20</span></p>
+          <p className="mt-2 text-[9px] text-slate-500 leading-tight">Escala vigesimal institucional. Brecha: <b className={brecha == null ? 'text-slate-400' : brecha >= 0 ? 'text-emerald-700' : 'text-red-600'}>{brecha == null ? '—' : `${brecha > 0 ? '+' : ''}${brecha} pts`}</b></p>
+        </div>
+        <div className={`${caja} p-3`}>
+          <p className={`text-[9px] font-extrabold uppercase tracking-[0.14em] ${esOficial ? 'text-slate-500' : 'text-primary'}`}>Efecto en el plan</p>
+          <p className={`text-sm font-extrabold mt-1 ${aprobado ? 'text-emerald-700' : desaprobado ? 'text-red-600' : 'text-slate-500'}`}>
+            {nota == null ? 'Pendiente' : aprobado ? `${u.creditos ?? '—'} cr. acreditados` : `${u.creditos ?? '—'} cr. no acreditados`}
+          </p>
+          <p className="mt-2 text-[9px] text-slate-500 leading-tight">Los créditos se reconocen únicamente al superar el mínimo aprobatorio.</p>
+        </div>
       </div>
 
+      {/* Sección 1: desglose por capacidades */}
+      <div className={caja}>
+        <div className={`px-3 py-2 border-b ${esOficial ? 'border-slate-200 bg-slate-100' : 'border-primary/10 bg-primary/5'} rounded-t-xl`}>
+          <p className={tituloSeccion}>1 · Desglose por capacidades</p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {capacidades.map(c => {
+            const est = estadoCapacidad(c.nota);
+            const pct = c.nota != null ? Math.min(100, Math.round((c.nota / 20) * 100)) : 0;
+            return (
+              <div key={c.key} className="px-3 py-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-slate-700">
+                      <span className={`inline-block mr-1.5 px-1.5 py-0.5 rounded text-[9px] font-extrabold ${esOficial ? 'bg-slate-200 text-slate-600' : 'bg-primary/10 text-primary-dark'}`}>{c.key}</span>
+                      {c.nombre}
+                    </p>
+                    <p className="text-[9px] text-slate-400 mt-0.5">{c.descriptor}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[9px] font-bold text-slate-400">Ponderación {c.ponderacion}</span>
+                    <span className={`inline-flex items-center justify-center min-w-[38px] px-2 py-0.5 rounded-md text-[13px] font-extrabold ${getNotaChip(c.nota)}`}>
+                      {c.nota ?? '—'}
+                    </span>
+                    <span className={`text-[9px] font-bold ${est.color}`}>{est.texto}</span>
+                  </div>
+                </div>
+                <div className="mt-1.5 h-1 rounded-full bg-slate-100 overflow-hidden">
+                  <div className={`h-full rounded-full ${colorBarra(c.nota)}`} style={{ width: `${pct}%` }}></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Sección 2: cálculo */}
+      <div className={caja}>
+        <div className={`px-3 py-2 border-b ${esOficial ? 'border-slate-200 bg-slate-100' : 'border-primary/10 bg-primary/5'} rounded-t-xl`}>
+          <p className={tituloSeccion}>2 · Cálculo de la nota final</p>
+        </div>
+        <div className="px-3 py-3 space-y-2">
+          {conParciales ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2 text-[12px] text-slate-700">
+                <span className="font-semibold">Promedio = (</span>
+                {capacidades.map((c, i) => (
+                  <Fragment key={c.key}>
+                    <span className={`px-1.5 py-0.5 rounded font-extrabold text-[12px] ${c.nota != null ? (c.nota >= NOTA_MIN_APROBAR ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700') : 'bg-slate-50 text-slate-400'}`}>
+                      {c.nota ?? '—'}
+                    </span>
+                    {i < capacidades.length - 1 && <span className="font-bold text-slate-400">+</span>}
+                  </Fragment>
+                ))}
+                <span className="font-semibold">) ÷ {registradas.length} = <b>{(sumaParciales / registradas.length).toFixed(2)}</b> → redondeo → <b className={aprobado ? 'text-emerald-700' : 'text-red-600'}>{promCalculado}</b></span>
+              </div>
+              <ul className="text-[10px] text-slate-500 space-y-1 leading-relaxed">
+                <li>• Cada capacidad aporta en partes iguales (33.3%) al promedio del curso.</li>
+                <li>• Se promedian solo las capacidades registradas ({registradas.length} de 3) y se redondea al entero más cercano.</li>
+                <li>• {coincide
+                  ? 'El promedio del sistema coincide con el cálculo mostrado; la nota final es consistente.'
+                  : 'La nota final fue fijada por el docente responsable y puede diferir del promedio simple de las capacidades.'}</li>
+              </ul>
+            </>
+          ) : nota != null ? (
+            <>
+              <p className="text-[12px] text-slate-700 font-semibold">
+                El docente registró el Promedio Final directamente: <b className={aprobado ? 'text-emerald-700' : 'text-red-600'}>{nota}/20</b>
+              </p>
+              <ul className="text-[10px] text-slate-500 space-y-1 leading-relaxed">
+                <li>• No existe desglose por capacidades (C1/C2/C3) para esta unidad.</li>
+                <li>• La nota corresponde al promedio consolidado del curso registrado en el acta del docente.</li>
+              </ul>
+            </>
+          ) : (
+            <>
+              <p className="text-[12px] text-slate-600 font-semibold">Sin registro de evaluación</p>
+              <ul className="text-[10px] text-slate-500 space-y-1 leading-relaxed">
+                <li>• Esta unidad aún no tiene notas asociadas al estudiante.</li>
+                <li>• El desglose aparecerá automáticamente cuando el docente registre las capacidades o el promedio final.</li>
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Sección 3: efecto académico */}
+      <div className={caja}>
+        <div className={`px-3 py-2 border-b ${esOficial ? 'border-slate-200 bg-slate-100' : 'border-primary/10 bg-primary/5'} rounded-t-xl`}>
+          <p className={tituloSeccion}>3 · Interpretación y recomendación</p>
+        </div>
+        <div className="px-3 py-3 space-y-2">
+          <p className="text-[10px] text-slate-500 leading-relaxed">
+            <b className="text-slate-600">Regla institucional:</b> se acredita la unidad con {NOTA_MIN_APROBAR}/20 o más.{' '}
+            {nota != null && (aprobado
+              ? `Al obtener ${nota} puntos, el estudiante supera el mínimo por ${brecha} punto${brecha === 1 ? '' : 's'} y sus ${u.creditos ?? '—'} créditos se suman al avance de su plan.`
+              : `Al obtener ${nota} puntos, el estudiante no alcanza el mínimo; faltan ${Math.abs(brecha)} punto${Math.abs(brecha) === 1 ? '' : 's'} para acreditar ${u.creditos ?? '—'} créditos.`)}
+          </p>
+          <div className={`rounded-lg border px-3 py-2 ${esOficial ? 'bg-white border-slate-200' : 'bg-white border-primary/10'}`}>
+            <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-slate-400 mb-1">Recomendación académica</p>
+            <p className="text-[11px] text-slate-700 leading-relaxed">{recomendacion}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Sección 4: trazabilidad */}
+      <div className={caja}>
+        <div className={`px-3 py-2 border-b ${esOficial ? 'border-slate-200 bg-slate-100' : 'border-primary/10 bg-primary/5'} rounded-t-xl`}>
+          <p className={tituloSeccion}>4 · Trazabilidad del registro</p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2.5 px-3 py-3">
+          {meta.map(m => (
+            <div key={m.label}>
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-slate-400">{m.label}</p>
+              <p className="text-[11px] font-semibold text-slate-700 capitalize">{m.value}</p>
+            </div>
+          ))}
+        </div>
+        <p className={`px-3 pb-3 text-[9px] ${esOficial ? 'text-slate-400' : 'text-slate-400'} leading-relaxed`}>
+          Información generada por SIGA a partir de los registros de matrícula y evaluación del periodo académico. Conforme al Reglamento de Evaluación y Promoción del Estudiante.
+        </p>
+      </div>
     </div>
   );
 }
 
-function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDropdown, onSelect, searchLoading, recentStudents }) {
+function CicloCard({ ciclo, oficial, getNotaChip, getBadgeColor }) {
+  const unidades = ciclo.unidadesVisibles || [];
+  const [abierta, setAbierta] = useState(null);
+
+  const toggle = (nombre) => setAbierta(prev => (prev === nombre ? null : nombre));
+
+  return (
+    <div className={`boletin-section bg-white border rounded-xl overflow-hidden ${oficial ? 'border-slate-300 shadow' : 'border-primary/25 shadow-card-lg'}`}>
+      <div className={`px-4 py-2.5 text-white text-center ${oficial ? 'bg-primary' : 'bg-gradient-to-r from-[#001F58] via-primary to-[#00B8FF]'}`}>
+        <p className="text-xs font-extrabold uppercase tracking-[0.22em]">{ciclo.titulo}</p>
+      </div>
+
+      <table className="w-full text-left boletin-table">
+        <thead>
+          <tr className={`${oficial ? 'bg-slate-100 border-b border-slate-200' : 'bg-primary/10 border-b border-primary/20'}`}>
+            <th className={`py-2.5 px-3 font-extrabold uppercase text-[10px] tracking-[0.14em] ${oficial ? 'text-slate-600' : 'text-primary-dark'}`}>Unidad Didáctica</th>
+            <th className={`py-2.5 px-2 font-extrabold uppercase text-[10px] tracking-[0.14em] text-center ${oficial ? 'text-slate-600' : 'text-primary-dark'}`}>Créd.</th>
+            <th className={`py-2.5 px-2 font-extrabold uppercase text-[10px] tracking-[0.14em] text-center ${oficial ? 'text-slate-600' : 'text-primary-dark'}`}>Nota</th>
+            <th className={`py-2.5 px-2 font-extrabold uppercase text-[10px] tracking-[0.14em] text-center ${oficial ? 'text-slate-600' : 'text-primary-dark'}`}>Estado</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {unidades.map((u, i) => {
+            const aprobado = u.estado === 'aprobado';
+            const desaprobado = u.estado === 'desaprobado';
+            const abiertaFila = abierta === u.nombre;
+            return (
+              <Fragment key={`${ciclo.ciclo}-${i}`}>
+                <tr
+                  className={`cursor-pointer transition-colors ${abiertaFila ? (oficial ? 'bg-slate-100' : 'bg-primary/5') : 'hover:bg-slate-50'}`}
+                  onClick={() => toggle(u.nombre)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(u.nombre); } }}
+                  tabIndex={0}
+                  role="button"
+                  aria-expanded={abiertaFila}
+                  title="Ver detalle del porqué de la nota"
+                >
+                  <td className={`py-2.5 px-3 border-l-[4px] text-[13px] font-semibold text-slate-800 ${aprobado ? 'border-l-emerald-500' : desaprobado ? 'border-l-red-500' : 'border-l-slate-300'}`}>
+                    <span className="flex items-center gap-1.5">
+                      <span className={`inline-block text-[9px] text-slate-400 transition-transform ${abiertaFila ? 'rotate-90' : ''}`}>▶</span>
+                      <span className="flex-1">
+                        {u.nombre}
+                        {u.codigo && <span className="ml-1.5 text-[9px] font-normal text-slate-400">{u.codigo}</span>}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-2 text-center text-slate-600 font-semibold text-[13px]">{u.creditos ?? '—'}</td>
+                  <td className="py-2.5 px-2 text-center">
+                    <span className={`inline-flex items-center justify-center min-w-[38px] px-2 py-0.5 rounded-md text-[13px] font-extrabold ${getNotaChip(u.nota)}`}>
+                      {u.nota ?? '—'}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-2 text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${getBadgeColor(u.estado)}`}>
+                      {u.estado === 'no_cursado' ? 'Sin cursar' : u.estado}
+                    </span>
+                  </td>
+                </tr>
+                {abiertaFila && (
+                  <tr>
+                    <td colSpan={4} className="p-0 border-t border-dashed border-slate-200">
+                      <DetalleUnidad u={u} cicloTitulo={ciclo.titulo} oficial={oficial} getNotaChip={getNotaChip} getBadgeColor={getBadgeColor} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className={`${oficial ? 'bg-slate-100 border-t border-slate-300' : 'bg-gradient-to-r from-primary/10 via-cyan-50 to-fuchsia-50 border-t-2 border-primary/20'}`}>
+            <td colSpan={2} className={`px-3 py-2.5 text-[10px] font-extrabold uppercase tracking-[0.16em] ${oficial ? 'text-slate-600' : 'text-primary-dark'}`}>
+              Promedio del ciclo
+            </td>
+            <td className="px-2 py-2.5 text-center">
+              <span className={`text-sm font-extrabold ${ciclo.promedio != null ? (ciclo.promedio >= NOTA_MIN_APROBAR ? 'text-emerald-700' : 'text-red-600') : 'text-slate-400'}`}>
+                {ciclo.promedio != null ? ciclo.promedio.toFixed(2) : 'S/N'}
+              </span>
+            </td>
+            <td className="px-2 py-2.5 text-center text-[10px] font-bold text-slate-500 whitespace-nowrap">
+              {ciclo.creditos_aprobados ?? 0}/{ciclo.creditos_ciclo ?? 0} cr.
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDropdown, setShowDropdown, onSelect, searchLoading, recentStudents }) {
   const showRecent = showDropdown && searchTerm.length === 0 && recentStudents.length > 0;
   const showResults = showDropdown && searchTerm.length >= 3;
 
