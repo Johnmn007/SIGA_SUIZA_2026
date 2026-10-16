@@ -151,11 +151,31 @@
   background-size: 56px 56px;
 }
 
-/* === Scrollbar institucional === */
+  /* === Scrollbar institucional === */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #002D7A; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #0044B2; }
+
+/* === Estilos Novedosos SaaS (Bento Grid, Spatial UI & Micro-interactions) === */
+.bento-card {
+  @apply bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-6 shadow-sm
+  hover:shadow-xl hover:shadow-primary/5 hover:border-primary/35 hover:-translate-y-1
+  transition-all duration-300 relative overflow-hidden;
+}
+
+.aurora-glow {
+  background: radial-gradient(circle at 50% 0%, rgba(0, 68, 178, 0.08) 0%, transparent 60%);
+}
+
+.glow-border {
+  @apply transition-all duration-300 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5;
+}
+
+.tag-modern {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10px] font-bold tracking-wider uppercase
+  bg-slate-100 text-slate-700 border border-slate-200/80 transition-all duration-200;
+}
 
 /* === Animaciones === */
 @keyframes fadeIn {
@@ -166,6 +186,22 @@
 
 @keyframes spin { to { transform: rotate(360deg); } }
 .animate-spin { animation: spin 1s linear infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.2s infinite;
+}
+
+@keyframes pulseSubtle {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.02); opacity: 0.9; }
+}
+.animate-pulse-subtle { animation: pulseSubtle 3s ease-in-out infinite; }
 
 /* === Accesibilidad: movimiento reducido === */
 @media (prefers-reduced-motion: reduce) {

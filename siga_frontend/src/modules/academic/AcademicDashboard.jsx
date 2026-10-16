@@ -755,7 +755,7 @@ export function AcademicDashboard() {
                 return (
                   <div 
                     key={program.id} 
-                    className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200 overflow-hidden flex flex-col justify-between group"
+                    className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl hover:shadow-primary/5 hover:border-primary/40 hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-between group"
                   >
                     {/* Carrusel de 3 fotos representativas de la carrera */}
                     <div className="p-3 pb-0">
