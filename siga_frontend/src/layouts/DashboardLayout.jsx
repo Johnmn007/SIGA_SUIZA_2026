@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../core/auth/useAuth';
 import { wsClient } from '../core/api/client';
 import { ChangePasswordModal } from '../core/auth/ChangePasswordModal';
+import { SIGAAIAssistant } from '../core/ai/SIGAAIAssistant';
 import {
   LayoutDashboard, GraduationCap, Users, ClipboardList, ClipboardCheck,
   LineChart, Eye, ScrollText, BookOpen, CreditCard, Settings, Bell, LogOut,
@@ -252,6 +253,9 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
         isOpen={isPasswordModalOpen}
         onClose={() => setIsPasswordModalOpen(false)}
       />
+
+      {/* Asistente Virtual Inteligente Institucional SIGA */}
+      <SIGAAIAssistant />
     </div>
   );
 }

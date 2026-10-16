@@ -487,37 +487,141 @@ export function AcademicDashboard() {
 
   return (
     <div className="animate-fade-in space-y-8">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-slate-200/80">
-        <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 mb-2">
-            <Layers className="w-3.5 h-3.5 text-primary" />
-            <span>Gestión Curricular y Académica Central</span>
+      {/* Bento Grid Hero Banner with Aurora Glow & KPI Metrics */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#071329] via-[#0A2552] to-[#00388F] text-white p-6 sm:p-8 shadow-2xl border border-blue-500/20">
+        {/* Aurora Glow effects */}
+        <div className="absolute -top-32 -left-32 w-80 h-80 bg-blue-500/25 rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-cyan-400/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/4 right-1/4 w-72 h-72 bg-indigo-500/15 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-400/10 via-transparent to-transparent pointer-events-none" />
+
+        {/* Top Header Content */}
+        <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-6 border-b border-white/10">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold text-blue-100 mb-3">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              </span>
+              <span className="tracking-wide">IESTP SUIZA · GESTIÓN ACADÉMICA CENTRAL</span>
+              <span className="text-white/40">|</span>
+              <span className="text-emerald-300 font-bold">MALLAS 2026 VIGENTES</span>
+            </div>
+            
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white flex items-center gap-3">
+              <span>Programas de Estudio</span>
+              <Sparkles className="w-6 h-6 text-amber-300 animate-pulse hidden sm:inline-block" />
+            </h1>
+            <p className="text-blue-100/80 text-sm sm:text-base max-w-2xl mt-2 leading-relaxed">
+              Catálogo oficial de carreras profesionales técnicas, planes formativos modulares y periodos lectivos acreditados bajo lineamientos del MINEDU.
+            </p>
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
-            Programas de Estudio
-          </h2>
-          <p className="text-slate-500 text-sm mt-1">
-            Administración central de carreras profesionales técnicas, planes formativos y calendarios lectivos.
-          </p>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button 
+              className="inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer border border-blue-400/30"
+              onClick={() => { setCreateError(''); setShowCreateModal(true); }}
+            >
+              <Plus size={18} className="stroke-[2.5]" />
+              <span>Crear Nuevo Programa</span>
+            </button>
+
+            <button 
+              className="inline-flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-semibold text-sm border border-white/20 shadow-sm hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 cursor-pointer"
+              onClick={() => setShowImportModal(true)}
+            >
+              <Rocket size={17} className="text-cyan-300" />
+              <span>Importar Plan MINEDU</span>
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button 
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white font-semibold text-sm shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
-            onClick={() => { setCreateError(''); setShowCreateModal(true); }}
-          >
-            <Plus size={16} className="stroke-[2.5]" />
-            <span>Crear Nuevo Programa</span>
-          </button>
+        {/* Bento Grid: 4 Metric KPI Cards */}
+        <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-6">
+          {/* Card 1: Carreras */}
+          <div className="group bg-white/10 hover:bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/15 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/30">
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-10 h-10 rounded-xl bg-blue-500/25 border border-blue-400/30 flex items-center justify-center text-cyan-300 group-hover:scale-110 transition-transform">
+                <GraduationCap size={20} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/30">
+                100% Activas
+              </span>
+            </div>
+            <div className="text-3xl font-extrabold text-white tracking-tight">
+              {programs.length}
+            </div>
+            <div className="text-xs font-semibold text-blue-200 mt-1">
+              Carreras Profesionales
+            </div>
+            <p className="text-[11px] text-blue-200/60 mt-0.5">
+              Programas técnicos acreditados
+            </p>
+          </div>
 
-          <button 
-            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm border border-slate-200/90 shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
-            onClick={() => setShowImportModal(true)}
-          >
-            <Rocket size={15} className="text-primary" />
-            <span>Importar Plan MINEDU</span>
-          </button>
+          {/* Card 2: Créditos Formativos */}
+          <div className="group bg-white/10 hover:bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/15 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-900/20">
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-10 h-10 rounded-xl bg-amber-500/25 border border-amber-400/30 flex items-center justify-center text-amber-300 group-hover:scale-110 transition-transform">
+                <Award size={20} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/30">
+                Norma MINEDU
+              </span>
+            </div>
+            <div className="text-3xl font-extrabold text-white tracking-tight">
+              126 - 128
+            </div>
+            <div className="text-xs font-semibold text-blue-200 mt-1">
+              Créditos Académicos
+            </div>
+            <p className="text-[11px] text-blue-200/60 mt-0.5">
+              6 Semestres · 3 Módulos formativos
+            </p>
+          </div>
+
+          {/* Card 3: Periodo Activo */}
+          <div className="group bg-white/10 hover:bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/15 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-900/20">
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-10 h-10 rounded-xl bg-emerald-500/25 border border-emerald-400/30 flex items-center justify-center text-emerald-300 group-hover:scale-110 transition-transform">
+                <Calendar size={20} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-cyan-300 bg-cyan-500/20 px-2 py-0.5 rounded-full border border-cyan-400/30">
+                {periods.length} Periodos
+              </span>
+            </div>
+            <div className="text-3xl font-extrabold text-white tracking-tight">
+              {periods.find(p => p.estado?.toLowerCase() === 'activo' || p.estado?.toLowerCase() === 'en_curso')?.codigo || '2026-I'}
+            </div>
+            <div className="text-xs font-semibold text-blue-200 mt-1">
+              Semestre Académico Vigente
+            </div>
+            <p className="text-[11px] text-blue-200/60 mt-0.5">
+              Matrículas y carga lectiva activa
+            </p>
+          </div>
+
+          {/* Card 4: Estructura Modular */}
+          <div className="group bg-white/10 hover:bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/15 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-900/20">
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-10 h-10 rounded-xl bg-purple-500/25 border border-purple-400/30 flex items-center justify-center text-purple-300 group-hover:scale-110 transition-transform">
+                <Layers size={20} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded-full border border-purple-400/30">
+                DOC-10 / 15
+              </span>
+            </div>
+            <div className="text-3xl font-extrabold text-white tracking-tight">
+              3 Módulos
+            </div>
+            <div className="text-xs font-semibold text-blue-200 mt-1">
+              Certificación Modular
+            </div>
+            <p className="text-[11px] text-blue-200/60 mt-0.5">
+              Salidas laborales intermedias
+            </p>
+          </div>
         </div>
       </div>
 
