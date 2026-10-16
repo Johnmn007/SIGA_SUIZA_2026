@@ -54,14 +54,21 @@ async def health_check():
 # Endpoints CRUD
 @router.post("/programas", response_model=ProgramaResponse, status_code=status.HTTP_201_CREATED)
 async def crear_programa(programa: ProgramaCreate, request: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(ProgramaEstudio).where(
-            (func.lower(func.trim(ProgramaEstudio.codigo)) == func.lower(func.trim(programa.codigo))) |
-            (func.lower(func.trim(ProgramaEstudio.nombre)) == func.lower(func.trim(programa.nombre)))
-        )
-    )
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Este programa de estudio ya existe")
+    import unicodedata
+    def normalize_str(s: str) -> str:
+        if not s:
+            return ""
+        return "".join(c for c in unicodedata.normalize("NFD", s.strip().lower()) if unicodedata.category(c) != "Mn")
+
+    codigo_norm = programa.codigo.strip().upper()
+    nombre_norm = normalize_str(programa.nombre)
+
+    all_existentes = (await db.execute(select(ProgramaEstudio))).scalars().all()
+    for p in all_existentes:
+        if p.codigo and p.codigo.strip().upper() == codigo_norm:
+            raise HTTPException(status_code=400, detail=f"Ya existe un programa de estudio con el código '{programa.codigo}'")
+        if normalize_str(p.nombre) == nombre_norm:
+            raise HTTPException(status_code=400, detail=f"El programa de estudio '{programa.nombre}' ya existe en el catálogo institucional")
 
     db_programa = ProgramaEstudio(**programa.model_dump())
     db.add(db_programa)

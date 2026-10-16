@@ -207,13 +207,16 @@ export function AcademicDashboard() {
 
       // Validación preventiva local: verificar si el programa ya existe por código o por nombre
       const normalize = (str) => (str || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const existeLocal = programs.some(p => 
-        (p.codigo && p.codigo.trim().toUpperCase() === codigoTrimmed) ||
-        (normalize(p.nombre) === normalize(nombreTrimmed))
-      );
+      const existeCodigo = programs.some(p => p.codigo && p.codigo.trim().toUpperCase() === codigoTrimmed);
+      const existeNombre = programs.some(p => normalize(p.nombre) === normalize(nombreTrimmed));
 
-      if (existeLocal) {
-        setCreateError("Este programa de estudio ya existe");
+      if (existeCodigo) {
+        setCreateError(`Ya existe un programa de estudio con el código '${codigoTrimmed}'`);
+        setSavingProgram(false);
+        return;
+      }
+      if (existeNombre) {
+        setCreateError(`El programa de estudio '${nombreTrimmed}' ya existe en el catálogo institucional`);
         setSavingProgram(false);
         return;
       }
@@ -249,12 +252,8 @@ export function AcademicDashboard() {
       await fetchData();
     } catch (error) {
       console.error('Error al crear programa:', error);
-      const detail = error.message || '';
-      if (detail.toLowerCase().includes('ya existe') || detail.toLowerCase().includes('duplicado') || detail.includes('programa de estudio')) {
-        setCreateError("Este programa de estudio ya existe");
-      } else {
-        setCreateError(detail || "Este programa de estudio ya existe");
-      }
+      const detail = error.response?.data?.detail || error.message || 'Este programa de estudio ya existe';
+      setCreateError(detail);
     } finally {
       setSavingProgram(false);
     }
