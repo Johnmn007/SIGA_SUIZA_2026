@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '../../core/api/client';
 import { CurriculumMesh } from './CurriculumMesh';
 import { PeriodManager } from './PeriodManager';
+import { CareerCarousel } from './CareerCarousel';
 import { 
   Rocket, 
   BookOpen, 
@@ -731,122 +732,129 @@ export function AcademicDashboard() {
                 return (
                   <div 
                     key={program.id} 
-                    className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200 p-6 flex flex-col justify-between group"
+                    className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200 overflow-hidden flex flex-col justify-between group"
                   >
-                    <div>
-                      {/* Top Badges: Code, Area & Status */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                            {program.codigo}
-                          </span>
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${areaInfo.badge}`}>
-                            {areaInfo.name}
-                          </span>
-                        </div>
-
-                        {/* Status Chip */}
-                        <div>
-                          {isActivo && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                              Activo
-                            </span>
-                          )}
-                          {isLiquidacion && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                              En Liquidación
-                            </span>
-                          )}
-                          {!isActivo && !isLiquidacion && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                              Inactivo
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Program Title & Credits */}
-                      <div className="flex justify-between items-start gap-3 mb-2.5">
-                        <h4 className="font-bold text-base text-slate-900 tracking-tight leading-snug group-hover:text-primary transition-colors">
-                          {program.nombre}
-                        </h4>
-                        
-                        <div className="text-right flex-shrink-0 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100">
-                          <div className="text-xl font-black text-slate-900 tracking-tight leading-none">
-                            {program.creditos_totales}
-                          </div>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                            Créditos
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Resolution & Description */}
-                      <div className="mb-4">
-                        <div className="text-[11px] font-semibold text-slate-600 flex items-center gap-1.5 mb-1">
-                          <Award size={13} className="text-amber-500 flex-shrink-0" />
-                          <span className="font-mono text-slate-700">{resolucion}</span>
-                        </div>
-                        <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
-                          {program.descripcion || 'Programa modular de formación profesional técnica adaptado a lineamientos MINEDU.'}
-                        </p>
-                      </div>
-
-                      {/* Metadata Grid */}
-                      <div className="grid grid-cols-2 gap-2 mb-4">
-                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100/90">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 mb-0.5">
-                            <Clock size={11} /> Duración
-                          </span>
-                          <span className="font-semibold text-xs text-slate-800">
-                            {program.duracion_periodos} Ciclos Lectivos
-                          </span>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100/90">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 mb-0.5">
-                            <Building2 size={11} /> Modalidad
-                          </span>
-                          <span className="font-semibold text-xs text-slate-800 capitalize">
-                            {program.modalidad || 'Presencial'}
-                          </span>
-                        </div>
-                      </div>
+                    {/* Carrusel de 3 fotos representativas de la carrera */}
+                    <div className="p-3 pb-0">
+                      <CareerCarousel programName={program.nombre} />
                     </div>
 
-                    {/* Quick Action Buttons */}
-                    <div className="pt-3.5 border-t border-slate-100 flex items-center gap-2">
-                      <button 
-                        className="flex-1 py-2 px-3 bg-primary text-white hover:bg-primary-dark font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-                        onClick={() => {
-                          setSelectedProgram(program.id);
-                          setView('mesh');
-                        }}
-                        title="Explorar Malla Curricular y Unidades Didácticas"
-                      >
-                        <span>Ver Malla</span>
-                        <ArrowRight size={13} />
-                      </button>
+                    <div className="p-5 pt-3 flex-1 flex flex-col justify-between">
+                      <div>
+                        {/* Top Badges: Code, Area & Status */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                              {program.codigo}
+                            </span>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${areaInfo.badge}`}>
+                              {areaInfo.name}
+                            </span>
+                          </div>
 
-                      <button 
-                        className="py-2 px-2.5 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-xl border border-slate-200 text-xs transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
-                        onClick={() => handleOpenConfigModal(program)}
-                        title="Configurar turnos, cupos y coordinación"
-                      >
-                        <Sliders size={13} className="text-slate-500" />
-                        <span className="hidden sm:inline">Parametrización</span>
-                      </button>
+                          {/* Status Chip */}
+                          <div>
+                            {isActivo && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Activo
+                              </span>
+                            )}
+                            {isLiquidacion && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                En Liquidación
+                              </span>
+                            )}
+                            {!isActivo && !isLiquidacion && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                Inactivo
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                      <button 
-                        className="py-2 px-2.5 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-xl border border-slate-200 text-xs transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
-                        onClick={() => setEditingProgram({ ...program })}
-                        title="Editar información de la carrera"
-                      >
-                        <Edit3 size={13} className="text-slate-500" />
-                        <span className="hidden sm:inline">Editar</span>
-                      </button>
+                        {/* Program Title & Credits */}
+                        <div className="flex justify-between items-start gap-3 mb-2.5">
+                          <h4 className="font-bold text-base text-slate-900 tracking-tight leading-snug group-hover:text-primary transition-colors">
+                            {program.nombre}
+                          </h4>
+                          
+                          <div className="text-right flex-shrink-0 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100">
+                            <div className="text-xl font-black text-slate-900 tracking-tight leading-none">
+                              {program.creditos_totales}
+                            </div>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                              Créditos
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Resolution & Description */}
+                        <div className="mb-4">
+                          <div className="text-[11px] font-semibold text-slate-600 flex items-center gap-1.5 mb-1">
+                            <Award size={13} className="text-amber-500 flex-shrink-0" />
+                            <span className="font-mono text-slate-700">{resolucion}</span>
+                          </div>
+                          <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
+                            {program.descripcion || 'Programa modular de formación profesional técnica adaptado a lineamientos MINEDU.'}
+                          </p>
+                        </div>
+
+                        {/* Metadata Grid */}
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100/90">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 mb-0.5">
+                              <Clock size={11} /> Duración
+                            </span>
+                            <span className="font-semibold text-xs text-slate-800">
+                              {program.duracion_periodos} Ciclos Lectivos
+                            </span>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100/90">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1 mb-0.5">
+                              <Building2 size={11} /> Modalidad
+                            </span>
+                            <span className="font-semibold text-xs text-slate-800 capitalize">
+                              {program.modalidad || 'Presencial'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick Action Buttons */}
+                      <div className="pt-3.5 border-t border-slate-100 flex items-center gap-2">
+                        <button 
+                          className="flex-1 py-2 px-3 bg-primary text-white hover:bg-primary-dark font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                          onClick={() => {
+                            setSelectedProgram(program.id);
+                            setView('mesh');
+                          }}
+                          title="Explorar Malla Curricular y Unidades Didácticas"
+                        >
+                          <span>Ver Malla</span>
+                          <ArrowRight size={13} />
+                        </button>
+
+                        <button 
+                          className="py-2 px-2.5 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-xl border border-slate-200 text-xs transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
+                          onClick={() => handleOpenConfigModal(program)}
+                          title="Configurar turnos, cupos y coordinación"
+                        >
+                          <Sliders size={13} className="text-slate-500" />
+                          <span className="hidden sm:inline">Parametrización</span>
+                        </button>
+
+                        <button 
+                          className="py-2 px-2.5 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-xl border border-slate-200 text-xs transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
+                          onClick={() => setEditingProgram({ ...program })}
+                          title="Editar información de la carrera"
+                        >
+                          <Edit3 size={13} className="text-slate-500" />
+                          <span className="hidden sm:inline">Editar</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
