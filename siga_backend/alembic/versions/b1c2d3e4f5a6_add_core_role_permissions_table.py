@@ -16,6 +16,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Idempotente: la tabla puede existir ya (volcado inicial o migraciones previas)
+    if sa.inspect(op.get_bind()).has_table('core_role_permissions'):
+        return
     op.create_table('core_role_permissions',
         sa.Column('role_id', sa.Integer(), nullable=True),
         sa.Column('permission_id', sa.Integer(), nullable=True),

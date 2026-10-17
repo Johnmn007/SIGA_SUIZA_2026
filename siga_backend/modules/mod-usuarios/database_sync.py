@@ -11,7 +11,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "john.007")
 DB_NAME = os.getenv("DB_NAME", "mod_programas_estudio")
 
 # Construir DATABASE_URL (síncrona)
-DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 print(f"🔗 Conectando a: {DB_HOST}:{DB_PORT}/{DB_NAME}")
 
