@@ -1,0 +1,370 @@
+{
+  "version": 1,
+  "actualizado": "2026-09-28",
+  "generadoPor": "tools/imagenes-carreras/generar.mjs --exportar-mapa",
+  "descripcion": "Mapeo completo de imagenes del carrusel de Carreras. Prompt listo para pegar en cualquier generador.",
+  "destino": "siga_frontend/public/assets/carreras",
+  "medida": {
+    "ancho": 1600,
+    "alto": 900,
+    "proporcion": "16:9",
+    "formato": "jpg"
+  },
+  "estiloGlobal": "Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k.",
+  "restricciones": [
+    "Absolutely no text, no letters and no numbers anywhere in the image.",
+    "No logos, no crests, no badges, no flags and no institutional emblems.",
+    "No watermark, no signature.",
+    "No collage, no photomontage, no split or divided image, no frames or borders."
+  ],
+  "modeloRecomendado": {
+    "nombre": "gpt-image-1",
+    "size": "1536x1024",
+    "quality": "high",
+    "nota": "se recorta al centro y se escala a 1600x900"
+  },
+  "totalImagenes": 33,
+  "carreras": [
+    {
+      "slug": "administracion-empresas",
+      "nombre": "Administración de Empresas",
+      "area": "Gestión y Negocios",
+      "imagenes": [
+        {
+          "archivo": "administracion-empresas-1.jpg",
+          "indice": 1,
+          "titulo": "Trabajo en equipo en aula moderna",
+          "descripcionVisual": "Cuatro estudiantes alrededor de una mesa de cristal con laptops abiertos, cuadernos y gráficos de ventas, con una pantalla de pared al fondo.",
+          "promptEscena": "Four business administration students working together around a glass table in a bright modern classroom, open laptops, notebooks and printed sales charts on the table, a wall screen in the background showing a bar graph, business school atmosphere, soft window daylight.",
+          "promptCompleto": "Four business administration students working together around a glass table in a bright modern classroom, open laptops, notebooks and printed sales charts on the table, a wall screen in the background showing a bar graph, business school atmosphere, soft window daylight. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "administracion-empresas-2.jpg",
+          "indice": 2,
+          "titulo": "Presentación de plan de negocios",
+          "descripcionVisual": "Estudiante de pie explicando un plan de negocios ante sus compañeros en un salon de seminarios moderno, compañeros tomando notas.",
+          "promptEscena": "A business administration student standing and presenting a business plan to seated classmates in a modern seminar room, pointing at a large screen, classmates taking notes, glass walls.",
+          "promptCompleto": "A business administration student standing and presenting a business plan to seated classmates in a modern seminar room, pointing at a large screen, classmates taking notes, glass walls. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "administracion-empresas-3.jpg",
+          "indice": 3,
+          "titulo": "Análisis financiero y organigrama",
+          "descripcionVisual": "Primer plano de manos de dos estudiantes revisando un cuadro financiero impreso y un organigrama junto a una laptop.",
+          "promptEscena": "Close-up of two students hands reviewing a printed financial statement and an organizational chart next to a laptop on a modern office desk.",
+          "promptCompleto": "Close-up of two students hands reviewing a printed financial statement and an organizational chart next to a laptop on a modern office desk. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    },
+    {
+      "slug": "administracion-operaciones-turisticas",
+      "nombre": "Administración de Operaciones Turísticas",
+      "area": "Turismo y Hotelería",
+      "imagenes": [
+        {
+          "archivo": "administracion-operaciones-turisticas-1.jpg",
+          "indice": 1,
+          "titulo": "Atención al huésped en recepción",
+          "descripcionVisual": "Dos estudiantes de turismo recibiendo a visitantes en la recepción de un hotel moderno, ambiente calido y acogedor.",
+          "promptEscena": "Two tourism students welcoming visitors at a modern hotel reception desk, smiling, professional attire, warm welcoming lobby lighting, plants and soft wood finishes.",
+          "promptCompleto": "Two tourism students welcoming visitors at a modern hotel reception desk, smiling, professional attire, warm welcoming lobby lighting, plants and soft wood finishes. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "administracion-operaciones-turisticas-2.jpg",
+          "indice": 2,
+          "titulo": "Guiado turístico en la Amazonía",
+          "descripcionVisual": "Estudiantes de turismo guiando a un grupo pequeño de viajeros por un sendero de selva en la Amazonía peruana, mochilas y listas de control.",
+          "promptEscena": "Tourism students guiding a small group of travelers along a jungle nature trail in the Peruvian Amazon, backpacks and clipboards, lush green tropical vegetation, dappled sunlight.",
+          "promptCompleto": "Tourism students guiding a small group of travelers along a jungle nature trail in the Peruvian Amazon, backpacks and clipboards, lush green tropical vegetation, dappled sunlight. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "administracion-operaciones-turisticas-3.jpg",
+          "indice": 3,
+          "titulo": "Planificación de itinerario",
+          "descripcionVisual": "Los estudiantes planificando un itinerario en una mesa con mapas impresos, folletos turisticos y una laptop.",
+          "promptEscena": "Tourism students planning an itinerary at a table with printed maps, travel brochures and a laptop in a classroom, pointing at the map.",
+          "promptCompleto": "Tourism students planning an itinerary at a table with printed maps, travel brochures and a laptop in a classroom, pointing at the map. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    },
+    {
+      "slug": "asistencia-administrativa",
+      "nombre": "Asistencia Administrativa",
+      "area": "Gestión y Negocios",
+      "imagenes": [
+        {
+          "archivo": "asistencia-administrativa-1.jpg",
+          "indice": 1,
+          "titulo": "Gestión documental en oficina",
+          "descripcionVisual": "Los estudiantes organizando y archivando documentos en una oficina institucional moderna, carpetas etiquetadas y cajas de archivo.",
+          "promptEscena": "Administrative assistant students organizing and filing documents in a modern institutional office, labeled folders, archive boxes, desk lamps, shelves in the background.",
+          "promptCompleto": "Administrative assistant students organizing and filing documents in a modern institutional office, labeled folders, archive boxes, desk lamps, shelves in the background. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "asistencia-administrativa-2.jpg",
+          "indice": 2,
+          "titulo": "Atención administrativa al usuario",
+          "descripcionVisual": "Una estudiante atendiendo un telefono y tomando notas en un escritorio de recepción administrativa, oficina ordenada.",
+          "promptEscena": "A student answering a phone and taking notes at an administrative reception desk, tidy modern office, computer monitor, folders and a small plant.",
+          "promptCompleto": "A student answering a phone and taking notes at an administrative reception desk, tidy modern office, computer monitor, folders and a small plant. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "asistencia-administrativa-3.jpg",
+          "indice": 3,
+          "titulo": "Digitalización de archivos",
+          "descripcionVisual": "Dos estudiantes escaneando y digitalizando registros en un puesto de trabajo con escaner y carpetas ordenadas.",
+          "promptEscena": "Two students scanning and digitizing records at a workstation with a document scanner and sorted folders, cool neutral daylight, modern office.",
+          "promptCompleto": "Two students scanning and digitizing records at a workstation with a document scanner and sorted folders, cool neutral daylight, modern office. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    },
+    {
+      "slug": "contabilidad",
+      "nombre": "Contabilidad",
+      "area": "Gestión y Negocios",
+      "imagenes": [
+        {
+          "archivo": "contabilidad-1.jpg",
+          "indice": 1,
+          "titulo": "Análisis de estados financieros",
+          "descripcionVisual": "Los estudiantes de contabilidad analizando estados financieros en un monitor grande en un laboratorio de computo moderno.",
+          "promptEscena": "Accounting students analyzing financial statements on a large monitor in a modern computer lab, printed ledgers and a calculator on the desk.",
+          "promptCompleto": "Accounting students analyzing financial statements on a large monitor in a modern computer lab, printed ledgers and a calculator on the desk. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "contabilidad-2.jpg",
+          "indice": 2,
+          "titulo": "Cálculos y declaraciones tributarias",
+          "descripcionVisual": "Primer plano de las manos de una estudiante usando calculadora y revisando formularios de declaracion tributaria con un lapiz.",
+          "promptEscena": "Close-up of a student hands using a calculator and reviewing printed tax declaration forms with a pen at an accounting classroom desk.",
+          "promptCompleto": "Close-up of a student hands using a calculator and reviewing printed tax declaration forms with a pen at an accounting classroom desk. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "contabilidad-3.jpg",
+          "indice": 3,
+          "titulo": "Conciliación de comprobantes",
+          "descripcionVisual": "Los estudiantes conciliando facturas y recibos en una mesa de oficina luminosa, spreadsheets impresas y calculadora.",
+          "promptEscena": "Accounting students reconciling invoices and receipts at a bright office table, printed spreadsheets, calculator and a laptop, organized professional atmosphere.",
+          "promptCompleto": "Accounting students reconciling invoices and receipts at a bright office table, printed spreadsheets, calculator and a laptop, organized professional atmosphere. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    },
+    {
+      "slug": "construccion-civil",
+      "nombre": "Construcción Civil",
+      "area": "Ingeniería y Construcción",
+      "imagenes": [
+        {
+          "archivo": "construccion-civil-1.jpg",
+          "indice": 1,
+          "titulo": "Revisión de planos en obra",
+          "descripcionVisual": "Estudiantes de ingeniería civil revisando planos de gran formato en una obra, con cascos y chalecos de seguridad.",
+          "promptEscena": "Civil engineering students on a building site reviewing large rolled blueprints, wearing hard hats and safety vests, measuring tape, overcast daylight, concrete structure in the background.",
+          "promptCompleto": "Civil engineering students on a building site reviewing large rolled blueprints, wearing hard hats and safety vests, measuring tape, overcast daylight, concrete structure in the background. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "construccion-civil-2.jpg",
+          "indice": 2,
+          "titulo": "Medición con estación total",
+          "descripcionVisual": "Un estudiante operando una estación total sobre un tripode mientras otro registra medidas en una libreta, obra al aire libre.",
+          "promptEscena": "A student operating a total station on a tripod while another records measurements on a clipboard, construction site, hard hats and vests, partially built structure.",
+          "promptCompleto": "A student operating a total station on a tripod while another records measurements on a clipboard, construction site, hard hats and vests, partially built structure. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "construccion-civil-3.jpg",
+          "indice": 3,
+          "titulo": "Supervisión de vaciado de concreto",
+          "descripcionVisual": "Los estudiantes supervisando un vaciado de concreto y una columna estructural en obra, edificio de media altura al fondo.",
+          "promptEscena": "Students supervising a concrete pour and a structural column on a construction site, modern mid-rise building in the background, rebar and formwork visible.",
+          "promptCompleto": "Students supervising a concrete pour and a structural column on a construction site, modern mid-rise building in the background, rebar and formwork visible. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    },
+    {
+      "slug": "desarrollo-sistemas-informacion",
+      "nombre": "Desarrollo de Sistemas de Información",
+      "area": "Tecnologías de la Información",
+      "imagenes": [
+        {
+          "archivo": "desarrollo-sistemas-informacion-1.jpg",
+          "indice": 1,
+          "titulo": "Programación en laboratorio",
+          "descripcionVisual": "Jovenes estudiantes de desarrollo de sistemas programando en puestos con doble monitor en un laboratorio tecnologico moderno.",
+          "promptEscena": "Young software development students coding at dual-monitor workstations in a modern technology laboratory, code visible on the screens, clean desks.",
+          "promptCompleto": "Young software development students coding at dual-monitor workstations in a modern technology laboratory, code visible on the screens, clean desks. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "desarrollo-sistemas-informacion-2.jpg",
+          "indice": 2,
+          "titulo": "Revisión de esquema de base de datos",
+          "descripcionVisual": "Dos estudiantes revisando un diagrama de esquema de base de datos en una pantalla grande de un laboratorio universitario.",
+          "promptEscena": "Two students reviewing a database schema diagram on a large screen in a university technology lab, one pointing at the display, modern interior.",
+          "promptCompleto": "Two students reviewing a database schema diagram on a large screen in a university technology lab, one pointing at the display, modern interior. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "desarrollo-sistemas-informacion-3.jpg",
+          "indice": 3,
+          "titulo": "Programación en primer plano",
+          "descripcionVisual": "Primer plano de las manos de un estudiante escribiendo en un teclado mecanico, editor de codigo y terminal en el monitor.",
+          "promptEscena": "Close-up of a student hands typing on a mechanical keyboard, clean code editor and a terminal window visible on the monitor, blurred lab background.",
+          "promptCompleto": "Close-up of a student hands typing on a mechanical keyboard, clean code editor and a terminal window visible on the monitor, blurred lab background. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    },
+    {
+      "slug": "electricidad-industrial",
+      "nombre": "Electricidad Industrial",
+      "area": "Electrotecnia y Mecánica",
+      "imagenes": [
+        {
+          "archivo": "electricidad-industrial-1.jpg",
+          "indice": 1,
+          "titulo": "Trabajo en tablero eléctrico industrial",
+          "descripcionVisual": "Estudiantes de electricidad trabajando en un tablero eléctrico industrial con multimetro, guantes y cascos de seguridad.",
+          "promptEscena": "Electrical students working on an industrial electrical panel with a multimeter, wearing safety gloves and helmets, plant workshop, neatly arranged cables.",
+          "promptCompleto": "Electrical students working on an industrial electrical panel with a multimeter, wearing safety gloves and helmets, plant workshop, neatly arranged cables. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "electricidad-industrial-2.jpg",
+          "indice": 2,
+          "titulo": "Cableado de tablero de control",
+          "descripcionVisual": "Un estudiante cableando un gabinete de control con cables ordenados mientras un instructor supervisa, laboratorio industrial.",
+          "promptEscena": "A student wiring a control cabinet with neatly routed cables while an instructor supervises, industrial training lab, bright overhead lighting.",
+          "promptCompleto": "A student wiring a control cabinet with neatly routed cables while an instructor supervises, industrial training lab, bright overhead lighting. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "electricidad-industrial-3.jpg",
+          "indice": 3,
+          "titulo": "Programación de PLC",
+          "descripcionVisual": "Los estudiantes en una estación de programación de PLC con laptops conectadas a un automata de formacion.",
+          "promptEscena": "Students at a PLC programming station with laptops connected to an automation trainer, industrial automation classroom, control panel nearby.",
+          "promptCompleto": "Students at a PLC programming station with laptops connected to an automation trainer, industrial automation classroom, control panel nearby. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    },
+    {
+      "slug": "enfermeria-tecnica",
+      "nombre": "Enfermería Técnica",
+      "area": "Ciencias de la Salud",
+      "imagenes": [
+        {
+          "archivo": "enfermeria-tecnica-1.jpg",
+          "indice": 1,
+          "titulo": "Práctica en laboratorio de simulación",
+          "descripcionVisual": "Estudiantes de enfermería técnica practicando en un laboratorio de simulación con maniqui de entrenamiento, uniforms y guantes.",
+          "promptEscena": "Technical nursing students practicing in a simulation lab with a training mannequin, wearing scrubs and gloves, clean clinical environment.",
+          "promptCompleto": "Technical nursing students practicing in a simulation lab with a training mannequin, wearing scrubs and gloves, clean clinical environment. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "enfermeria-tecnica-2.jpg",
+          "indice": 2,
+          "titulo": "Preparación de medicamentos",
+          "descripcionVisual": "Una estudiante de enfermería preparando medicacion sobre una bandeja organizada en una sala de práctica clinica.",
+          "promptEscena": "A nursing student preparing medication on an organized tray in a clinical practice room, bright hygienic lighting, clean surfaces.",
+          "promptCompleto": "A nursing student preparing medication on an organized tray in a clinical practice room, bright hygienic lighting, clean surfaces. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "enfermeria-tecnica-3.jpg",
+          "indice": 3,
+          "titulo": "Toma de signos vitales",
+          "descripcionVisual": "Una estudiante tomando signos vitales con un esfigmomanómetro a un maniqui mientras otra registra datos en una tabla.",
+          "promptEscena": "A student measuring vital signs with a sphygmomanometer on a training mannequin while a classmate records data on a clipboard, clinical training room.",
+          "promptCompleto": "A student measuring vital signs with a sphygmomanometer on a training mannequin while a classmate records data on a clipboard, clinical training room. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    },
+    {
+      "slug": "manejo-forestal",
+      "nombre": "Manejo Forestal",
+      "area": "Agropecuaria y Forestal",
+      "imagenes": [
+        {
+          "archivo": "manejo-forestal-1.jpg",
+          "indice": 1,
+          "titulo": "Medición forestal en campo",
+          "descripcionVisual": "Estudiantes de manejo forestal midiendo el diámetro de un arbol con dendrometro en una parcela de bosque amazonico con neblina.",
+          "promptEscena": "Forestry students measuring tree diameter with a dendrometer in a misty Amazon forest plot, field notebooks and backpacks, tall trees in the background.",
+          "promptCompleto": "Forestry students measuring tree diameter with a dendrometer in a misty Amazon forest plot, field notebooks and backpacks, tall trees in the background. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "manejo-forestal-2.jpg",
+          "indice": 2,
+          "titulo": "Reforestación con plántulas nativas",
+          "descripcionVisual": "Estudiantes de manejo forestal plantando plántulas nativas en una parcela de reforestación en la Amazonia, luz filtrada por el dosel.",
+          "promptEscena": "Forestry students planting native seedlings in a reforestation plot in the Amazon, sunlight filtering through the canopy, hands in the soil.",
+          "promptCompleto": "Forestry students planting native seedlings in a reforestation plot in the Amazon, sunlight filtering through the canopy, hands in the soil. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "manejo-forestal-3.jpg",
+          "indice": 3,
+          "titulo": "Registro de inventario forestal",
+          "descripcionVisual": "Un estudiante registrando datos de inventario forestal en una tablet en campo, vegetación verde amazonica densa al fondo.",
+          "promptEscena": "A forestry student recording inventory data on a tablet in the field, dense green Amazon vegetation in the background, field boots and notebook.",
+          "promptCompleto": "A forestry student recording inventory data on a tablet in the field, dense green Amazon vegetation in the background, field boots and notebook. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    },
+    {
+      "slug": "mecatronica-automotriz",
+      "nombre": "Mecatrónica Automotriz",
+      "area": "Electrotecnia y Mecánica",
+      "imagenes": [
+        {
+          "archivo": "mecatronica-automotriz-1.jpg",
+          "indice": 1,
+          "titulo": "Trabajo en motor de vehículo",
+          "descripcionVisual": "Los estudiantes de mecatronica trabajando en el motor de un vehículo en un taller automakers bien equipado.",
+          "promptEscena": "Mechatronics students working on a car engine in a well equipped automotive workshop, mechanic coveralls and gloves, diagnostic scanner nearby, tool cabinets.",
+          "promptCompleto": "Mechatronics students working on a car engine in a well equipped automotive workshop, mechanic coveralls and gloves, diagnostic scanner nearby, tool cabinets. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "mecatronica-automotriz-2.jpg",
+          "indice": 2,
+          "titulo": "Diagnostico computarizado",
+          "descripcionVisual": "Una estudiante leyendo una laptop con una herramienta de diagnostico OBD conectada a un vehículo en una bahia de servicio moderna.",
+          "promptEscena": "A student reading a laptop with an OBD diagnostic tool connected to a vehicle in a modern service bay, lift and tool cart in the background.",
+          "promptCompleto": "A student reading a laptop with an OBD diagnostic tool connected to a vehicle in a modern service bay, lift and tool cart in the background. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "mecatronica-automotriz-3.jpg",
+          "indice": 3,
+          "titulo": "Montaje de módulo electrónico",
+          "descripcionVisual": "Dos estudiantes armando un módulo de control electrónico en un banco de trabajo con equipo de soldadura y arneses de cableado.",
+          "promptEscena": "Two students assembling an electronic control module on a workbench with soldering equipment and wiring harnesses, technical training lab, anti-static mat.",
+          "promptCompleto": "Two students assembling an electronic control module on a workbench with soldering equipment and wiring harnesses, technical training lab, anti-static mat. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    },
+    {
+      "slug": "produccion-agropecuaria",
+      "nombre": "Producción Agropecuaria",
+      "area": "Agropecuaria y Forestal",
+      "imagenes": [
+        {
+          "archivo": "produccion-agropecuaria-1.jpg",
+          "indice": 1,
+          "titulo": "Inspección de cultivos tropicales",
+          "descripcionVisual": "Los estudiantes de producción agropecuaria inspeccionando cultivos tropicales en un campo moderno, midiendo el crecimiento de las hojas.",
+          "promptEscena": "Agricultural production students inspecting tropical crops in a modern field, measuring leaf growth, sunny Amazonian farmland, neat crop rows.",
+          "promptCompleto": "Agricultural production students inspecting tropical crops in a modern field, measuring leaf growth, sunny Amazonian farmland, neat crop rows. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "produccion-agropecuaria-2.jpg",
+          "indice": 2,
+          "titulo": "Trabajo en invernadero",
+          "descripcionVisual": "Los estudiantes trabajando en un invernadero manipulando plántulas y lineas de riego, producción de cultivos tropicales.",
+          "promptEscena": "Students working in a greenhouse handling seedlings and irrigation lines, tropical crop production, condensation on the roof, metal structure.",
+          "promptCompleto": "Students working in a greenhouse handling seedlings and irrigation lines, tropical crop production, condensation on the roof, metal structure. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        },
+        {
+          "archivo": "produccion-agropecuaria-3.jpg",
+          "indice": 3,
+          "titulo": "Manejo sanitario de ganado",
+          "descripcionVisual": "Los estudiantes realizando un control sanitario y manejo de alimentacion en ganado bovino en un establo moderno y limpio.",
+          "promptEscena": "Students performing a health check and feeding management on cattle in a clean modern barn, protective equipment and gloves, well kept pens.",
+          "promptCompleto": "Students performing a health check and feeding management on cattle in a clean modern barn, protective equipment and gloves, well kept pens. Professional institutional documentary photograph, photorealistic, horizontal 16:9. Young Peruvian students aged 18 to 24, diverse, in a real educational or practical environment of a technological institute in Pucallpa, Peru. Soft diffused natural daylight, 35mm lens, shallow depth of field, balanced composition with negative space in the upper third. Institutional color grading in deep blues #0044B2 and #002D7A with subtle warm accents. Professional focused attitude, hands visibly engaged in the activity. Clean modern setting, high detail, editorial quality, sharp focus, 8k. Absolutely no text, no letters and no numbers anywhere in the image. No logos, no crests, no badges, no flags and no institutional emblems. No watermark, no signature. No collage, no photomontage, no split or divided image, no frames or borders."
+        }
+      ]
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '../../core/api/client';
 import { CurriculumMesh } from './CurriculumMesh';
 import { PeriodManager } from './PeriodManager';
+import { CareerCarousel } from './CareerCarousel';
 import { 
   Rocket, 
   BookOpen, 
@@ -261,22 +262,32 @@ export function AcademicDashboard() {
     if (!editingProgram) return;
     setSavingProgram(true);
     try {
+      // El body debe enviarse como `body` (RequestInit de fetch). Antes se usaba
+      // `data`, que fetch ignora: la PUT viajaba sin cuerpo y el backend
+      // respondia 422 porque nombre, codigo y creditos_totales son obligatorios.
+      const payload = {
+        nombre: editingProgram.nombre,
+        codigo: editingProgram.codigo,
+        descripcion: editingProgram.descripcion || '',
+        creditos_totales: parseInt(editingProgram.creditos_totales) || 120,
+        duracion_periodos: parseInt(editingProgram.duracion_periodos) || 6,
+        modalidad: editingProgram.modalidad || 'presencial',
+        estado: editingProgram.estado || 'activo'
+      };
+
+      console.log("Payload enviado:", payload);
+      console.log("Programa seleccionado:", editingProgram);
+
       await apiClient.request(`/api/mod-programas-estudio/programas/${editingProgram.id}`, {
         method: 'PUT',
-        data: {
-          nombre: editingProgram.nombre,
-          codigo: editingProgram.codigo,
-          descripcion: editingProgram.descripcion || '',
-          creditos_totales: parseInt(editingProgram.creditos_totales) || 120,
-          duracion_periodos: parseInt(editingProgram.duracion_periodos) || 6,
-          modalidad: editingProgram.modalidad || 'presencial',
-          estado: editingProgram.estado || 'activo'
-        }
+        body: JSON.stringify(payload)
       });
       setEditingProgram(null);
       await fetchData();
     } catch (error) {
-      console.error('Error saving program:', error);
+      console.error("Status:", error?.status);
+      console.error("Response data:", error?.data);
+      console.error("Error completo:", error);
       alert('Error al guardar la configuración de la carrera');
     } finally {
       setSavingProgram(false);
@@ -321,12 +332,12 @@ export function AcademicDashboard() {
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${configProgram.id}/configuracion`, {
         method: 'POST',
-        data: {
+        body: JSON.stringify({
           periodo_academico: parseInt(paramConfig.periodo_academico) || 1,
           turnos: paramConfig.turnos,
           max_estudiantes: parseInt(paramConfig.max_estudiantes) || 35,
           coordinador_id: null
-        }
+        })
       });
       alert('¡Parametrización guardada exitosamente!');
       setConfigProgram(null);
@@ -734,6 +745,9 @@ export function AcademicDashboard() {
                     className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200 p-6 flex flex-col justify-between group"
                   >
                     <div>
+                      {/* Carrusel de imágenes de la carrera */}
+                      <CareerCarousel nombreCarrera={program.nombre} />
+
                       {/* Top Badges: Code, Area & Status */}
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <div className="flex items-center gap-1.5 flex-wrap">

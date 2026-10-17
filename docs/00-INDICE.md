@@ -48,6 +48,7 @@
 | [13-PLAN-CASUISTICAS-ACADEMICAS.md](13-PLAN-CASUISTICAS-ACADEMICAS.md) | Plan de casuísticas académicas: trámites, convalidaciones, beneficios y procesos administrativos |
 | [14-PLAN-MATRICULAS-CASUISTICAS.md](14-PLAN-MATRICULAS-CASUISTICAS.md) | Plan de matrículas y casuísticas: fases, extemporánea, bloqueos y nóminas |
 | [15-PROCESOS-NEGOCIO.md](15-PROCESOS-NEGOCIO.md) | Procesos de negocio y flujos operativos (especificación viva): parser de planes, ingesta de admitidos, periodos y matrícula por tipo de estudiante |
+| [16-IMAGENES-CARRERAS.md](16-IMAGENES-CARRERAS.md) | Carrusel de imágenes en las tarjetas de carrera de Gestión Académica: estructura de datos, estilos, especificación de imágenes y prompts de generación |
 
 ### Anexos y Documentos de Soporte
 

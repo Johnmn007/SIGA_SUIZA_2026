@@ -47,12 +47,12 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
-      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
     volumes:
@@ -72,12 +72,12 @@ services:
     ports:
       - "8001:8001"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
-      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8001
       - SKIP_MIGRATIONS=true
@@ -92,12 +92,12 @@ services:
     ports:
       - "8002:8002"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
-      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8002
       - SKIP_MIGRATIONS=true
@@ -112,12 +112,12 @@ services:
     ports:
       - "8005:8005"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
-      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8005
       - SKIP_MIGRATIONS=true
@@ -132,12 +132,12 @@ services:
     ports:
       - "8006:8006"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
-      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8006
       - SKIP_MIGRATIONS=true
@@ -152,12 +152,12 @@ services:
     ports:
       - "8007:8007"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
-      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8007
       - SKIP_MIGRATIONS=true
@@ -172,12 +172,12 @@ services:
     ports:
       - "8008:8008"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
-      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8008
       - SKIP_MIGRATIONS=true
@@ -192,12 +192,12 @@ services:
     ports:
       - "8009:8009"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=JczOVLFMaftfNTLBMxnofQmEsUOjjiYU
-      - DB_HOST=reseau.proxy.rlwy.net
-      - DB_PORT=10791
-      - DB_NAME=railway
-      - DATABASE_URL=postgresql+asyncpg://postgres:JczOVLFMaftfNTLBMxnofQmEsUOjjiYU@reseau.proxy.rlwy.net:10791/railway
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
       - NATS_URL=nats://nats:4222
       - PORT=8009
       - SKIP_MIGRATIONS=true

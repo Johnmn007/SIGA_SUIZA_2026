@@ -113,11 +113,11 @@ export function TramitesDashboard() {
     try {
       await apiClient.request('/api/mod-gestion-academica/tramites/', {
         method: 'POST',
-        data: {
+        body: JSON.stringify({
           estudiante_id: parseInt(tramiteForm.estudiante_id),
           tipo_tramite: tramiteForm.tipo_tramite,
           observaciones: tramiteForm.observaciones
-        }
+        })
       });
       setShowTramiteModal(false);
       setTramiteForm({ estudiante_id: '', tipo_tramite: 'Constancia de Estudios', observaciones: '' });
@@ -136,7 +136,7 @@ export function TramitesDashboard() {
     try {
       await apiClient.request('/api/mod-gestion-academica/convalidaciones/', {
         method: 'POST',
-        data: {
+        body: JSON.stringify({
           estudiante_id: parseInt(convalForm.estudiante_id),
           numero_resolucion: convalForm.numero_resolucion,
           detalles: [
@@ -147,7 +147,7 @@ export function TramitesDashboard() {
               creditos_reconocidos: parseInt(convalForm.creditos_reconocidos) || 3
             }
           ]
-        }
+        })
       });
       setShowConvalModal(false);
       setConvalForm({
@@ -174,13 +174,13 @@ export function TramitesDashboard() {
     try {
       await apiClient.request('/api/mod-gestion-academica/beneficios/', {
         method: 'POST',
-        data: {
+        body: JSON.stringify({
           estudiante_id: parseInt(becaForm.estudiante_id),
           tipo_beneficio: becaForm.tipo_beneficio,
           porcentaje_descuento: parseFloat(becaForm.porcentaje_descuento) || 100,
           condicion_mantenimiento: becaForm.condicion_mantenimiento,
           activo: true
-        }
+        })
       });
       setShowBecaModal(false);
       setBecaForm({

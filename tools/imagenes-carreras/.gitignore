@@ -1,0 +1,6 @@
+# Descargas originales de la API (intermedias, se regeneran con generar.mjs)
+_raw/
+# Copias de los placeholders reemplazados
+_backup/
+# Clave de la API si se prefiere tenerla aislada aqui
+.env
