@@ -152,6 +152,7 @@
 }
 
 /* === Scrollbar institucional === */
+.custom-scrollbar { scrollbar-width: thin; scrollbar-color: #002D7A transparent; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #002D7A; border-radius: 4px; }
@@ -163,6 +164,30 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in { animation: fadeIn 0.25s ease-out both; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-fade-in-up { animation: fadeInUp 0.25s ease-out both; }
+
+@keyframes fadeInRight {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-fade-in-right { animation: fadeInRight 0.25s ease-out both; }
+
+@keyframes stepInRight {
+  from { opacity: 0; transform: translateX(32px) scale(0.99); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+.animate-step-in-right { animation: stepInRight 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes stepInLeft {
+  from { opacity: 0; transform: translateX(-32px) scale(0.99); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+.animate-step-in-left { animation: stepInLeft 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 .animate-spin { animation: spin 1s linear infinite; }

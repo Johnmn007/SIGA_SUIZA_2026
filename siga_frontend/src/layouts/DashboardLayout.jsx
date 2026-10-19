@@ -265,7 +265,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
           </div>
 
           {/* Contenido dinámico */}
-          <div className="w-full lg:w-3/4">
+          <div className={`w-full lg:w-3/4 ${currentView === 'students' ? 'lg:h-[var(--sidebar-height)] lg:min-h-0 lg:flex lg:flex-col' : ''}`}>
             {children}
           </div>
         </div>

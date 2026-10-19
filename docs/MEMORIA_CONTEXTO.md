@@ -78,6 +78,20 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | 12 | Fricción de Dominios (Boundaries cruzados) | Estudiantes y Matrícula separados generan alta latencia y transacciones distribuidas complejas | Fusión Pragmática (Boundary Fusion) en un solo módulo macro: `mod-gestion-academica` | `modules/mod-gestion-academica/` (eliminación de `mod-estudiantes` y `mod-matricula`) |
 | 13 | Módulos Desfasados del Patrón Saga | `mod-programas-estudio` y `mod-planes-estudio` usaban `event_bus.publish` directo sin Transactional Outbox | Normalización a *Golden Template*. Se implementó `BaseModel`, `OutboxEvent` y `outbox_worker.py` en ambos | `modules/mod-*/*.py` |
 | 14 | Módulos Duplicados / Obsoletos | `mod-carreras` replicaba lógica y dominio de `mod-programas-estudio` | Eliminación total de `mod-carreras` | `modules/mod-carreras/` |
+| 15 | `entrypoint.sh` con finales de línea **CRLF** | Los módulos no arrancaban de forma silenciosa (bash no encuentra los comandos) | Convertir a LF y agregar `.gitattributes` con `*.sh text eol=lf` | `siga_backend/entrypoint.sh`, `.gitattributes` |
+| 16 | `greenlet` faltaba en requirements.txt | SQLAlchemy async fallaba al crear el engine | `sqlalchemy[asyncio]>=2.0.23` + `greenlet>=3.0.0` explícitos | `siga_backend/requirements.txt` |
+| 17 | Carrera al crear el esquema en paralelo | Los módulos ejecutan `create_all()` simultáneamente y chocan en `outbox_events` (`pg_type_typname_nsp_index`) | Workaround: reinicio secuencial. **Pendiente**: migraciones centralizadas | `modules/*/database.py` |
+| 18 | Catálogo de programas inexistente / desactualizado | `programas_estudio` vacía y DOC-10 listaba carreras inexistentes | Cargar las 11 carreras reales desde el Excel de Admisión 2026 y corregir DOC-10 | `docs/10-LOGICA-NEGOCIO.md`, `siga_backend/tools/cargar_admitidos_2026.py` |
+| 19 | Datos sucios en el Excel de admisión | Fila de prueba (`rfgdfg/dfgdf`), fila vacía, DNI de 5-6 dígitos, valores `\N` | El cargador valida y marca: descarta basura, conserva los dudosos con `metadata_admision.alerta` | `siga_backend/tools/cargar_admitidos_2026.py` |
+| 20 | `siga_backend/venv/` está versionado en git | Miles de archivos de dependencias ensucian `git status` y `git diff` | **Pendiente**: agregar a `.gitignore` y `git rm -r --cached` | `siga_backend/venv/` |
+
+### 3.3 Reglas para cargas masivas de datos
+
+1. **Nunca SQL directo**: la ingestión va por la API del Core (`POST /api/mod-<modulo>/...`) para respetar los ADRs y disparar los `OutboxEvent` de trazabilidad.
+2. ** siempre idempotente**: el script debe poder re-ejecutarse sin duplicar (verificar por DNI/código antes de insertar).
+3. ** `--dry-run` obligatorio**: valida y lista el plan antes de escribir nada.
+4. ** Nunca inventar datos**: si un campo falta, se deja `NULL` y se anota la alerta; no se rellena con datos plausibles.
+5. ** Reporte de excluidos**: toda fila descartada o con incidencias se reporta explícitamente al usuario, nunca en silencio.
 
 ### 3.2 Reglas que no deben romperse
 
@@ -123,14 +137,19 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 
 ### 4.3 Puertos Asignados
 
+> **Desde 2026-09-29 el stack corre solo en Docker** (`docker compose up -d`). El servicio nativo `postgresql-x64-17` y el uvicorn local están detenidos. La BD de Docker usa password `john.007` (el `.env` local con `61077615` corresponde a la BD nativa, apagada).
+
 | Módulo | Puerto | Notas |
 |--------|--------|-------|
 | Core | 8000 | Gateway principal |
+| Frontend (Docker) | 3000 | Antes en Vite 5173 |
+| PostgreSQL / Redis / NATS | 5432 / 6379 / 4222 | Contenedores |
 | mod-planes-estudio | 8002 | Planes de estudio MINEDU |
 | mod-programas-estudio | 8005 | Programas/carreras |
 | mod-gestion-academica | 8006 | Centraliza estudiantes y matrículas |
+| resto de microservicios | 8001, 8007-8009 | Activos en el compose |
 
-*(Los puertos 8001, 8003, 8004, 8007 están libres para futuros módulos)*
+*Rutas del gateway: `/auth/login`, `/api/mod-<nombre-modulo>/...`, todas requieren Bearer token.*
 
 ---
 
@@ -236,6 +255,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | 2026-08-29 | 4.10 | **Registro de estudiantes** confirmado y precisado (DOC-15 v1.7): ingestión del Excel de admisión → registro automático → **filtro y reparto por las 11 carreras** (§3.2/§3.3). **Aislamiento por área reforzado**: cada una de las 11 carreras es un ámbito independiente; la secretaria/encargada de cada área solo ve y opera a los estudiantes de su carrera (roles + sombrilla `programa_id`, DOC-07). **Credenciales DNI/DNI generadas al matricular** al ingresante (no al asentar), con cambio posible en el primer ingreso (§5.2). |
 | 2026-08-29 | 4.11 | **Nuevo Proceso E — Personal Académico** (DOC-15 v1.8 §6): área académica requiere 3 actores — **Coordinador de Área** (cargo más elevado), **docentes** (según alumnos/salones/secciones) y **secretaria** (bajo el mando del coordinador). 3 tipos de trabajadores: **docentes nombrados** (permanentes, sin contrato anual), **docentes contratados** (por **Resolución de la DREU**) y **secretarias** (contratadas por la institución). La institución **asigna** el personal a las áreas (puesto, área, mando, designación de coordinador). **Doble función del coordinador**: coordinación + docencia con carga **siempre menor** que un docente regular (1-2 cursos vs 4-6). Roles ya existentes en DOC-07 (`coordinador_programa`, `docente`, `secretaria_programa`). Secciones de DOC-15 renumeradas (matriz→§7, precedencias→§8, casos→§9, pendientes→§10, historial→§11); precedencia nueva y pendiente de provisión de personal en `mod-usuarios`. |
 | 2026-08-30 | 4.12 | **Verificación de implementación (especificado vs código)** — auditoría del código real (backend `siga_backend` + frontend `siga_frontend`) contra las reglas DOC-15/DOC-14/DOC-10. Resultado: la **plataforma** está construida (CRUDs, roles, parser MINEDU, UI estudiantes/matrícula/periodos/docentes), pero la **capa de reglas de negocio nuevas** está parcial o pendiente (conexión ingesta→matrícula Ciclo I→credenciales DNI/DNI, ratificación con nómina oficial, aislamiento forzado por `programa_id` en backend, coexistencia de mallas en datos, regla 70% y paridad ≤24, login por body JSON vs query params según ADR-013). Detalle trazable por requerimiento en **Anexo de verificación al final de este archivo**. |
+| 2026-09-29 | 4.13 | **Sesión 6 (tarde) — Maestro de Estudiantes.** `StudentMaster.jsx`: (1) se eliminaron las 4 tarjetas de métricas (Estudiantes/Postulantes/Matriculados/Expediente Completo) y su `useMemo`; (2) barra de búsqueda rediseñada (fondo blanco + `shadow-sm`, foco visible con `ring-primary/20`, altura fija 52px alineada al select); (3) responsive integral — tabla de `md:` a `lg:`, acciones táctiles visibles, wizard con grillas `sm:`, paso 5 sin desbordes; (4) **modal de registro reparado**: `createPortal(..., document.body)` porque `animate-fade-in` con `fill-mode: both` retiene `transform` y convertía al layout en containing block de los `fixed` (§ "Modales: `createPortal` es obligatorio"); (5) `index.css`: se agregaron las keyframes `fadeInUp` y `fadeInRight`, que se usaban en 6 vistas y nunca existieron. Queda pendiente portar a portal el resto de modales y eliminar el estado muerto `selectedStudent`. |
 
 ---
 
@@ -257,9 +277,24 @@ EvaluationDashboard, FinancesDashboard, AdminDashboard (+ UserManagement, StaffM
 
 ## Lección de build
 - Build falla si una clase Tailwind no existe (p.ej. `hover:bg-primary/8` — opacidad no válida; corregido a `/10`). Antes de usar una clase con opacidad `/n`, validar que `n` esté en la paleta permitida.
+- **Excepción importante:** una clase de *animación* inexistente (`animate-fade-in-up`, `animate-fade-in-right`) **no rompe el build y no avisa** — simplemente no aplica. Antes de confiar en un efecto visual, confirmar que la clase esté definida en `index.css` o en `tailwind.config.js`.
 - Icono Lucide `UserOff` NO existe → usar `UserX`. Verificar nombre exacto del icono antes de importar (el build de rollup falla con "not exported").
 - Lección lint: `.map(({ icon, label }) => <Icon/>)` dispara `no-unused-vars` → `const Icon = icon;` en el body del map.
 - `npm run build` pasó ✓. `npm run lint` global sigue con **errores pre-existentes** de lógica (set-state-in-effect, exhaustive-deps, dead state `malla`/`selectedStudent`/`setNewProgram`/`programs/periods`/`setPlanActual`/`cargaActiva`/`setStudentId`/`setPeriod`, catch `e` unused) en archivos cuya lógica no se tocó — deuda técnica separada, fuera del alcance del rediseño visual.
+
+## Modales: `createPortal` es obligatorio (bug diagnosticado 2026-09-29)
+- **Síntoma:** el botón "Registrar Estudiante" de `StudentMaster.jsx` no abría el wizard. No había error de JS ni de red.
+- **Causa raíz:** el div raíz de cada vista usa `animate-fade-in`, definido en `index.css` como `animation: fadeIn 0.25s ease-out both`. El `fill-mode: both` **retiene `transform: translateY(0)`** del keyframe final aunque la animación ya terminó. Como ese `transform` es distinto de `none`, el div se convierte en **containing block** y **stacking context**, de modo que los descendientes con `position: fixed` se posicionan respecto a él y no al viewport. Como el bloque de contenido es más alto que la pantalla, el modal se centraba muy por debajo del área visible → invisible.
+- **Regla (no romper):** todo componente con `fixed inset-0` (modales, overlays, drawers) se monta con `createPortal(..., document.body)` desde `react-dom`. Excepcionalmente: nunca aplicar `transform`, `filter`, `backdrop-filter` ni `will-change` a un ancestro de un `fixed` que no se porte a portal.
+- **Vistas afectadas (aún sin corregir):** `EditStudentModal`, `PeriodManager`, `AcademicDashboard`, `EnrollmentProcess`, `ExtraordinaryEnrollmentModal`, `EvaluationDashboard`, `CoordinatorSupervision`.
+- **Complemento del portal:** bloqueo de scroll del `body` (`document.body.style.overflow = 'hidden'`) con restauración en el cleanup del `useEffect`, cierre con `Esc` y con click en el overlay (`e.target === e.currentTarget`).
+
+## Reglas de responsive aplicadas (Maestro de Estudiantes)
+- **Breakpoint de tabla vs. tarjetas:** con 6 columnas la tabla no cabe en tablet (768px) → la tabla arranca en `lg:` y por debajo se usa la vista de tarjetas. No usar `md:` para tablas densas.
+- **Acciones por fila:** `opacity-0 group-hover:opacity-100` esconde los botones en táctil → `opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100`.
+- **Texto largo:** `min-w-0` + `truncate` en celdas de texto, `whitespace-nowrap` en códigos/IDs, `break-words`/`break-all` en datos de detalle.
+- **Formularios largos:** los wizards con 5 pasos usan `sm:` (no `md:`) para las grillas de 2 columnas y muestran el nombre del paso actual en móvil cuando el stepper oculta los labels.
+- **Botones en móvil:** `!text-sm` y `truncate` en el label; "Guardar Registro Completo" → "Guardar Registro" para no desbordar por debajo de 380px.
 
 ## Docker (verificado)
 `docker-compose.yml` válido (`docker compose config --quiet` OK). Servicios: postgres, nats(+JS), redis, siga-core (8000), mod-usuarios/planes/programas/gestion-academica/auditoria/evaluacion/admision (8001-8009), siga-frontend (3000→80, target `build` con `npm run dev`). Levanta todo con **`docker compose up --build`**. Docker Engine disponible (v29, Compose v2.40).
