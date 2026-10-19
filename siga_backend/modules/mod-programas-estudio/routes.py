@@ -330,6 +330,19 @@ from models import CargaLectiva, HorarioPeriodo
 
 @router.post("/programas/{programa_id}/carga-lectiva", response_model=CargaLectivaResponse, status_code=status.HTTP_201_CREATED)
 async def crear_carga_lectiva(programa_id: int, carga: CargaLectivaCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    duplicada = await db.execute(
+        select(CargaLectiva).where(
+            CargaLectiva.programa_id == programa_id,
+            CargaLectiva.periodo_id == carga.periodo_id,
+            CargaLectiva.unidad_didactica_id == carga.unidad_didactica_id,
+            CargaLectiva.seccion == carga.seccion,
+        )
+    )
+    if duplicada.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Esa unidad didáctica ya tiene un docente asignado en este periodo y sección",
+        )
     db_carga = CargaLectiva(**carga.model_dump(), programa_id=programa_id)
     db.add(db_carga)
     await db.commit()
@@ -343,6 +356,47 @@ async def listar_carga_lectiva(programa_id: int, periodo_id: int, db: AsyncSessi
         .where(CargaLectiva.programa_id == programa_id, CargaLectiva.periodo_id == periodo_id)
     )
     return result.scalars().all()
+
+class ClonarCargaRequest(BaseModel):
+    from_periodo_id: int
+    to_periodo_id: int
+
+@router.post("/programas/{programa_id}/carga-lectiva/clonar")
+async def clonar_carga_lectiva(programa_id: int, req: ClonarCargaRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(CargaLectiva)
+        .where(CargaLectiva.programa_id == programa_id, CargaLectiva.periodo_id == req.from_periodo_id)
+    )
+    cargas_anteriores = result.scalars().all()
+    
+    if not cargas_anteriores:
+        raise HTTPException(status_code=404, detail="No hay carga lectiva en el periodo origen")
+        
+    nuevas_cargas = []
+    for carga in cargas_anteriores:
+        res_exist = await db.execute(
+            select(CargaLectiva)
+            .where(
+                CargaLectiva.programa_id == programa_id,
+                CargaLectiva.periodo_id == req.to_periodo_id,
+                CargaLectiva.unidad_didactica_id == carga.unidad_didactica_id
+            )
+        )
+        if not res_exist.scalar_one_or_none():
+            nueva_carga = CargaLectiva(
+                programa_id=programa_id,
+                periodo_id=req.to_periodo_id,
+                docente_id=carga.docente_id,
+                unidad_didactica_id=carga.unidad_didactica_id,
+                turno=carga.turno,
+                seccion=carga.seccion,
+                estado="borrador"
+            )
+            db.add(nueva_carga)
+            nuevas_cargas.append(nueva_carga)
+            
+    await db.commit()
+    return {"message": f"Se clonaron {len(nuevas_cargas)} registros de carga lectiva."}
 
 @router.get("/docentes/{docente_id}/carga-lectiva", response_model=List[CargaLectivaResponse])
 async def listar_carga_docente(docente_id: int, periodo_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
@@ -367,6 +421,26 @@ async def listar_horarios(programa_id: int, periodo_id: int, db: AsyncSession = 
         .where(HorarioPeriodo.programa_id == programa_id, HorarioPeriodo.periodo_id == periodo_id)
     )
     return result.scalars().all()
+
+@router.delete("/programas/{programa_id}/carga-lectiva/{carga_id}")
+async def eliminar_carga_lectiva(programa_id: int, carga_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(CargaLectiva).where(CargaLectiva.id == carga_id, CargaLectiva.programa_id == programa_id))
+    db_carga = result.scalar_one_or_none()
+    if not db_carga:
+        raise HTTPException(status_code=404, detail="Carga lectiva no encontrada")
+    await db.delete(db_carga)
+    await db.commit()
+    return {"message": "Carga lectiva eliminada"}
+
+@router.delete("/programas/{programa_id}/horarios/{horario_id}")
+async def eliminar_horario(programa_id: int, horario_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(HorarioPeriodo).where(HorarioPeriodo.id == horario_id, HorarioPeriodo.programa_id == programa_id))
+    db_horario = result.scalar_one_or_none()
+    if not db_horario:
+        raise HTTPException(status_code=404, detail="Horario no encontrado")
+    await db.delete(db_horario)
+    await db.commit()
+    return {"message": "Horario eliminado"}
 
 # --- Schemas Docente (Sílabo y Plan de Trabajo) ---
 class SilaboBase(BaseModel):
@@ -495,7 +569,6 @@ async def actualizar_estado_plan(plan_id: int, estado: str, observaciones: str =
 # --- Schemas y Endpoints (Tutorías) ---
 class TutoriaBase(BaseModel):
     periodo_id: int
-    programa_id: int
     docente_id: int
     ciclo: int
     observaciones: Optional[str] = None
@@ -505,6 +578,7 @@ class TutoriaCreate(TutoriaBase):
 
 class TutoriaResponse(TutoriaBase):
     id: int
+    programa_id: int
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -512,6 +586,19 @@ from models import Tutoria
 
 @router.post("/programas/{programa_id}/tutorias", response_model=TutoriaResponse, status_code=status.HTTP_201_CREATED)
 async def crear_tutoria(programa_id: int, tutoria: TutoriaCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Tutoria)
+        .where(Tutoria.programa_id == programa_id, Tutoria.periodo_id == tutoria.periodo_id, Tutoria.ciclo == tutoria.ciclo)
+    )
+    db_tutoria = result.scalar_one_or_none()
+    
+    if db_tutoria:
+        db_tutoria.docente_id = tutoria.docente_id
+        db_tutoria.observaciones = tutoria.observaciones
+        await db.commit()
+        await db.refresh(db_tutoria)
+        return db_tutoria
+        
     db_tutoria = Tutoria(**tutoria.model_dump(), programa_id=programa_id)
     db.add(db_tutoria)
     await db.commit()
@@ -525,4 +612,14 @@ async def listar_tutorias(programa_id: int, periodo_id: int, db: AsyncSession = 
         .where(Tutoria.programa_id == programa_id, Tutoria.periodo_id == periodo_id)
     )
     return result.scalars().all()
+
+@router.delete("/programas/{programa_id}/tutorias/{tutoria_id}")
+async def eliminar_tutoria(programa_id: int, tutoria_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Tutoria).where(Tutoria.id == tutoria_id, Tutoria.programa_id == programa_id))
+    db_tutoria = result.scalar_one_or_none()
+    if not db_tutoria:
+        raise HTTPException(status_code=404, detail="Tutoría no encontrada")
+    await db.delete(db_tutoria)
+    await db.commit()
+    return {"message": "Tutoría eliminada"}
 

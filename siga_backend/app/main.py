@@ -13,7 +13,7 @@ from .core.gateway.http_proxy import http_gateway
 from .core.gateway.websocket_proxy import ws_gateway
 from .core.gateway.event_bus import event_bus, EventFactory
 from .core.gateway.event_schemas import EventType
-from .core.gateway.security_middleware import SecurityMiddleware
+from .core.gateway import security_middleware as sm_module
 from .core.identity.auth_service import AuthService
 from .core.identity.database import get_identity_db
 
@@ -35,7 +35,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173",
     "http://localhost:5174", "http://127.0.0.1:5174",
-    "http://localhost:3000", "http://127.0.0.1:3000"
+    "http://localhost:3000", "http://127.0.0.1:3000",
+    "http://localhost:3001", "http://127.0.0.1:3001"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -188,7 +189,7 @@ async def module_proxy(request: Request, module_name: str, path: str = "",
     Frontend → Core (Gateway) → Módulo Externo → Core → Frontend
     """
     # Autenticar request
-    user = await security_middleware.authenticate_request(request, authorization)
+    user = await sm_module.security_middleware.authenticate_request(request, authorization)
     
     logger.info(f"🔀 Proxy: {request.method} /api/{module_name}/{path} - User: {user['email'] if user else 'Anonymous'}")
     return await http_gateway.proxy_to_module(request, module_name, path, user)
@@ -267,8 +268,7 @@ async def initialize_core():
     
     async with AsyncSessionLocal() as db:
         auth_service = AuthService(db)
-        global security_middleware
-        security_middleware = SecurityMiddleware(auth_service)
+        sm_module.init_security_middleware(auth_service)
         
         # 🆕 SISTEMA DE SEEDING PROFESIONAL
         from .core.identity.seeds.seeder_runner import SeederRunner
