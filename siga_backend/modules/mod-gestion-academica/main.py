@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 import os
 from routes import router
+from matricula_routes import router as matricula_router
 from database import init_db
 import asyncio
 from outbox_worker import outbox_worker
@@ -8,6 +9,7 @@ from outbox_worker import outbox_worker
 app = FastAPI(title="SIGA - Gestión Académica", version="2.0.0")
 
 app.include_router(router)
+app.include_router(matricula_router)
 
 @app.get("/")
 async def root():

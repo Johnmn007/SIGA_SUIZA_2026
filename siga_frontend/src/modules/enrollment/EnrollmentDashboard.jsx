@@ -2,8 +2,15 @@ import { useState, useEffect } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { EnrollmentProcess } from './EnrollmentProcess';
+import { EnrollmentFlowDiagram } from './EnrollmentFlowDiagram';
+import { AdmissionPanel } from './AdmissionPanel';
+import { TiposAlumnosPanel } from './TiposAlumnosPanel';
+import { BoletaQRPanel } from './BoletaQRPanel';
+import { DeterminacionPanel } from './DeterminacionPanel';
+import { EspecialesPanel } from './EspecialesPanel';
+import { RestriccionesPanel } from './RestriccionesPanel';
+import { ResultadoPanel } from './ResultadoPanel';
 import ExtraordinaryEnrollmentModal from './ExtraordinaryEnrollmentModal';
-import { Search, UserPlus, GraduationCap } from 'lucide-react';
 
 export function EnrollmentDashboard() {
   const { user } = useAuth();
@@ -13,7 +20,7 @@ export function EnrollmentDashboard() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [view, setView] = useState('list'); // 'list' or 'process'
+  const [view, setView] = useState('list'); // 'list', 'process' or 'diagram'
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPrograma, setCurrentPrograma] = useState('ALL');
@@ -58,6 +65,8 @@ export function EnrollmentDashboard() {
         fetchStudents();
       }
     }
+    // Solo debe re-ejecutarse al cambiar de programa o rol (no en cada tecla del buscador).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPrograma, userRole]);
 
   const handleEnrollClick = (student) => {
@@ -78,25 +87,74 @@ export function EnrollmentDashboard() {
     );
   }
 
+  const tabs = [
+    { id: 'admision', label: 'Admisión' },
+    { id: 'tipos', label: 'Tipos de alumnos' },
+    { id: 'boleta', label: 'Boleta con QR' },
+    { id: 'determinacion', label: 'Determinación' },
+    { id: 'especiales', label: 'Alumnos especiales' },
+    { id: 'restricciones', label: 'Restricciones' },
+    { id: 'resultado', label: 'Resultado final' },
+    { id: 'list', label: 'Estudiantes' },
+    { id: 'diagram', label: 'Diagrama de flujo' },
+  ];
+
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
-          <h3 className="text-3xl font-bold tracking-tight text-slate-text">
+          <h3 className="text-3xl font-bold tracking-tight text-slate-800">
             Gestión de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Matrícula Académica</span>
           </h3>
           <p className="text-slate-500 text-sm mt-1">Control de procesos de matrícula para estudiantes registrados</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="btn-primary"
-        >
-          <UserPlus size={18} />
-          Matrícula Extraordinaria
-        </button>
+        {view === 'list' && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 transition-all active:scale-95 flex items-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+            Matrícula Extraordinaria
+          </button>
+        )}
       </div>
 
+      <div className="glass-card p-1.5 mb-6 inline-flex gap-1.5">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setView(tab.id)}
+            aria-current={view === tab.id}
+            className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
+              view === tab.id
+                ? 'bg-primary text-white shadow-md shadow-primary/25'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'diagram' ? (
+        <EnrollmentFlowDiagram />
+      ) : view === 'admision' ? (
+        <AdmissionPanel />
+      ) : view === 'tipos' ? (
+        <TiposAlumnosPanel />
+      ) : view === 'boleta' ? (
+        <BoletaQRPanel />
+      ) : view === 'determinacion' ? (
+        <DeterminacionPanel />
+      ) : view === 'especiales' ? (
+        <EspecialesPanel />
+      ) : view === 'restricciones' ? (
+        <RestriccionesPanel />
+      ) : view === 'resultado' ? (
+        <ResultadoPanel />
+      ) : (
+        <>
       <div className="glass-card p-2 mb-8 flex items-center max-w-3xl gap-2">
         {['superadmin', 'admin'].includes(userRole) && (
           <select 
@@ -107,20 +165,15 @@ export function EnrollmentDashboard() {
             }}
           >
             <option value="ALL">Todos los Programas</option>
-            <option value="1">Administración de Operaciones Turísticas</option>
-            <option value="2">Asistencia Administrativa</option>
-            <option value="3">Contabilidad</option>
-            <option value="4">Construcción Civil</option>
-            <option value="5">Gestión Administrativa</option>
-            <option value="6">Desarrollo de Sistemas de Información</option>
-            <option value="7">Electricidad Industrial</option>
-            <option value="8">Enfermería Técnica</option>
-            <option value="9">Manejo Forestal</option>
-            <option value="10">Mecatrónica Automotriz</option>
-            <option value="11">Producción Agropecuaria</option>
+            <option value="1">Arquitectura de Plat.</option>
+            <option value="2">Enfermería Técnica</option>
+            <option value="3">Diseño Gráfico</option>
+            <option value="4">Administración</option>
+            <option value="5">Contabilidad</option>
+            <option value="6">Mecatrónica</option>
           </select>
         )}
-        <Search size={20} className="text-slate-400 ml-4" />
+        <span className="px-4 text-slate-400 text-xl">🔍</span>
         <input 
           type="text" 
           className="w-full bg-transparent border-none focus:ring-0 py-3 text-slate-700 placeholder-slate-400 outline-none"
@@ -136,15 +189,15 @@ export function EnrollmentDashboard() {
 
       <div className="glass-card p-6">
         <div className="overflow-x-auto">
-          <table className="data-table">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr>
-                <th className="w-[12%]">Código</th>
-                <th className="w-[35%]">Estudiante</th>
-                <th className="w-[13%]">DNI</th>
-                <th className="w-[15%]">Email</th>
-                <th className="w-[10%]">Estado</th>
-                <th className="text-right w-[15%]">Acciones</th>
+              <tr className="border-b border-slate-200">
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-[12%]">Código</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-[35%]">Estudiante</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-[13%]">DNI</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-[15%] max-w-[150px]">Email</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-[10%]">Estado</th>
+                <th className="py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right w-[15%]">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -158,21 +211,19 @@ export function EnrollmentDashboard() {
               ) : students.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="py-12 text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-soft text-primary flex items-center justify-center">
-                      <GraduationCap size={30} />
-                    </div>
+                    <div className="text-4xl mb-3 opacity-50">🎓</div>
                     <p className="text-slate-500 font-medium">No hay estudiantes registrados.</p>
                   </td>
                 </tr>
               ) : (
                 students.map(student => (
-                  <tr key={student.id} className="hover:bg-primary/5 transition-colors">
+                  <tr key={student.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 px-4 font-bold text-slate-700">{student.codigo_estudiante}</td>
-                    <td className="py-3 px-4 text-slate-text font-medium">{student.nombres} {student.apellidos}</td>
+                    <td className="py-3 px-4 text-slate-800 font-medium">{student.nombres} {student.apellidos}</td>
                     <td className="py-3 px-4 text-slate-600">{student.dni}</td>
                     <td className="py-3 px-4 text-slate-500 text-sm truncate max-w-[150px]" title={student.email_personal}>{student.email_personal || '-'}</td>
                     <td className="py-3 px-4">
-                      <span className="badge badge-green">
+                      <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase rounded border border-green-200">
                         {student.estado_academico}
                       </span>
                     </td>
@@ -191,8 +242,8 @@ export function EnrollmentDashboard() {
           </table>
         </div>
       </div>
-      
-      <ExtraordinaryEnrollmentModal 
+
+      <ExtraordinaryEnrollmentModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         currentPrograma={currentPrograma}
@@ -201,6 +252,8 @@ export function EnrollmentDashboard() {
           handleEnrollClick(student);
         }}
       />
+        </>
+      )}
     </div>
   );
 }

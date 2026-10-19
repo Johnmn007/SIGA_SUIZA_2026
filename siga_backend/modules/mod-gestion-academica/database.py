@@ -40,7 +40,33 @@ async def get_db():
         finally:
             await db.close()
 
+async def ensure_schema():
+    """Añade de forma idempotente las columnas del proceso de matrícula.
+
+    ``Base.metadata.create_all`` crea tablas nuevas pero NO altera tablas
+    existentes, por lo que las columnas agregadas al motor de matrícula se
+    aplican aquí con ``ADD COLUMN IF NOT EXISTS`` (no destructivo).
+    """
+    from sqlalchemy import text
+
+    sentencias = [
+        "ALTER TABLE estudiantes ADD COLUMN IF NOT EXISTS plan_estudios_id INTEGER",
+        "ALTER TABLE estudiantes ADD COLUMN IF NOT EXISTS ciclo_actual INTEGER DEFAULT 1",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS ciclo INTEGER",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS casuistica VARCHAR(50)",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS boleta_codigo VARCHAR(64)",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS boleta_emitida_en TIMESTAMP",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS consolidada BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS registro_academico VARCHAR(50)",
+    ]
+    async with engine.begin() as conn:
+        for sentencia in sentencias:
+            await conn.execute(text(sentencia))
+    print("Esquema de matrícula verificado/actualizado")
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await ensure_schema()
     print("Tablas creadas/verificadas")
