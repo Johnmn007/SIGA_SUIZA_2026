@@ -54,4 +54,4 @@ async def outbox_worker():
         except Exception as e:
             print(f"Error en Outbox Worker: {e}")
         
-        await asyncio.sleep(2) # Polling interval
+        await asyncio.sleep(10) # Polling interval
