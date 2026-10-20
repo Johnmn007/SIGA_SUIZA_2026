@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../core/api/client';
-import { ArrowLeft, Search, BookOpen, CheckCircle2, ClipboardList, AlertTriangle } from 'lucide-react';
+import { apiClient, API_BASE } from '../../core/api/client';
+import { QRCodeSVG } from 'qrcode.react';
 
 export function EnrollmentProcess({ initialStudent, onCancel }) {
   const [step, setStep] = useState(initialStudent ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [students, setStudents] = useState([]);
-  const [programs, setPrograms] = useState([]);
-  const [periods, setPeriods] = useState([]);
   
   const [selection, setSelection] = useState({
     student: initialStudent || null,
@@ -19,6 +17,14 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
 
   const [malla, setMalla] = useState([]);
   const [selectedUDs, setSelectedUDs] = useState({}); // { [ud_id]: true/false }
+  // Resultado del motor de matrícula (secciones 2, 3, 5 del diagrama)
+  const [propuesta, setPropuesta] = useState(null);
+  // Sección 7-8: matrícula creada, boleta y avance
+  const [matricula, setMatricula] = useState(null);
+  const [boleta, setBoleta] = useState(null);
+  const [avance, setAvance] = useState(null);
+  const [consolidacion, setConsolidacion] = useState(null);
+  const [consolidando, setConsolidando] = useState(false);
 
   const [cachedStudents, setCachedStudents] = useState([]);
 
@@ -62,9 +68,6 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
         const fetchedPeriods = Array.isArray(peRes) ? peRes : [];
         
         console.log("Academic Data Loaded:", {fetchedPrograms, fetchedPeriods, initialStudent});
-        
-        setPrograms(fetchedPrograms);
-        setPeriods(fetchedPeriods);
         
         // Auto-select based on student and active period
         if (initialStudent) {
@@ -129,16 +132,36 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       const mallaData = await apiClient.callModule('mod-programas-estudio', `programas/${selection.program.id}/malla`);
       setMalla(mallaData);
 
-      // Pre-selección según casuística
+      // Secciones 2, 3 y 5: el motor del backend determina el ciclo,
+      // los cursos a cargo (jalados/arrastre) y las restricciones.
+      let prop = null;
+      try {
+        prop = await apiClient.callModule(
+          'mod-gestion-academica',
+          `matriculas/propuesta?estudiante_id=${selection.student?.id}&programa_id=${selection.program.id}&periodo_id=${selection.period.id}&casuistica=${encodeURIComponent(selection.tipo)}`
+        );
+        setPropuesta(prop);
+      } catch (motorError) {
+        console.warn('No se pudo calcular la propuesta del motor:', motorError);
+        setPropuesta(null);
+      }
+
+      // Pre-selección: cursos a cargo (obligatorias) + cursos del ciclo (sugeridas).
       const newSelection = {};
-      
-      if (selection.tipo === 'Ordinario') {
-        // Ingresantes: Pre-cargar todo el Ciclo 1
-        mallaData.filter(m => m.periodo === 1).forEach(m => {
+      const preCargar = [...(prop?.obligatorias || []), ...(prop?.sugeridas || [])];
+      if (preCargar.length > 0) {
+        preCargar.forEach(u => { newSelection[u.unidad_didactica_id] = true; });
+      } else {
+        // Respaldo: comportamiento clásico (pre-cargar el ciclo detectado / Ciclo 1).
+        const cicloObjetivo = prop?.ciclo_sugerido || 1;
+        mallaData.filter(m => m.periodo === cicloObjetivo).forEach(m => {
           m.unidades.forEach(u => newSelection[u.id] = true);
         });
       }
-      
+
+      // Nunca pre-seleccionar unidades bloqueadas.
+      (prop?.bloqueadas || []).forEach(u => { delete newSelection[u.unidad_didactica_id]; });
+
       setSelectedUDs(newSelection);
       setStep(3);
     } catch (e) {
@@ -164,11 +187,16 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
 
   const uncheckAll = () => setSelectedUDs({});
 
+  // UDs bloqueadas por el motor (prerrequisito / tercera vez), con su motivo.
+  const bloqueadasMap = new Map((propuesta?.bloqueadas || []).map(u => [u.unidad_didactica_id, u.motivo]));
+
   const handleEnroll = async () => {
     setLoading(true);
     try {
-      // Filtrar los IDs seleccionados
-      const udIds = Object.keys(selectedUDs).filter(id => selectedUDs[id]).map(Number);
+      // Filtrar los IDs seleccionados (excluyendo bloqueadas).
+      const udIds = Object.keys(selectedUDs)
+        .filter(id => selectedUDs[id] && !bloqueadasMap.has(Number(id)))
+        .map(Number);
       
       // Buscar los créditos para cada UD
       const detalles = [];
@@ -185,20 +213,54 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
         throw new Error("No hay unidades didácticas seleccionadas");
       }
 
-      await apiClient.callModule('mod-gestion-academica', 'matriculas/', 'POST', {
+      // Sección 7 (paso 1): crear la matrícula (el backend la confirma y valida con el motor).
+      const mat = await apiClient.callModule('mod-gestion-academica', 'matriculas/', 'POST', {
         estudiante_id: selection.student.id,
         programa_id: selection.program.id,
         periodo_id: selection.period.id,
         tipo_ingreso: selection.tipo,
+        observaciones: 'Registrada desde el asistente visual de matrícula.',
         detalles: detalles
       });
-      
+      setMatricula(mat);
+
+      // Sección 6: emitir la boleta con su código QR único.
+      try {
+        const b = await apiClient.callModule('mod-gestion-academica', `matriculas/${mat.id}/boleta`, 'POST');
+        setBoleta(b);
+      } catch (boletaError) {
+        console.warn('No se pudo emitir la boleta:', boletaError);
+      }
+
+      // Sección 8: avance de créditos del estudiante.
+      try {
+        const a = await apiClient.callModule('mod-gestion-academica', `estudiantes/${selection.student.id}/avance`);
+        setAvance(a);
+      } catch (avanceError) {
+        console.warn('No se pudo obtener el avance:', avanceError);
+      }
+
       setStep(4);
     } catch (e) { 
       console.error(e);
-      alert(`Error al matricular: ${e.message || "Verifique que cumpla los créditos requeridos."}`);
+      alert(`❌ Error al matricular: ${e.message || "Verifique que cumpla los créditos requeridos."}`);
     }
     setLoading(false);
+  };
+
+  // Sección 7: cierre del proceso (consolidación de los 5 pasos).
+  const handleConsolidar = async () => {
+    if (!matricula) return;
+    setConsolidando(true);
+    try {
+      const res = await apiClient.callModule('mod-gestion-academica', `matriculas/${matricula.id}/consolidar`, 'POST');
+      setConsolidacion(res);
+    } catch (e) {
+      console.error(e);
+      alert(`❌ No se pudo consolidar: ${e.message}`);
+    } finally {
+      setConsolidando(false);
+    }
   };
 
   // Calcular créditos totales seleccionados
@@ -215,13 +277,13 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           {onCancel && (
             <button 
               onClick={onCancel}
-              className="absolute left-0 top-0 p-2 text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1 text-sm font-semibold"
+              className="absolute left-0 top-0 p-2 text-slate-400 hover:text-slate-600 transition-colors"
               title="Volver al listado"
             >
-              <ArrowLeft size={16} /> Volver
+              ← Volver
             </button>
           )}
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-text mb-2">
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-800 mb-2">
             Proceso de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Matrícula Académica</span>
           </h2>
           <p className="text-slate-500 font-medium">Motor Flexible de Matrícula (Selección Asistida)</p>
@@ -242,9 +304,9 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           {/* Paso 1: Ubicar Estudiante */}
           {step === 1 && (
             <div className="animate-fade-in-right bg-white/40 p-6 rounded-xl border border-white/60 min-h-[400px]">
-              <h5 className="font-bold text-xl text-slate-text mb-6">1. Identificar Estudiante Maestro</h5>
+              <h5 className="font-bold text-xl text-slate-800 mb-6">1. Identificar Estudiante Maestro</h5>
               <div className="mb-6 relative">
-                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
                 <input 
                   type="text" 
                   className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/50 focus:border-primary/50 outline-none transition-all shadow-sm" 
@@ -282,10 +344,8 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           {/* Paso 2: Selección Académica */}
           {step === 2 && (
             <div className="animate-fade-in-right bg-white/40 p-6 rounded-xl border border-white/60 flex flex-col min-h-[400px]">
-              <h5 className="font-bold text-xl text-slate-text mb-6 flex items-center">
-                <span className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center mr-3">
-                  <BookOpen size={18} />
-                </span>
+              <h5 className="font-bold text-xl text-slate-800 mb-6 flex items-center">
+                <span className="text-2xl mr-3">📚</span>
                 2. Selección de Programa y Periodo
               </h5>
               
@@ -330,10 +390,10 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
               </div>
               <div className="mt-auto pt-6 border-t border-slate-200/50 flex gap-4">
                 {!initialStudent && (
-                  <button className="btn-ghost px-6" onClick={() => setStep(1)}>Volver</button>
+                  <button className="px-6 py-2.5 font-semibold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={() => setStep(1)}>Volver</button>
                 )}
                 {initialStudent && onCancel && (
-                  <button className="btn-ghost px-6" onClick={onCancel}>Cancelar</button>
+                  <button className="px-6 py-2.5 font-semibold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={onCancel}>Cancelar</button>
                 )}
                 <button 
                   className={`flex-1 py-2.5 font-semibold rounded-lg transition-all ${!selection.program || !selection.period ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'btn-primary'}`} 
@@ -350,16 +410,46 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
           {step === 3 && (
             <div className="animate-fade-in-up bg-white/40 p-6 rounded-xl border border-white/60 flex flex-col min-h-[600px]">
               <div className="flex justify-between items-center mb-6">
-                <h4 className="font-bold text-xl text-slate-text tracking-tight flex items-center">
-                  <span className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center mr-3">
-                    <ClipboardList size={18} />
-                  </span>
+                <h4 className="font-bold text-xl text-slate-800 tracking-tight flex items-center">
+                  <span className="text-2xl mr-3">☑️</span>
                   3. Selección de Unidades Didácticas
                 </h4>
-                <div className={`badge text-sm py-1.5 px-3 ${totalCreditos < 1 || totalCreditos > 40 ? 'badge-amber' : 'badge-green'}`}>
+                <div className={`px-4 py-2 rounded-lg font-bold text-sm ${totalCreditos < 1 || totalCreditos > 40 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
                   Créditos Seleccionados: {totalCreditos} {totalCreditos > 40 && '(Excede el límite)'}
                 </div>
               </div>
+
+              {/* Motor de matrícula: ciclo, cursos a cargo y restricciones (secciones 2, 3 y 5) */}
+              {propuesta && (
+                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-xl p-4 mb-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-indigo-700 uppercase tracking-wider text-[11px] mr-1">⚙️ Motor de matrícula</span>
+                    <span className="px-3 py-1 bg-white rounded-full font-bold text-indigo-700 border border-indigo-100 text-xs">Casuística: {propuesta.casuistica}</span>
+                    <span className="px-3 py-1 bg-white rounded-full font-bold text-blue-700 border border-blue-100 text-xs">Ciclo detectado: {propuesta.ciclo_sugerido}</span>
+                    {propuesta.tiene_cursos_a_cargo ? (
+                      <span className="px-3 py-1 bg-amber-100 rounded-full font-bold text-amber-700 border border-amber-200 text-xs">Cursos a cargo: {propuesta.obligatorias.length} ({propuesta.resumen?.creditos_obligatorios} cr.)</span>
+                    ) : (
+                      <span className="px-3 py-1 bg-slate-100 rounded-full font-bold text-slate-600 border border-slate-200 text-xs">Sin cursos a cargo</span>
+                    )}
+                    {propuesta.resumen?.total_bloqueadas > 0 && (
+                      <span className="px-3 py-1 bg-red-100 rounded-full font-bold text-red-700 border border-red-200 text-xs">Bloqueadas: {propuesta.resumen.total_bloqueadas}</span>
+                    )}
+                    {propuesta.periodo && !propuesta.periodo.abierto && (
+                      <span className="px-3 py-1 bg-red-100 rounded-full font-bold text-red-700 border border-red-200 text-xs">🔒 {propuesta.periodo.mensaje}</span>
+                    )}
+                    {propuesta.periodo && propuesta.periodo.abierto && propuesta.periodo.extemporanea && (
+                      <span className="px-3 py-1 bg-amber-100 rounded-full font-bold text-amber-700 border border-amber-200 text-xs">⏰ {propuesta.periodo.mensaje}</span>
+                    )}
+                  </div>
+                  {propuesta.warnings?.length > 0 && (
+                    <ul className="mt-3 space-y-1">
+                      {propuesta.warnings.map((w, i) => (
+                        <li key={i} className="text-xs text-amber-700 flex items-start"><span className="mr-1">⚠️</span><span>{w}</span></li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-100 p-3 rounded-lg mb-4 text-sm font-medium gap-3">
                 <span className="text-slate-600">Herramientas rápidas:</span>
@@ -386,20 +476,27 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
                       </button>
                     </div>
                     <div className="divide-y divide-slate-100">
-                      {modulo.unidades.map(ud => (
-                        <label key={ud.id} className={`flex items-center p-3 cursor-pointer transition-colors ${selectedUDs[ud.id] ? 'bg-primary/5' : 'hover:bg-slate-50'}`}>
+                      {modulo.unidades.map(ud => {
+                        const motivoBloqueo = bloqueadasMap.get(ud.id);
+                        return (
+                        <label key={ud.id} className={`flex items-center p-3 transition-colors ${motivoBloqueo ? 'cursor-not-allowed' : 'cursor-pointer'} ${selectedUDs[ud.id] ? 'bg-primary/5' : 'hover:bg-slate-50'} ${motivoBloqueo ? 'opacity-70 bg-red-50/40' : ''}`}>
                           <input 
                             type="checkbox" 
                             className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary mr-4"
                             checked={!!selectedUDs[ud.id]}
+                            disabled={!!motivoBloqueo}
                             onChange={() => toggleUD(ud.id)}
                           />
                           <div className="flex-1">
                             <div className={`font-semibold ${selectedUDs[ud.id] ? 'text-primary' : 'text-slate-700'}`}>{ud.nombre}</div>
                             <div className="text-xs text-slate-500">{ud.creditos} Créditos • {ud.horas} Horas</div>
+                            {motivoBloqueo && (
+                              <div className="text-xs text-red-600 font-semibold mt-0.5">🚫 {motivoBloqueo}</div>
+                            )}
                           </div>
                         </label>
-                      ))}
+                        );
+                      })}
                       {(!modulo.unidades || modulo.unidades.length === 0) && (
                         <div className="p-4 text-center text-slate-400 text-sm italic">No hay unidades en este ciclo.</div>
                       )}
@@ -409,7 +506,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
               </div>
               
               <div className="flex gap-4 mt-6 pt-4 border-t border-slate-200">
-                <button className="btn-ghost flex-1 py-3" onClick={() => setStep(2)}>Volver</button>
+                <button className="flex-1 py-3 font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" onClick={() => setStep(2)}>Volver</button>
                 <button 
                   className={`flex-1 py-3 font-semibold rounded-lg transition-all ${totalCreditos === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'btn-primary'}`}
                   onClick={handleEnroll} 
@@ -426,28 +523,109 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
             </div>
           )}
 
-          {/* Paso 4: Éxito */}
+          {/* Paso 4: Éxito — Boleta QR (6), Avance (8) y Resultado final (7) */}
           {step === 4 && (
-            <div className="animate-bounce-in bg-white/60 backdrop-blur-sm p-6 rounded-xl border border-white flex flex-col items-center justify-center min-h-[400px]">
-              <div className="w-24 h-24 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100">
-                <CheckCircle2 size={52} />
+            <div className="animate-bounce-in bg-white/60 backdrop-blur-sm p-6 rounded-xl border border-white min-h-[400px]">
+              <div className="flex flex-col items-center mb-6">
+                <div className="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center text-4xl mb-4 shadow-lg shadow-green-100">
+                  ✅
+                </div>
+                <h3 className="font-extrabold text-3xl text-slate-800 mb-2">¡Matrícula Registrada!</h3>
+                <p className="text-slate-500 text-center max-w-lg">La matrícula quedó <b>confirmada</b>. Emita la boleta con su código QR y cierre el proceso.</p>
               </div>
-              <h3 className="font-extrabold text-3xl text-slate-text mb-3">¡Matrícula Exitosa!</h3>
-              <p className="text-slate-500 text-center max-w-sm mb-10 text-lg">El estudiante ha sido matriculado y vinculado correctamente con las unidades seleccionadas.</p>
-              
-              <button 
-                className="btn-primary py-3 px-8 text-lg" 
-                onClick={() => {
-                  if (onCancel) {
-                    onCancel(); 
-                  } else {
-                    setStep(1); 
-                    setSelection({student:null, program:null, period:null, tipo:'Ordinario'}); 
-                  }
-                }}
-              >
-                {onCancel ? 'Volver al Inicio' : 'Realizar otra matrícula'}
-              </button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Sección 6: Boleta con QR */}
+                <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col items-center">
+                  <h4 className="font-bold text-slate-700 mb-4 flex items-center">🧾 Boleta de Matrícula</h4>
+                  {boleta ? (
+                    <>
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 mb-4">
+                        <QRCodeSVG
+                          value={`${API_BASE}${boleta.qr?.url_validacion || ''}`}
+                          size={152}
+                          level="M"
+                          marginSize={2}
+                        />
+                      </div>
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Código único</div>
+                      <div className="font-mono font-bold text-slate-800 mb-2">{boleta.codigo}</div>
+                      <p className="text-xs text-slate-500 text-center">Escanea el QR para validar la matrícula en tiempo real (alumno / secretaría).</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-slate-400">Boleta no disponible.</p>
+                  )}
+                </div>
+
+                {/* Sección 8: Avance de créditos */}
+                <div className="bg-white rounded-xl border border-slate-200 p-6">
+                  <h4 className="font-bold text-slate-700 mb-4 flex items-center">📈 Avance Académico</h4>
+                  {avance ? (
+                    <>
+                      <div className="text-sm text-slate-600 mb-2 flex justify-between">
+                        <span>Créditos aprobados</span><b>{avance.creditos_aprobados} / {avance.creditos_totales}</b>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-3 mb-4 overflow-hidden">
+                        <div className="bg-gradient-to-r from-primary to-primary-light h-3 transition-all" style={{ width: `${avance.porcentaje_avance}%` }}></div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-slate-50 rounded-lg p-2"><div className="text-lg font-bold text-slate-800">{avance.ciclo_actual}</div><div className="text-[10px] uppercase text-slate-400 font-bold">Ciclo</div></div>
+                        <div className="bg-slate-50 rounded-lg p-2"><div className="text-lg font-bold text-slate-800">{avance.unidades_aprobadas}</div><div className="text-[10px] uppercase text-slate-400 font-bold">Aprobadas</div></div>
+                        <div className="bg-slate-50 rounded-lg p-2"><div className="text-lg font-bold text-slate-800">{avance.unidades_pendientes}</div><div className="text-[10px] uppercase text-slate-400 font-bold">Pendientes</div></div>
+                      </div>
+                      <div className="mt-3 text-xs text-slate-500">Condición: <b>{avance.condicion}</b></div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-slate-400">No disponible.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Sección 7: Resultado final (consolidación) */}
+              <div className="mt-6 bg-white rounded-xl border border-slate-200 p-6">
+                <div className="flex justify-between items-center mb-3 flex-wrap gap-3">
+                  <h4 className="font-bold text-slate-700 flex items-center">🏁 Resultado Final del Proceso</h4>
+                  <button
+                    className="bg-primary text-white px-4 py-2 rounded-lg font-semibold text-sm shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={consolidando || !matricula || !!consolidacion}
+                    onClick={handleConsolidar}
+                  >
+                    {consolidando ? 'Consolidando...' : consolidacion ? 'Proceso cerrado ✓' : 'Cerrar proceso de matrícula'}
+                  </button>
+                </div>
+                {consolidacion ? (
+                  <ul className="space-y-1.5">
+                    {consolidacion.pasos.map(p => (
+                      <li key={p.paso} className="text-sm text-slate-600 flex items-start">
+                        <span className="text-green-500 mr-2">✔</span>
+                        <span><b>Paso {p.paso}:</b> {p.descripcion}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    Al cerrar el proceso se genera el registro académico, se asignan códigos/horarios/docentes,
+                    se emite la boleta y se notifica al estudiante y a la secretaría.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-center mt-8">
+                <button 
+                  className="btn-primary py-3 px-8 text-lg" 
+                  onClick={() => {
+                    if (onCancel) {
+                      onCancel(); 
+                    } else {
+                      setStep(1); 
+                      setSelection({student:null, program:null, period:null, tipo:'Ordinario'});
+                      setPropuesta(null); setBoleta(null); setAvance(null); setConsolidacion(null); setMatricula(null); setMalla([]); setSelectedUDs({});
+                    }
+                  }}
+                >
+                  {onCancel ? 'Volver al Inicio' : 'Realizar otra matrícula'}
+                </button>
+              </div>
             </div>
           )}
         </div>
