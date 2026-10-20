@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
 import httpx
@@ -18,6 +19,36 @@ from .models import CoreModule
 
 logger = logging.getLogger(__name__)
 
+def _endpoint_env_key(module_name: str) -> str:
+    """mod-gestion-academica -> SIGA_MODULE_GESTION_ACADEMICA_URL"""
+    slug = module_name
+    if slug.startswith("mod-"):
+        slug = slug[len("mod-"):]
+    return "SIGA_MODULE_" + slug.replace("-", "_").upper() + "_URL"
+
+
+def _resolve_endpoints(module_name: str, endpoints: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Permite sobrescribir la URL base de un modulo por variable de entorno.
+
+    El manifest declara el nombre del servicio de Docker (p.ej.
+    "http://mod-gestion-academica:8006"), que solo resuelve dentro de la red
+    de Compose. Al ejecutar nativo (start_local.ps1) todos los modulos viven en
+    localhost, asi que hace falta un override:
+
+        SIGA_MODULE_GESTION_ACADEMICA_URL=http://localhost:8006
+    """
+    resolved = dict(endpoints)
+    env_key = _endpoint_env_key(module_name)
+    override = os.getenv(env_key)
+    if override:
+        override = override.rstrip("/")
+        if resolved.get("http") != override:
+            logger.info(f"🔧 {module_name}: endpoint http {resolved.get('http')} -> {override} (via {env_key})")
+        resolved["http"] = override
+    return resolved
+
+
 class ModuleInfo:
     """Información de un módulo registrado"""
     
@@ -26,7 +57,7 @@ class ModuleInfo:
         self.version = manifest["version"]
         self.api_version = manifest["api_version"]
         self.description = manifest.get("description", "")
-        self.endpoints = manifest["endpoints"]
+        self.endpoints = _resolve_endpoints(self.name, manifest["endpoints"])
         self.events = manifest.get("events", {"publishes": [], "subscribes": []})
         self.permissions = manifest.get("permissions", [])
         self.health_check = manifest.get("health_check", "/health")
@@ -357,7 +388,7 @@ class ModuleRuntime:
                 logger.info(f"🔍 [REGISTER] Intentando health check...")
                 try:
                     async with httpx.AsyncClient(timeout=2.0) as client:
-                        health_url = f"{manifest['endpoints']['http']}{manifest.get('health_check', '/health')}"
+                        health_url = f"{module.endpoints['http']}{module.health_check}"
                         response = await client.get(health_url)
                         
                         if response.status_code == 200:

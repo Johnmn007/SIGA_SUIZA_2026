@@ -1,15 +1,15 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "john.007"
+      POSTGRES_PASSWORD: "admin123"
       POSTGRES_DB: siga_core
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./siga_core_inserts.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./dump_railway.sql:/docker-entrypoint-initdb.d/01-dump_railway.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
       interval: 5s
@@ -47,11 +47,10 @@ services:
       - "8000:8000"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
-      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
     volumes:
@@ -74,16 +73,18 @@ services:
       - "8001:8001"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
-      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8001
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-planes-estudio:
     build: 
@@ -94,16 +95,18 @@ services:
       - "8002:8002"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
-      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8002
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-programas-estudio:
     build: 
@@ -114,16 +117,18 @@ services:
       - "8005:8005"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
-      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8005
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-gestion-academica:
     build: 
@@ -134,16 +139,18 @@ services:
       - "8006:8006"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
-      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8006
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-auditoria:
     build: 
@@ -154,16 +161,18 @@ services:
       - "8007:8007"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
-      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8007
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-evaluacion:
     build: 
@@ -174,16 +183,18 @@ services:
       - "8008:8008"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
-      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8008
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-admision:
     build: 
@@ -194,17 +205,19 @@ services:
       - "8009:8009"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
-      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8009
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
       - ./docs:/app/docs
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # ====== FRONTEND ======
   siga-frontend:
@@ -215,6 +228,8 @@ services:
     command: ["sh", "-c", "npm ci && npm run dev -- --host 0.0.0.0 --port 80"]
     ports:
       - "3000:80"
+      - "3001:80"
+      - "5173:80"
     environment:
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true

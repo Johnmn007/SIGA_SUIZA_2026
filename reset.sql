@@ -1,15 +1,12 @@
     -- Habilitar pgcrypto para poder hashear la contraseña en SQL
     CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-    -- Truncar todas las tablas principales con CASCADE
+    -- Truncar tablas de identidad y configuración (NO toca estudiantes ni sus dependientes)
     TRUNCATE 
         core_audit_logs, core_user_roles, core_role_permissions,
         core_roles, core_permissions, core_modules, core_users,
-        periodos_academicos, planes_estudio, programas_estudio, 
-        estudiantes, matriculas, historial_academico, 
-        evaluacion_registros, registros_practicas, 
-        resoluciones_convalidacion, solicitudes_tramites, 
-        beneficios_estudiante, outbox_events, perfiles_personal,
+        periodos_academicos, planes_estudio, programas_estudio,
+        outbox_events, perfiles_personal,
         admision_postulantes
     CASCADE;
 
@@ -68,7 +65,7 @@
     -- Secretaria Academica
     (3, 1), (3, 2), (3, 3), (3, 6), (3, 7), (3, 8), (3, 9),
     -- Coordinador Programa
-    (4, 1), (4, 3), (4, 4),
+    (4, 1), (4, 3), (4, 4), (4, 6),
     -- Docente
     (6, 1), (6, 4), (6, 5), (6, 6),
     -- Estudiante

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../core/auth/useAuth';
 import { wsClient } from '../core/api/client';
 import { ChangePasswordModal } from '../core/auth/ChangePasswordModal';
@@ -12,8 +12,9 @@ import {
 export function DashboardLayout({ children, currentView, onNavigate }) {
   const { user, logout, permissions } = useAuth();
   const [notifications, setNotifications] = useState([]);
-  const [wsStatus, setWsStatus] = useState('disconnected');
+  const [wsStatus, setWsStatus] = useState(wsClient.connected ? 'connected' : 'disconnected');
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const sidebarRef = useRef(null);
 
   const getUserRoles = () => {
     if (user?.is_superuser) return ['superadmin'];
@@ -45,6 +46,28 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
       unsubMessage();
     };
   }, []);
+
+  useEffect(() => {
+    // Expone la altura natural del sidebar (solo en la vista de estudiantes)
+    // para que el contenedor de la tabla llegue justo hasta su borde.
+    const mql = window.matchMedia('(min-width: 1024px)');
+    const apply = () => {
+      const el = sidebarRef.current;
+      if (!el || !mql.matches || currentView !== 'students') {
+        document.documentElement.style.removeProperty('--sidebar-height');
+        return;
+      }
+      document.documentElement.style.setProperty('--sidebar-height', `${el.offsetHeight}px`);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    if (sidebarRef.current) ro.observe(sidebarRef.current);
+    mql.addEventListener('change', apply);
+    return () => {
+      ro.disconnect();
+      mql.removeEventListener('change', apply);
+    };
+  }, [currentView]);
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -120,8 +143,8 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
         <div className="flex flex-col lg:flex-row gap-8">
 
           {/* Sidebar */}
-          <div className="w-full lg:w-1/4 flex-shrink-0">
-            <div className="glass-card p-6 h-full flex flex-col">
+          <div ref={sidebarRef} className="w-full lg:w-1/4 flex-shrink-0 lg:self-start">
+            <div className="glass-card p-6 flex flex-col">
               <div className="text-center mb-8">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/25 mb-3">
                   <User size={32} />
@@ -243,7 +266,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
           </div>
 
           {/* Contenido dinámico */}
-          <div className="w-full lg:w-3/4">
+          <div className={`w-full lg:w-3/4 ${currentView === 'students' ? 'lg:h-[var(--sidebar-height)] lg:min-h-0 lg:flex lg:flex-col' : ''}`}>
             {children}
           </div>
         </div>

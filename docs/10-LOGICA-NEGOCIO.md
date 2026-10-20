@@ -21,21 +21,23 @@
 
 ### 1.2 Programas de Estudio
 
-| Código | Programa | Módulos | UDs |
-|--------|----------|---------|-----|
-| DSI | Desarrollo de Sistemas de Información | 3 | 28 |
-| ENF | Enfermería Técnica | 3 | 30 |
-| MEC | Mecánica de Producción | 3 | 26 |
-| ELT | Electrotecnia Industrial | 3 | 27 |
-| CON | Contabilidad | 3 | 29 |
-| ADM | Administración de Empresas | 3 | 28 |
-| GAS | Gastronomía | 3 | 25 |
-| GUI | Guía Oficial de Turismo | 3 | 26 |
-| AGR | Agroindustria | 3 | 27 |
-| MIN | Minería | 3 | 26 |
-| LAB | Laboratorio Clínico | 3 | 30 |
+> **Actualizado 2026-09-29.** El catálogo anterior (DSI/ENF/MEC/ELT/CON/ADM/GAS/GUI/AGR/MIN/LAB) no correspondía a las carreras reales del IEST. Estos son los **11 programas** tal como figuran en el Excel de Admisión 2026, ya creados en `programas_estudio` (ids 1–11). Las UDs marcadas con `pend.` deben cargarse desde el plan de estudios oficial.
 
-### 1.2 Marco Normativo
+| id | Código | Programa | Módulos | UDs |
+|----|--------|----------|---------|-----|
+| 1 | ENF | Enfermería Técnica | 3 | 30 |
+| 2 | CON | Contabilidad | 3 | 29 |
+| 3 | MET | Mecatrónica Automotriz | 3 | pend. |
+| 4 | GAS-ADM | Gestión Administrativa | 3 | pend. |
+| 5 | PRO-AG | Producción Agropecuaria | 3 | pend. |
+| 6 | CON-CIV | Construcción Civil | 3 | pend. |
+| 7 | DSI | Desarrollo de Sistemas de Información | 3 | 28 |
+| 8 | ELT | Electricidad Industrial | 3 | 27 |
+| 9 | AOT | Administración de Operaciones Turísticas | 3 | pend. |
+| 10 | MAN-FOR | Manejo Forestal | 3 | pend. |
+| 11 | ASI-ADM | Asistencia Administrativa | 3 | pend. |
+
+### 1.3 Marco Normativo
 
 El presente documento de lógica de negocio se enmarca en la normativa vigente del modelo de Institutos y Escuelas de Educación Superior:
 

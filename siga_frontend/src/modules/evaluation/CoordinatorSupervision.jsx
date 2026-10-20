@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { apiClient } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { GraduationCap, Calendar, X, FileSpreadsheet, SearchX, Eye } from 'lucide-react';
@@ -18,6 +19,25 @@ export function CoordinatorSupervision() {
   const [udStudents, setUdStudents] = useState([]);
   const [loadingUD, setLoadingUD] = useState(false);
 
+  // Bloquear scroll del body y cerrar con Escape mientras el acta está abierta.
+  // El modal se renderiza en un Portal (document.body) para que `fixed inset-0`
+  // no quede atrapado por el `transform` de `.animate-fade-in` del contenedor
+  // ni por debajo del navbar sticky (z-50). Sin portal, el acta quedaba
+  // recortada/oculta debajo del header.
+  useEffect(() => {
+    if (!selectedViewUD) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e) => {
+      if (e.key === 'Escape') setSelectedViewUD(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [selectedViewUD]);
+
   // Initial data load
   useEffect(() => {
     const fetchInitial = async () => {
@@ -32,11 +52,17 @@ export function CoordinatorSupervision() {
         setPeriods(perRes || []);
         setPersonal(personalRes || []);
         
+        let hasProgram = false;
         if (personalRes && user) {
-          const myProfile = personalRes.find(p => p.usuario?.id === user.id);
+          const myProfile = personalRes.find(p => p?.usuario?.id === user.id);
           if (myProfile?.perfil?.programa_estudio_id) {
             setSelectedProgram(myProfile.perfil.programa_estudio_id.toString());
+            hasProgram = true;
           }
+        }
+        
+        if (!hasProgram && progRes && progRes.length > 0) {
+          setSelectedProgram(progRes[0].id.toString());
         }
         
         if (perRes && perRes.length > 0) {
@@ -61,13 +87,16 @@ export function CoordinatorSupervision() {
       setLoading(true);
       try {
         const res = await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/malla`);
-        // We simulate a completion percentage for the MVP dashboard
+        // Avance real de notas por unidad (matriculados vs. notas registradas)
+        const resumen = selectedPeriod
+          ? await apiClient.request(`/api/mod-evaluacion/resumen/periodo/${selectedPeriod}`).catch(() => [])
+          : [];
+        const avancePorUnidad = new Map((resumen || []).map(r => [r.unidad_didactica_id, r.porcentaje]));
         const enhancedMalla = (res || []).map(modulo => ({
           ...modulo,
           unidades: modulo.unidades.map(u => ({
             ...u,
-            // Mock completion percentage for visual dashboard (in a real app, this would come from a backend aggregation endpoint)
-            completion: Math.floor(Math.random() * 40) + 60, // random 60-100%
+            completion: avancePorUnidad.get(u.id) ?? 0,
             isEmpleabilidad: /comunicaci|ingl[eé]s|ofim[aá]tica|emprendimiento/i.test(u.nombre) || /empleabilidad|transversal/i.test(modulo.nombre)
           }))
         }));
@@ -78,7 +107,7 @@ export function CoordinatorSupervision() {
       setLoading(false);
     };
     fetchMalla();
-  }, [selectedProgram]);
+  }, [selectedProgram, selectedPeriod]);
 
   const handleViewActa = async (unidad, moduloNombre) => {
     if (!selectedPeriod) {
@@ -94,21 +123,10 @@ export function CoordinatorSupervision() {
       const combined = enrolled.map(est => {
         const gradeRecord = grades.find(g => g.matricula_detalle_id === est.matricula_detalle_id);
         
-        let avg = '-';
-        if (gradeRecord) {
-          const vals = [gradeRecord.nota_c1, gradeRecord.nota_c2, gradeRecord.nota_c3].filter(g => g !== null && g !== undefined);
-          if (vals.length > 0) {
-            avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-          }
-        }
-        
         return {
           id: est.id,
           name: `${est.apellidos}, ${est.nombres}`,
-          c1: gradeRecord?.nota_c1 ?? '-',
-          c2: gradeRecord?.nota_c2 ?? '-',
-          c3: gradeRecord?.nota_c3 ?? '-',
-          avg,
+          nota_final: gradeRecord?.nota_final ?? '-',
           estado: gradeRecord?.estado || 'Sin Registrar'
         };
       });
@@ -120,6 +138,8 @@ export function CoordinatorSupervision() {
     }
     setLoadingUD(false);
   };
+
+  const isCoordinador = user?.rol === 'coordinador_programa';
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -133,25 +153,57 @@ export function CoordinatorSupervision() {
       </div>
 
       {/* Contexto Operativo Informativo */}
-      {selectedProgram && selectedPeriod && (
-        <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-primary mb-6 bg-gradient-to-r from-white to-slate-50">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary"><GraduationCap className="w-5 h-5" /></div>
-            <div>
-              <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
-              <p className="font-bold text-slate-text">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
-            </div>
+      <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-primary mb-6 bg-gradient-to-r from-white to-slate-50">
+        <div className="flex items-center space-x-3 w-full md:w-auto flex-1">
+          <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary flex-shrink-0">
+            <GraduationCap className="w-5 h-5" />
           </div>
-          <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary"><Calendar className="w-5 h-5" /></div>
-            <div>
-              <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
-              <p className="font-bold text-slate-text">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
-            </div>
+          <div className="w-full">
+            <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
+            {isCoordinador ? (
+              <div className="w-full bg-transparent font-bold text-slate-800 border-none p-0 text-sm mt-1">
+                {programs.find(p => p.id.toString() === selectedProgram)?.nombre || "Cargando..."}
+              </div>
+            ) : (
+              <select 
+                className="w-full bg-transparent font-bold text-slate-800 border-none p-0 focus:ring-0 cursor-pointer text-sm"
+                value={selectedProgram}
+                onChange={(e) => setSelectedProgram(e.target.value)}
+              >
+                <option value="" disabled>Seleccione un programa...</option>
+                {programs.map(p => (
+                  <option key={p.id} value={p.id.toString()}>{p.nombre}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
-      )}
+        <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+        <div className="flex items-center space-x-3 w-full md:w-auto">
+          <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary flex-shrink-0">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div className="w-full">
+            <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
+            {isCoordinador ? (
+              <div className="w-full bg-transparent font-bold text-slate-800 border-none p-0 text-sm mt-1">
+                {periods.find(p => p.id.toString() === selectedPeriod)?.codigo || "Cargando..."}
+              </div>
+            ) : (
+              <select 
+                className="w-full bg-transparent font-bold text-slate-800 border-none p-0 focus:ring-0 cursor-pointer text-sm"
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+              >
+                <option value="" disabled>Seleccione un periodo...</option>
+                {periods.map(p => (
+                  <option key={p.id} value={p.id.toString()}>{p.codigo}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+      </div>
 
       {loading && (
         <div className="py-12 text-center">
@@ -203,10 +255,18 @@ export function CoordinatorSupervision() {
         </div>
       )}
 
-      {/* Modal / Vista Detallada de Acta */}
-      {selectedViewUD && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in-up">
+      {/* Modal / Vista Detallada de Acta (Portal a body: evita recorte bajo el header) */}
+      {selectedViewUD && createPortal(
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => setSelectedViewUD(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in m-auto overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
             <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-2xl">
               <div>
                 <div className="flex items-center space-x-2 mb-1">
@@ -245,9 +305,6 @@ export function CoordinatorSupervision() {
                     <tr>
                       <th className="py-3 px-4 font-semibold w-12 text-center">N°</th>
                       <th className="py-3 px-4 font-semibold">Estudiante</th>
-                      <th className="py-3 px-3 font-semibold text-center w-20">Cap. 1</th>
-                      <th className="py-3 px-3 font-semibold text-center w-20">Cap. 2</th>
-                      <th className="py-3 px-3 font-semibold text-center w-20">Cap. 3</th>
                       <th className="py-3 px-4 font-bold text-center w-24 bg-slate-700/50">Nota Final</th>
                       <th className="py-3 px-4 font-semibold text-center w-28">Estado</th>
                     </tr>
@@ -257,14 +314,11 @@ export function CoordinatorSupervision() {
                       <tr key={s.id} className="hover:bg-primary-soft/40 transition-colors">
                         <td className="py-3 px-4 text-center text-slate-400 font-medium">{idx + 1}</td>
                         <td className="py-3 px-4 font-semibold text-slate-text">{s.name}</td>
-                        <td className="py-3 px-3 text-center text-slate-600 font-medium">{s.c1}</td>
-                        <td className="py-3 px-3 text-center text-slate-600 font-medium">{s.c2}</td>
-                        <td className="py-3 px-3 text-center text-slate-600 font-medium">{s.c3}</td>
                         <td className={`py-3 px-4 text-center font-bold text-lg bg-slate-50 shadow-[inset_1px_0_0_rgba(0,0,0,0.05)] ${
-                          s.avg === '-' ? 'text-slate-400' : 
-                          parseInt(s.avg) >= 13 ? 'text-primary' : 'text-red-600'
+                          s.nota_final === '-' ? 'text-slate-400' : 
+                          parseInt(s.nota_final) >= 13 ? 'text-primary' : 'text-red-600'
                         }`}>
-                          {s.avg}
+                          {s.nota_final}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span className={`badge ${
@@ -295,7 +349,8 @@ export function CoordinatorSupervision() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

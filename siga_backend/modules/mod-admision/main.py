@@ -23,8 +23,11 @@ is_published = False
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+    except Exception as e:
+        print(f"init_db: tablas ya existen o error menor: {e}")
     yield
 
 app = FastAPI(title="Módulo de Admisión", lifespan=lifespan)
@@ -184,7 +187,7 @@ def parse_excel_sync(contents: bytes):
         
     return admitidos_list
 
-@app.post("/api/mod-admision/upload")
+@app.post("/upload")
 async def upload_excel(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     try:
         contents = await file.read()

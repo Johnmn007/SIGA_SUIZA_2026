@@ -114,7 +114,10 @@ export class SIGAWSClient {
   }
 
   connect() {
-    if (this.ws && this.connected) return;
+    if (this.ws && this.connected) {
+      setTimeout(() => this.trigger('connected'), 0);
+      return;
+    }
 
     this.ws = new WebSocket(`${WS_BASE}/ws`);
 
@@ -135,11 +138,12 @@ export class SIGAWSClient {
       this.connected = false;
       this.trigger('disconnected');
       
-      // Auto reconnect
-      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      // Auto reconnect (if not intentionally closed)
+      if (!this.intentionalDisconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++;
         setTimeout(() => this.connect(), 2000 * this.reconnectAttempts);
       }
+      this.intentionalDisconnect = false;
     };
     
     this.ws.onerror = (error) => {
@@ -149,7 +153,9 @@ export class SIGAWSClient {
 
   disconnect() {
     if (this.ws) {
+      this.intentionalDisconnect = true;
       this.ws.close();
+      this.ws = null;
     }
   }
 

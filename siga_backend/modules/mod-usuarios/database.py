@@ -45,6 +45,9 @@ async def get_db():
             await db.close()
 
 async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    print("Tablas creadas/verificadas")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+        print("Tablas creadas/verificadas")
+    except Exception as e:
+        print(f"init_db: tablas ya existen o error menor: {e}")
