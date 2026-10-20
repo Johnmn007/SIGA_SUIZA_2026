@@ -9,7 +9,7 @@ metadata = MetaData()
 Base = declarative_base(metadata=metadata)
 
 # SSL solo para BDs remotas con TLS (Railway, etc.).
-# El PostgreSQL local corre con ssl=off, asi que host.docker.internal / localhost no usan SSL.
+# El PostgreSQL local corre con ssl=off; los hosts locales de Docker tampoco usan SSL.
 _ssl_ctx = ssl.create_default_context()
 _ssl_ctx.check_hostname = False
 _ssl_ctx.verify_mode = ssl.CERT_NONE

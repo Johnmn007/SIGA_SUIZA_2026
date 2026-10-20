@@ -3,7 +3,7 @@ import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import mockEvaluacion from './mockEvaluacion.json';
 import { BoletinImpresion } from './BoletinImpresion';
-import { obtenerNotasPorCiclo, resumenDesdeJson, construirListaCiclos } from './notasPorCiclo';
+import { obtenerNotasPorCiclo, resumenDesdeJson, construirListaCiclos, estudiantesBoletin, generarBoletinDesdeJson } from './notasPorCiclo';
 import {
   ArrowUpDown, BadgeCheck, BookOpen, ChevronDown,
   ClipboardList, GraduationCap, Hash, IdCard, Mail,
@@ -329,6 +329,7 @@ export function StudentReportCard() {
   const [allStudents, setAllStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedStudentName, setSelectedStudentName] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -352,11 +353,42 @@ export function StudentReportCard() {
         const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        if (res.ok) {
-          const data = await res.json();
-          setAllStudents(Array.isArray(data) ? data : []);
-        }
-      } catch (e) { console.error('Error fetching students', e); }
+        const dbData = res.ok ? await res.json() : [];
+        const dbList = Array.isArray(dbData) ? dbData : [];
+
+        // Combinar estudiantes de la BD con los de boletin.json para que aparezcan siempre todos
+        const mapByDni = new Map();
+        const mapById = new Map();
+        dbList.forEach(s => {
+          if (s.dni) mapByDni.set(String(s.dni).trim(), s);
+          if (s.id) mapById.set(Number(s.id), s);
+        });
+
+        const jsonList = (estudiantesBoletin || []).map(e => ({
+          id: e.id,
+          codigo_estudiante: e.codigo_estudiante,
+          dni: e.dni,
+          nombres: e.nombres,
+          apellidos: e.apellidos,
+          estado_academico: e.estado_academico,
+          programa_id: e.programa_id,
+          programa_nombre: e.programa?.nombre,
+        }));
+
+        const combinados = [...dbList];
+        jsonList.forEach(j => {
+          const dniKey = String(j.dni).trim();
+          const idKey = Number(j.id);
+          if (!mapByDni.has(dniKey) && !mapById.has(idKey)) {
+            combinados.push(j);
+          }
+        });
+
+        setAllStudents(combinados);
+      } catch (e) {
+        console.error('Error fetching students', e);
+        setAllStudents(estudiantesBoletin || []);
+      }
       setSearchLoading(false);
     };
     fetchStudents();
@@ -400,6 +432,7 @@ export function StudentReportCard() {
 
   const handleSelectStudent = (student) => {
     setSelectedStudentId(student.id);
+    setSelectedStudent(student);
     setSelectedStudentName(`${student.apellidos}, ${student.nombres}`);
     setSearchTerm('');
     setShowDropdown(false);
@@ -417,6 +450,7 @@ export function StudentReportCard() {
 
   const handleClearSelection = () => {
     setSelectedStudentId(null);
+    setSelectedStudent(null);
     setSelectedStudentName('');
     setSearchTerm('');
     setData(null);
@@ -443,37 +477,52 @@ export function StudentReportCard() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin`,
-          { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
-        );
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.detail || 'No se pudo cargar el boletín');
+        let real = null;
+        try {
+          const res = await fetch(
+            `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin`,
+            { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
+          );
+          if (res.ok) {
+            real = await res.json();
+          }
+        } catch (err) {
+          console.warn('API /boletin no disponible o error:', err);
         }
-        const real = await res.json();
-        const notasJson = obtenerNotasPorCiclo(effectiveStudentId);
+
+        const notasJson = obtenerNotasPorCiclo(effectiveStudentId, selectedStudent);
         if (notasJson) {
           const periodoActual = resumenDesdeJson(notasJson);
-          setData({
-            ...real,
-            estudiante: { ...real.estudiante, periodo_codigo: notasJson.periodoActual },
-            cursos_periodo: periodoActual.cursos_periodo,
-            resumen: { ...real.resumen, ...periodoActual.resumen },
-            _notasJson: notasJson,
-          });
-        } else {
+          if (real) {
+            setData({
+              ...real,
+              estudiante: { ...real.estudiante, periodo_codigo: notasJson.periodoActual },
+              cursos_periodo: periodoActual.cursos_periodo,
+              resumen: { ...real.resumen, ...periodoActual.resumen },
+              _notasJson: notasJson,
+            });
+          } else {
+            const boletinJson = generarBoletinDesdeJson(effectiveStudentId, selectedStudent);
+            if (boletinJson) {
+              setData(boletinJson);
+            } else {
+              throw new Error('No se pudo generar la información del boletín.');
+            }
+          }
+        } else if (real) {
           const evaluacion = mockEvaluacion.evaluaciones.find(
             e => e.codigo_estudiante === real.estudiante.codigo_estudiante
               && e.periodo === real.estudiante.periodo_codigo
           );
           setData(evaluacion ? { ...real, ...evaluacion } : real);
+        } else {
+          throw new Error('No se encontró información del boletín para este estudiante.');
         }
       } catch (e) { setError(e.message); }
       setLoading(false);
     };
     fetchBoletin();
-  }, [effectiveStudentId]);
+  }, [effectiveStudentId, selectedStudent]);
 
   useEffect(() => {
     setBusquedaCursos('');
@@ -588,7 +637,6 @@ export function StudentReportCard() {
               onSelect={handleSelectStudent}
               searchLoading={searchLoading}
               recentStudents={recentStudents}
-              setShowDropdown={setShowDropdown}
               onRemoveRecent={handleRemoveRecent}
             />
           </div>
@@ -639,7 +687,6 @@ export function StudentReportCard() {
               onSelect={handleSelectStudent}
               searchLoading={searchLoading}
               recentStudents={recentStudents}
-              setShowDropdown={setShowDropdown}
               onRemoveRecent={handleRemoveRecent}
             />
           </div>

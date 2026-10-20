@@ -16,7 +16,7 @@ class Estudiante(BaseModel):
     celular = Column(String(20))
     direccion_domicilio = Column(String(255))
     estado_academico = Column(String(30), default="postulante")
-    foto_url = Column(String(255))
+    foto_url = Column(Text)
     observaciones = Column(Text)
     pago_matricula = Column(Boolean, default=False)
     documentos_completos = Column(Boolean, default=True)

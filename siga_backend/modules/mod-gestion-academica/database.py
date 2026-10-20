@@ -3,15 +3,19 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import MetaData
 import os
 from datetime import datetime
-from sqlalchemy import Column, Integer, DateTime, String, JSON, Boolean
+from sqlalchemy import Column, Integer, DateTime, String, JSON, Boolean, text
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME", "siga_core")
+DB_NAME = os.getenv("DB_NAME", "railway")
 
-DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 metadata = MetaData()
 Base = declarative_base(metadata=metadata)
@@ -68,5 +72,10 @@ async def ensure_schema():
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await ensure_schema()
+        # Migración seguro para BDs existentes: ampliar foto_url a TEXT
+        # (permite guardar la foto del estudiante como data-URL base64)
+        try:
+            await conn.execute(text("ALTER TABLE estudiantes ALTER COLUMN foto_url TYPE TEXT"))
+        except Exception as exc:
+            print(f"  • foto_url (TEXT) check skipped: {exc}")
     print("Tablas creadas/verificadas")

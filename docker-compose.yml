@@ -3,12 +3,13 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "john.007"
+      POSTGRES_PASSWORD: "admin123"
       POSTGRES_DB: siga_core
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./dump_railway.sql:/docker-entrypoint-initdb.d/01-dump_railway.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
       interval: 5s
@@ -46,7 +47,7 @@ services:
       - "8000:8000"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
@@ -72,7 +73,7 @@ services:
       - "8001:8001"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
@@ -94,7 +95,7 @@ services:
       - "8002:8002"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
@@ -116,7 +117,7 @@ services:
       - "8005:8005"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
@@ -138,7 +139,7 @@ services:
       - "8006:8006"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
@@ -160,7 +161,7 @@ services:
       - "8007:8007"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
@@ -182,7 +183,7 @@ services:
       - "8008:8008"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
@@ -204,7 +205,7 @@ services:
       - "8009:8009"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=john.007
+      - DB_PASSWORD=admin123
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=siga_core
@@ -227,6 +228,8 @@ services:
     command: ["sh", "-c", "npm ci && npm run dev -- --host 0.0.0.0 --port 80"]
     ports:
       - "3000:80"
+      - "3001:80"
+      - "5173:80"
     environment:
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true

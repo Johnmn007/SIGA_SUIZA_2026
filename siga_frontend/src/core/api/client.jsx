@@ -19,12 +19,18 @@ class SIGAApiClient {
 
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+    const { timeoutMs, ...fetchOptions } = options;
+    const controller = timeoutMs ? new AbortController() : null;
+    const timeoutId = controller
+      ? setTimeout(() => controller.abort(), timeoutMs)
+      : null;
     const config = {
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...fetchOptions.headers,
       },
-      ...options,
+      ...fetchOptions,
+      ...(controller && !fetchOptions.signal ? { signal: controller.signal } : {}),
     };
 
     if (this.token) {
@@ -55,6 +61,8 @@ class SIGAApiClient {
     } catch (error) {
       console.error('API Request failed:', error);
       throw error;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -66,7 +74,7 @@ class SIGAApiClient {
   }
 
   async getCurrentUser() {
-    return this.request('/auth/me');
+    return this.request('/auth/me', { timeoutMs: 10000 });
   }
 
   async register(email, password, fullName) {
@@ -106,7 +114,10 @@ export class SIGAWSClient {
   }
 
   connect() {
-    if (this.ws && this.connected) return;
+    if (this.ws && this.connected) {
+      setTimeout(() => this.trigger('connected'), 0);
+      return;
+    }
 
     this.ws = new WebSocket(`${WS_BASE}/ws`);
 
@@ -127,11 +138,12 @@ export class SIGAWSClient {
       this.connected = false;
       this.trigger('disconnected');
       
-      // Auto reconnect
-      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      // Auto reconnect (if not intentionally closed)
+      if (!this.intentionalDisconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++;
         setTimeout(() => this.connect(), 2000 * this.reconnectAttempts);
       }
+      this.intentionalDisconnect = false;
     };
     
     this.ws.onerror = (error) => {
@@ -141,7 +153,9 @@ export class SIGAWSClient {
 
   disconnect() {
     if (this.ws) {
+      this.intentionalDisconnect = true;
       this.ws.close();
+      this.ws = null;
     }
   }
 

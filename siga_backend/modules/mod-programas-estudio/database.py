@@ -8,10 +8,14 @@ from sqlalchemy import Column, Integer, DateTime, String, JSON, Boolean
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD") # Eliminado fallback hardcodeado
-DB_NAME = os.getenv("DB_NAME", "siga_core")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME", "railway")
 
-DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 metadata = MetaData()
 Base = declarative_base(metadata=metadata)
@@ -30,7 +34,14 @@ class OutboxEvent(BaseModel):
     payload = Column(JSON, nullable=False)
     published = Column(Boolean, default=False, index=True)
 
-engine = create_async_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(
+    DATABASE_URL, 
+    echo=False, 
+    pool_size=10, 
+    max_overflow=20, 
+    pool_pre_ping=True, 
+    pool_recycle=300
+)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 async def get_db():
@@ -41,6 +52,9 @@ async def get_db():
             await db.close()
 
 async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    print("Tablas creadas/verificadas")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+        print("Tablas creadas/verificadas")
+    except Exception as e:
+        print(f"init_db: tablas ya existen o error menor: {e}")

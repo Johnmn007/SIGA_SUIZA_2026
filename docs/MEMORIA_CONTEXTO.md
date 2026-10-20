@@ -78,6 +78,7 @@ Construir un sistema integral de gestión académica **modular, resiliente y esc
 | 12 | Fricción de Dominios (Boundaries cruzados) | Estudiantes y Matrícula separados generan alta latencia y transacciones distribuidas complejas | Fusión Pragmática (Boundary Fusion) en un solo módulo macro: `mod-gestion-academica` | `modules/mod-gestion-academica/` (eliminación de `mod-estudiantes` y `mod-matricula`) |
 | 13 | Módulos Desfasados del Patrón Saga | `mod-programas-estudio` y `mod-planes-estudio` usaban `event_bus.publish` directo sin Transactional Outbox | Normalización a *Golden Template*. Se implementó `BaseModel`, `OutboxEvent` y `outbox_worker.py` en ambos | `modules/mod-*/*.py` |
 | 14 | Módulos Duplicados / Obsoletos | `mod-carreras` replicaba lógica y dominio de `mod-programas-estudio` | Eliminación total de `mod-carreras` | `modules/mod-carreras/` |
+| 15 | Falta de 'greenlet' para SQLAlchemy asyncio | Al reconstruir Docker, SQLAlchemy 2.x crasheaba todos los contenedores Python con `ImportError: The SQLAlchemy asyncio module requires that the Python 'greenlet' library is installed`, impidiendo el login y acceso | Añadir `greenlet>=3.0.0` y `sqlalchemy[asyncio]>=2.0.23` | `siga_backend/requirements.txt` |
 
 ### 3.2 Reglas que no deben romperse
 

@@ -39,7 +39,7 @@ class UserSeeder(BaseSeeder):
                 "email": "tesoreria@siga.edu",
                 "password": "tesoreria123",
                 "full_name": "Caja Principal",
-                "roles": ["tesoreria"],
+                "roles": ["caja_tesoreria"],
                 "is_superuser": False
             },
             {
