@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import MetaData
 import os
 from datetime import datetime
-from sqlalchemy import Column, Integer, DateTime, String, JSON, Boolean
+from sqlalchemy import Column, Integer, DateTime, String, JSON, Boolean, text
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
@@ -43,4 +43,10 @@ async def get_db():
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migración seguro para BDs existentes: ampliar foto_url a TEXT
+        # (permite guardar la foto del estudiante como data-URL base64)
+        try:
+            await conn.execute(text("ALTER TABLE estudiantes ALTER COLUMN foto_url TYPE TEXT"))
+        except Exception as exc:
+            print(f"  • foto_url (TEXT) check skipped: {exc}")
     print("Tablas creadas/verificadas")

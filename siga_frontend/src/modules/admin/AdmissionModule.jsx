@@ -23,8 +23,8 @@ export function AdmissionModule() {
     formData.append("file", file);
 
     try {
-      // mod-admision upload endpoint
-      const res = await fetch('http://localhost:8009/api/mod-admision/upload', {
+      // via gateway, do not puncture the module directly
+      const res = await fetch(`${API_BASE}/api/mod-admision/upload`, {
         method: 'POST',
         body: formData
       });
