@@ -1,6 +1,6 @@
 # INFORME DE ESTADO - SIGA
 
-> **Última actualización:** 16 Oct 2026 | **Sesión:** 5 (Boletín de Notas — histórico por ciclos)
+> **Última actualización:** 16 Oct 2026 | **Sesión:** 5 (Finanzas DUQUE & Boletín de Notas por Ciclos)
 
 ---
 
@@ -46,7 +46,13 @@ D:\SIGA\
 - **Simplificación del Ingreso de Notas:** Por decisión de diseño (reducción de fricción de adopción), se eliminó la matriz compleja de 3 evaluaciones en `EvaluationDashboard.jsx`. Ahora el docente ingresa directamente un único **Promedio Final**. Se ajustó el esquema de la BD (`nota_final`) y la UI.
 - **Alineación de Endpoint Docker para `mod-evaluacion`:** Se corrigió `manifest.yaml` de `mod-evaluacion` (apuntaba erróneamente a `http://localhost:8008` en lugar de `http://mod-evaluacion:8008`), logrando que el 100% de los 7 microservicios reporten estado `healthy` a través del Core Gateway.
 
-### 3.4 Boletín de Notas — "Notas por Ciclos" con histórico (fase frontend)
+### 3.4 Módulo de Finanzas, Búsqueda de Estudiantes y Proxy Docker (Rama DUQUE)
+- **Conexión de API y Proxy Vite:** Se configuró el proxy Vite hacia `http://siga-core:8000` y conexión de endpoints mediante `API_BASE` para cargar los 788 estudiantes correctamente.
+- **Búsqueda Instantánea y Registro de Estudiantes:** Búsqueda rápida por DNI, visualización del nombre completo y consulta del historial de pagos anuales.
+- **Caja Bento y Tasas TUPA:** Tablero moderno de tesorería estilo Bento Grid, cobro de tasas administrativas según catálogo TUPA, emisión de recibos digitales y arqueo de caja.
+- **Entorno Docker:** Sincronización y levantamiento completo de contenedores.
+
+### 3.5 Boletín de Notas — "Notas por Ciclos" con histórico (fase frontend)
 - **Problema:** el menú Boletín de Notas solo renderizaba el Ciclo V: `evaluacion_registros` está vacía en la BD (0 filas) y el único dato de notas provenía de `mockEvaluacion.json` (1 estudiante, solo periodo 2026-I = unidades 329-335 = Ciclo 5).
 - **Solución:** nuevo módulo `siga_frontend/src/modules/evaluation/notasPorCiclo.js` que lee `siga_frontend/src/data/boletin.json` (relacional: periodos, matriculas, unidades, registros, docentes) y expone `obtenerNotasPorCiclo`, `resumenDesdeJson` y `construirListaCiclos`. Regla corregida: el **periodo más antiguo matriculado es el CICLO I** y cada semestre avanza un ciclo (2025-I=I, 2025-II=II, 2026-I=III, 2026-II=IV), de modo que las notas salen en I–IV (el campo `ciclo` del JSON está desfasado y ya no se usa como ancla).
 - **Integración:** `StudentReportCard.jsx` prioriza el JSON (fallback al mock solo si el estudiante no aparece), fusiona los ciclos del plan con los del JSON (los ciclos cubiertos reemplazan sus unidades por las del JSON y quedan con notas; **los ciclos posteriores —V y VI— se muestran con sus unidades del plan y sin notas**), y alinea `periodo_codigo`, `cursos_periodo` y `resumen`. Aprobación canónica **nota ≥ 13**.

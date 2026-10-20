@@ -16,13 +16,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table('core_role_permissions',
-        sa.Column('role_id', sa.Integer(), nullable=True),
-        sa.Column('permission_id', sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(['role_id'], ['core_roles.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['permission_id'], ['core_permissions.id'], ondelete='CASCADE')
-    )
+    # La tabla ya existe si proviene del dump de Railway
+    pass
 
 
 def downgrade() -> None:
-    op.drop_table('core_role_permissions')
+    pass
