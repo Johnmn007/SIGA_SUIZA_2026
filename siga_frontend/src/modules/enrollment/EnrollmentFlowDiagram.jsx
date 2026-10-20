@@ -18,7 +18,9 @@ import {
   UserCheck,
   UserPlus,
   Users,
+  Workflow,
 } from 'lucide-react';
+import { SectionInfoBlock } from './SectionInfoBlock';
 
 const TONES = {
   green: { card: 'border-emerald-200 bg-emerald-50/70', chip: 'bg-emerald-600', text: 'text-emerald-900' },
@@ -190,31 +192,18 @@ function Restricciones() {
 export function EnrollmentFlowDiagram() {
   return (
     <div className="animate-fade-in">
-      <div className="relative overflow-hidden rounded-2xl border-2 border-slate-800 bg-slate-800 px-6 py-5 text-white shadow-glass-lg sm:px-8">
-        <div className="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-primary/20 blur-2xl" />
-        <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-sky-400">
-              IESTP Suiza · Pucallpa
-            </p>
-            <h3 className="text-xl font-extrabold uppercase leading-tight tracking-tight sm:text-2xl">
-              Sistema Académico SIGA
-              <span className="text-sky-400"> — </span>
-              Módulo de Matrícula
-            </h3>
-            <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-slate-300">
-              Flujo automático y controlado del proceso de matrícula, según el tipo de alumno y
-              condiciones académicas.
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2 self-start rounded-xl border border-white/15 bg-white/10 px-3.5 py-2 lg:self-auto">
-            <Sparkles className="h-4 w-4 shrink-0 text-amber-300" />
-            <span className="text-[11px] font-semibold italic leading-tight text-slate-100">
-              Un solo sistema, trayectorias académicas integrales.
-            </span>
-          </div>
-        </div>
-      </div>
+      <SectionInfoBlock
+        icon={Workflow}
+        ghostIcon={GitBranch}
+        title="9. Diagrama de flujo"
+        description={
+          <>
+            Visualiza el flujo general del proceso de matrícula desde la admisión hasta la validación
+            y resultado final, según el tipo de alumno y sus condiciones académicas.
+          </>
+        }
+        chips={['Admisión', 'Matrícula', 'Validación', 'Resultado']}
+      />
 
       <div className="mt-6 grid grid-cols-1 items-stretch gap-4 xl:grid-cols-12">
         <div className="xl:col-span-3">

@@ -1,4 +1,8 @@
 import { useState, useEffect } from 'react';
+import {
+  UserPlus, UserCog, QrCode, Scale, HeartHandshake,
+  ShieldAlert, Trophy, Users, FolderOpen, PlusCircle, GraduationCap,
+} from 'lucide-react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { EnrollmentProcess } from './EnrollmentProcess';
@@ -11,6 +15,8 @@ import { EspecialesPanel } from './EspecialesPanel';
 import { RestriccionesPanel } from './RestriccionesPanel';
 import { ResultadoPanel } from './ResultadoPanel';
 import ExtraordinaryEnrollmentModal from './ExtraordinaryEnrollmentModal';
+import { SectionInfoBlock } from './SectionInfoBlock';
+import './enrollmentPremium.css';
 
 export function EnrollmentDashboard() {
   const { user } = useAuth();
@@ -88,55 +94,91 @@ export function EnrollmentDashboard() {
   }
 
   const tabs = [
-    { id: 'admision', label: 'Admisión' },
-    { id: 'tipos', label: 'Tipos de alumnos' },
-    { id: 'boleta', label: 'Boleta con QR' },
-    { id: 'determinacion', label: 'Determinación' },
-    { id: 'especiales', label: 'Alumnos especiales' },
-    { id: 'restricciones', label: 'Restricciones' },
-    { id: 'resultado', label: 'Resultado final' },
-    { id: 'list', label: 'Estudiantes' },
-    { id: 'diagram', label: 'Diagrama de flujo' },
+    { id: 'admision', label: 'Admisión', Icon: UserPlus },
+    { id: 'tipos', label: 'Tipos de alumnos', Icon: UserCog },
+    { id: 'boleta', label: 'Boleta con QR', Icon: QrCode },
+    { id: 'determinacion', label: 'Determinación', Icon: Scale },
+    { id: 'especiales', label: 'Alumnos especiales', Icon: HeartHandshake },
+    { id: 'restricciones', label: 'Restricciones', Icon: ShieldAlert },
+    { id: 'resultado', label: 'Resultado final', Icon: Trophy },
+    { id: 'list', label: 'Estudiantes', Icon: Users },
+    { id: 'diagram', label: 'Diagrama de flujo', Icon: FolderOpen },
   ];
 
   return (
-    <div className="animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h3 className="text-3xl font-bold tracking-tight text-slate-800">
-            Gestión de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Matrícula Académica</span>
-          </h3>
-          <p className="text-slate-500 text-sm mt-1">Control de procesos de matrícula para estudiantes registrados</p>
-        </div>
-        {view === 'list' && (
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 transition-all active:scale-95 flex items-center"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-            Matrícula Extraordinaria
-          </button>
-        )}
+    <div className="sma-page animate-fade-in">
+      {/* Capa decorativa de fondo (ondas, blobs y patrón de puntos) */}
+      <div className="sma-deco" aria-hidden="true">
+        <span className="sma-blob sma-blob--a" />
+        <span className="sma-blob sma-blob--b" />
+        <span className="sma-dots sma-dots--tl" />
+        <span className="sma-dots sma-dots--br" />
+        <svg className="sma-waves" viewBox="0 0 1440 180" preserveAspectRatio="none">
+          <path d="M0,104 C240,168 480,44 720,84 C960,124 1200,172 1440,112 L1440,180 L0,180 Z" fill="rgba(0,102,232,0.08)" />
+          <path d="M0,128 C260,64 520,156 780,124 C1040,92 1240,52 1440,96 L1440,180 L0,180 Z" fill="rgba(0,157,255,0.10)" />
+        </svg>
       </div>
 
-      <div className="glass-card p-1.5 mb-6 inline-flex gap-1.5">
+      {/* Header institucional */}
+      <header className="sma-header">
+        <div className="sma-header-deco" aria-hidden="true">
+          <span className="sma-hd-glow" />
+          <span className="sma-hd-bar sma-hd-bar--1" />
+          <span className="sma-hd-bar sma-hd-bar--2" />
+          <span className="sma-hd-bar sma-hd-bar--3" />
+          <span className="sma-hd-ring" />
+        </div>
+
+        {/* Birrete académico decorativo */}
+        <svg className="sma-birrete" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <path d="M32 7 L61 20 L32 33 L3 20 Z" fill="#FFFFFF" opacity="0.96" />
+          <path d="M32 24.5 L48 17.5" stroke="#55C7FF" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+          <path d="M15 26.2 V38.5 C15 38.5 22.2 46.5 32 46.5 C41.8 46.5 49 38.5 49 38.5 V26.2" stroke="#FFFFFF" strokeWidth="4.2" strokeLinecap="round" fill="none" opacity="0.92" />
+          <path d="M57.5 22.5 V39" stroke="#55C7FF" strokeWidth="3.4" strokeLinecap="round" />
+          <circle cx="57.5" cy="42.6" r="3.1" fill="#55C7FF" />
+        </svg>
+
+        <div className="sma-header-body">
+          <div>
+            <h3 className="sma-title">
+              Gestión de <span>Matrícula Académica</span>
+            </h3>
+            <p className="sma-subtitle">
+              Control de procesos de matrícula para estudiantes registrados
+            </p>
+            {view === 'list' && (
+              <div className="sma-header-actions">
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="sma-header-btn"
+                >
+                  <PlusCircle size={18} />
+                  Matrícula Extraordinaria
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Nueve pestañas */}
+      <nav className="sma-tabs" role="tablist" aria-label="Secciones de gestión de matrícula">
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
             onClick={() => setView(tab.id)}
             aria-current={view === tab.id}
-            className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
-              view === tab.id
-                ? 'bg-primary text-white shadow-md shadow-primary/25'
-                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-            }`}
+            aria-selected={view === tab.id}
+            className={`sma-tab ${view === tab.id ? 'sma-tab--active' : ''}`}
           >
+            <span className="sma-tab-icon"><tab.Icon size={17} /></span>
             {tab.label}
           </button>
         ))}
-      </div>
+      </nav>
 
+      <div className="sma-content">
       {view === 'diagram' ? (
         <EnrollmentFlowDiagram />
       ) : view === 'admision' ? (
@@ -155,6 +197,20 @@ export function EnrollmentDashboard() {
         <ResultadoPanel />
       ) : (
         <>
+      <SectionInfoBlock
+        className="mb-6"
+        icon={Users}
+        ghostIcon={GraduationCap}
+        title="8. Estudiantes"
+        description={
+          <>
+            Permite visualizar y consultar la información de los estudiantes registrados en el proceso
+            de <b>matrícula académica</b>.
+          </>
+        }
+        chips={['Consulta', 'Búsqueda', 'Matrícula']}
+      />
+
       <div className="glass-card p-2 mb-8 flex items-center max-w-3xl gap-2">
         {['superadmin', 'admin'].includes(userRole) && (
           <select 
@@ -254,6 +310,7 @@ export function EnrollmentDashboard() {
       />
         </>
       )}
+      </div>
     </div>
   );
 }

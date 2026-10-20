@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
+import {
+  Upload, GraduationCap, CalendarDays, FileSpreadsheet,
+  Search, CircleCheckBig,
+} from 'lucide-react';
 import { apiClient, API_BASE } from '../../core/api/client';
+import { SectionInfoBlock } from './SectionInfoBlock';
+import './enrollmentPremium.css';
 
 /**
  * Sección 1 del diagrama — Admisión.
@@ -117,21 +123,25 @@ export function AdmissionPanel() {
   return (
     <div className="animate-fade-in space-y-6">
       {/* Encabezado */}
-      <div className="glass-card p-6">
-        <h4 className="text-xl font-bold text-slate-800 flex items-center mb-1">
-          <span className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center mr-3">📥</span>
-          1. Admisión — Carga de Ingresantes
-        </h4>
-        <p className="text-slate-500 text-sm">
-          Carga la relación de ingresantes en <b>Excel</b> o <b>JSON</b>. El sistema genera la ficha y
-          realiza la <b>matrícula automática de Ciclo I</b> según la malla del programa.
-        </p>
-      </div>
+      <SectionInfoBlock
+        icon={Upload}
+        ghostIcon={GraduationCap}
+        title="1. Admisión — Carga de Ingresantes"
+        description={
+          <>
+            Carga la relación de ingresantes en <b>Excel</b> o <b>JSON</b>. El sistema genera la ficha y
+            realiza la <b>matrícula automática de Ciclo I</b> según la malla del programa.
+          </>
+        }
+      />
 
       {/* Formulario */}
-      <div className="glass-card p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="sma-form grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="md:col-span-1">
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Programa (opcional)</label>
+          <label className="sma-field-label">
+            <span className="sma-field-icon"><GraduationCap size={14} /></span>
+            Programa (opcional)
+          </label>
           <select
             className="input-field w-full py-2.5 text-sm"
             value={programaId}
@@ -144,7 +154,10 @@ export function AdmissionPanel() {
           </select>
         </div>
         <div className="md:col-span-1">
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Periodo de matrícula *</label>
+          <label className="sma-field-label">
+            <span className="sma-field-icon"><CalendarDays size={14} /></span>
+            Periodo de matrícula *
+          </label>
           <select
             className="input-field w-full py-2.5 text-sm"
             value={periodoId}
@@ -159,7 +172,10 @@ export function AdmissionPanel() {
           </select>
         </div>
         <div className="md:col-span-1">
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Archivo (.xlsx / .json)</label>
+          <label className="sma-field-label">
+            <span className="sma-field-icon"><FileSpreadsheet size={14} /></span>
+            Archivo (.xlsx / .json)
+          </label>
           <input
             type="file"
             accept=".xlsx,.xls,.json"
@@ -169,24 +185,26 @@ export function AdmissionPanel() {
               setPreview(null);
               setResultado(null);
             }}
-            className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+            className="sma-file-input"
           />
         </div>
 
-        <div className="md:col-span-3 flex flex-wrap gap-3 pt-2">
+        <div className="md:col-span-3 sma-actions pt-2">
           <button
             onClick={() => subir(true)}
             disabled={loading || !file}
-            className="px-5 py-2.5 rounded-xl text-sm font-bold border-2 border-primary text-primary hover:bg-primary/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="sma-btn sma-btn--ghost"
           >
-            {loading ? 'Procesando...' : '🔍 Vista previa'}
+            <Search size={16} />
+            {loading ? 'Procesando...' : 'Vista previa'}
           </button>
           <button
             onClick={() => subir(false)}
             disabled={loading || !file}
-            className="btn-primary px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="sma-btn sma-btn--primary"
           >
-            {loading ? 'Procesando...' : '✅ Procesar y matricular ingresantes'}
+            <CircleCheckBig size={16} />
+            {loading ? 'Procesando...' : 'Procesar y matricular ingresantes'}
           </button>
         </div>
 

@@ -1,0 +1,660 @@
+/* ============================================================
+   GESTIÓN DE MATRÍCULA ACADÉMICA — Diseño institucional premium
+   Todas las reglas van limitadas a .sma-page para no afectar
+   a otros módulos del sistema.
+   Paleta: #00358A · #0047AB · #0066E8 · #009DFF · #55C7FF
+   ============================================================ */
+
+.sma-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+  padding: 1.25rem 1rem 3.5rem;
+  border-radius: 28px;
+  background:
+    radial-gradient(900px 380px at 8% -6%, rgba(0, 157, 255, 0.14), transparent 62%),
+    radial-gradient(760px 420px at 100% 8%, rgba(85, 199, 255, 0.16), transparent 60%),
+    linear-gradient(180deg, #edf5ff 0%, #f5faff 42%, #e7f2ff 100%);
+  overflow: visible;
+}
+
+/* ---------- Capa decorativa (fondo) ---------- */
+.sma-deco {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.sma-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+}
+.sma-blob--a {
+  width: 320px;
+  height: 320px;
+  left: -110px;
+  top: 34%;
+  background: rgba(0, 102, 232, 0.12);
+}
+.sma-blob--b {
+  width: 380px;
+  height: 380px;
+  right: -130px;
+  top: 12%;
+  background: rgba(85, 199, 255, 0.16);
+}
+
+.sma-dots {
+  position: absolute;
+  width: 128px;
+  height: 96px;
+  background-image: radial-gradient(rgba(0, 71, 171, 0.28) 1.6px, transparent 1.7px);
+  background-size: 15px 15px;
+  opacity: 0.55;
+}
+.sma-dots--tl {
+  left: 18px;
+  top: 18px;
+}
+.sma-dots--br {
+  right: 18px;
+  bottom: 26px;
+}
+
+.sma-waves {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  width: 100%;
+  height: 190px;
+  display: block;
+}
+
+/* ---------- Encabezado principal ---------- */
+.sma-header {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: 22px;
+  padding: 2.1rem 2.4rem;
+  color: #fff;
+  background: linear-gradient(115deg, #00358a 0%, #0047ab 30%, #0066e8 62%, #009dff 100%);
+  box-shadow: 0 18px 42px rgba(0, 53, 138, 0.35);
+}
+
+.sma-header-deco {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.sma-hd-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(420px 190px at 82% -18%, rgba(85, 199, 255, 0.55), transparent 62%),
+    radial-gradient(380px 240px at 8% 130%, rgba(0, 53, 138, 0.65), transparent 65%);
+}
+
+.sma-hd-bar {
+  position: absolute;
+  display: block;
+  border-radius: 10px;
+  transform: skewX(-28deg);
+}
+.sma-hd-bar--1 {
+  width: 150px;
+  height: 320px;
+  right: 21%;
+  top: -80px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.sma-hd-bar--2 {
+  width: 56px;
+  height: 340px;
+  right: 14%;
+  top: -70px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.sma-hd-bar--3 {
+  width: 22px;
+  height: 300px;
+  right: 9%;
+  top: -50px;
+  background: rgba(85, 199, 255, 0.35);
+}
+
+.sma-hd-ring {
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  right: -70px;
+  bottom: -130px;
+  border-radius: 50%;
+  border: 26px solid rgba(255, 255, 255, 0.08);
+}
+
+.sma-header-body {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 78%;
+}
+
+.sma-title {
+  font-size: clamp(1.45rem, 2.6vw, 1.95rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: #ffffff;
+}
+.sma-title span {
+  color: #55c7ff;
+}
+
+.sma-subtitle {
+  margin-top: 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.sma-header-actions {
+  margin-top: 1rem;
+}
+
+.sma-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.62rem 1.15rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.sma-header-btn:hover {
+  background: rgba(255, 255, 255, 0.26);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0, 32, 90, 0.25);
+}
+.sma-header-btn:active {
+  transform: scale(0.97);
+}
+
+.sma-birrete {
+  position: absolute;
+  top: 16px;
+  right: 22px;
+  width: 118px;
+  height: 118px;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.95;
+}
+
+/* ---------- Barra de pestañas ---------- */
+.sma-tabs {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 0.15rem;
+  padding: 0.5rem;
+  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  box-shadow:
+    0 12px 30px rgba(0, 70, 171, 0.13),
+    0 2px 6px rgba(0, 70, 171, 0.06);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.sma-tabs::-webkit-scrollbar {
+  height: 5px;
+}
+.sma-tabs::-webkit-scrollbar-thumb {
+  background: rgba(0, 71, 171, 0.28);
+  border-radius: 4px;
+}
+
+.sma-tab {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.72rem 0.95rem;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #10387f;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sma-tab:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 24%;
+  bottom: 24%;
+  width: 1px;
+  background: #e3ecf9;
+}
+
+.sma-tab-icon {
+  display: flex;
+  color: #0066e8;
+  transition: color 0.2s ease;
+}
+
+.sma-tab:hover:not(.sma-tab--active) {
+  background: #eff6ff;
+  color: #0047ab;
+}
+.sma-tab:hover:not(.sma-tab--active) .sma-tab-icon {
+  color: #0047ab;
+}
+
+.sma-tab--active,
+.sma-tab--active:hover {
+  background: linear-gradient(135deg, #0066e8 0%, #0047ab 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(0, 71, 171, 0.38);
+}
+.sma-tab--active::before {
+  display: none;
+}
+.sma-tab--active .sma-tab-icon {
+  color: #ffffff;
+}
+
+/* ---------- Contenedor de paneles ---------- */
+.sma-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Bloque informativo rectangular (todas las secciones) ---------- */
+.sma-info {
+  position: relative;
+  overflow: hidden;
+  padding: 1.5rem 2.6rem 1.5rem 1.6rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ffffff 0%, #f5faff 55%, #eaf3ff 100%);
+  border: 1px solid #e3eefb;
+  border-left: 6px solid #0066e8;
+  box-shadow:
+    0 14px 32px rgba(0, 70, 171, 0.1),
+    0 0 0 3px rgba(255, 255, 255, 0.65);
+}
+
+.sma-info-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.05rem;
+  padding-right: 5.75rem;
+}
+
+.sma-info-copy {
+  min-width: 0;
+}
+
+.sma-info-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #0a63d8 0%, #0047b3 55%, #003a99 100%);
+  box-shadow: 0 10px 20px rgba(0, 71, 179, 0.32);
+}
+
+.sma-info-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: #0b3d91;
+  margin-bottom: 0.3rem;
+}
+
+.sma-info-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #5f7393;
+}
+.sma-info-text b {
+  color: #0047b3;
+  font-weight: 700;
+}
+
+/* Chips sutiles opcionales */
+.sma-info-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.sma-info-chip {
+  padding: 0.26rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #0047b3;
+  background: #eaf3ff;
+  border: 1px solid #d9ebff;
+}
+
+/* Marca decorativa suave a la derecha */
+.sma-info-ghost {
+  position: absolute;
+  right: 1.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: rgba(0, 71, 179, 0.13);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Contenido adicional dentro del mismo bloque (p. ej. reglas) */
+.sma-info-extra {
+  position: relative;
+  z-index: 1;
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed #cfe4fb;
+}
+
+.sma-info-rules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.sma-info-rule {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid #d9ebff;
+  background: rgba(234, 243, 255, 0.78);
+  color: #5f7393;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.sma-info-rule svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #0066e8;
+}
+
+.sma-info-deco {
+  position: absolute;
+  right: -52px;
+  top: -66px;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  border: 24px solid rgba(0, 102, 232, 0.07);
+  pointer-events: none;
+}
+.sma-info-deco-2 {
+  position: absolute;
+  right: 46px;
+  bottom: -58px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(0, 157, 255, 0.07);
+  pointer-events: none;
+}
+
+/* ---------- Tarjeta de formulario ---------- */
+.sma-form {
+  position: relative;
+  overflow: hidden;
+  padding: 1.6rem;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  border: 1px solid #e3eefb;
+  box-shadow: 0 14px 32px rgba(0, 70, 171, 0.09);
+}
+
+.sma-field-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5b739b;
+}
+
+.sma-field-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: #0066e8;
+  background: #e8f2ff;
+  border: 1px solid #cfe4fb;
+  flex-shrink: 0;
+}
+
+.sma-form .input-field {
+  background: #ffffff;
+  border: 1.5px solid #b9d4f7;
+  border-radius: 12px;
+  color: #1e293b;
+  box-shadow: 0 2px 6px rgba(0, 70, 171, 0.05);
+}
+.sma-form .input-field:focus {
+  border-color: #0066e8;
+  box-shadow: 0 0 0 4px rgba(0, 102, 232, 0.14);
+  outline: none;
+}
+
+.sma-file-input {
+  display: block;
+  width: 100%;
+  font-size: 0.8rem;
+  color: #475569;
+  cursor: pointer;
+}
+.sma-file-input::file-selector-button {
+  margin-right: 0.8rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid #9fd8ff;
+  background: linear-gradient(135deg, #eaf7ff 0%, #d6eeff 100%);
+  color: #0047ab;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.sma-file-input:hover::file-selector-button {
+  background: linear-gradient(135deg, #dcf1ff 0%, #c5e6ff 100%);
+  box-shadow: 0 6px 14px rgba(0, 102, 232, 0.18);
+}
+
+/* ---------- Botones de acción ---------- */
+.sma-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  align-items: center;
+}
+
+.sma-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.72rem 1.4rem;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, color 0.2s ease;
+}
+
+.sma-btn--ghost {
+  background: #ffffff;
+  border: 2px solid #0066e8;
+  color: #0047ab;
+  box-shadow: 0 4px 12px rgba(0, 102, 232, 0.1);
+}
+.sma-btn--ghost:hover:not(:disabled) {
+  background: #f0f7ff;
+  box-shadow: 0 8px 18px rgba(0, 102, 232, 0.2);
+  transform: translateY(-1px);
+}
+
+.sma-btn--primary {
+  border: 0;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0066e8 0%, #0047ab 55%, #00358a 100%);
+  box-shadow: 0 10px 24px rgba(0, 70, 171, 0.35);
+}
+.sma-btn--primary:hover:not(:disabled) {
+  box-shadow: 0 14px 30px rgba(0, 70, 171, 0.45);
+  transform: translateY(-1px);
+}
+
+.sma-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ---------- Adaptación a pantallas pequeñas ---------- */
+@media (max-width: 768px) {
+  .sma-page {
+    padding: 0.9rem 0.65rem 2.8rem;
+    border-radius: 22px;
+  }
+
+  .sma-header {
+    padding: 1.5rem 1.3rem;
+    border-radius: 18px;
+  }
+
+  .sma-header-body {
+    max-width: 100%;
+  }
+
+  .sma-birrete {
+    width: 74px;
+    height: 74px;
+    top: 10px;
+    right: 10px;
+    opacity: 0.5;
+  }
+
+  .sma-hd-bar--1,
+  .sma-hd-bar--2,
+  .sma-hd-bar--3 {
+    opacity: 0.6;
+  }
+
+  .sma-info {
+    padding: 1.2rem 1.3rem;
+  }
+
+  .sma-info-body {
+    padding-right: 0;
+  }
+
+  .sma-info-ghost {
+    display: none;
+  }
+
+  .sma-info-rules {
+    grid-template-columns: 1fr;
+  }
+
+  .sma-form {
+    padding: 1.2rem;
+  }
+
+  .sma-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .sma-title {
+    font-size: 1.25rem;
+  }
+
+  .sma-subtitle {
+    font-size: 0.8rem;
+  }
+}
+
+/* ---------- Impresión ---------- */
+@media print {
+  .sma-page {
+    background: #ffffff !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+  .sma-deco,
+  .sma-header-deco,
+  .sma-birrete,
+  .sma-info-deco,
+  .sma-info-deco-2 {
+    display: none !important;
+  }
+  .sma-header {
+    background: #0047ab !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sma-tabs {
+    box-shadow: none !important;
+  }
+}

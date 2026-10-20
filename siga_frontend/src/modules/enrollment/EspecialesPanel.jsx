@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
+import { HeartHandshake, Star } from 'lucide-react';
 import { apiClient } from '../../core/api/client';
+import { SectionInfoBlock } from './SectionInfoBlock';
 
 const CASUISTICAS = [
   { value: 'Reingresante', label: 'Reingresante' },
@@ -97,26 +99,28 @@ export function EspecialesPanel() {
   return (
     <div className="animate-fade-in space-y-6">
       {/* Encabezado */}
-      <div className="glass-card p-6">
-        <h4 className="text-xl font-bold text-slate-800 flex items-center mb-1">
-          <span className="w-9 h-9 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center mr-3">✨</span>
-          5. Tipos de alumnos especiales
-        </h4>
-        <p className="text-slate-500 text-sm">
-          Casuísticas que no siguen el camino regular: <b>Reingresante</b>, <b>Traslado</b> (interno/externo)
-          y <b>estudiantes de convenios</b>. El sistema valida los requisitos de cada caso antes de matricular.
-        </p>
-      </div>
+      <SectionInfoBlock
+        icon={Star}
+        ghostIcon={HeartHandshake}
+        title="5. Alumnos especiales"
+        description={
+          <>
+            Gestiona los casos de estudiantes con condiciones especiales que requieren tratamiento
+            diferenciado dentro del proceso: <b>Reingresante</b>, <b>Traslado</b> y <b>estudiantes de convenios</b>.
+          </>
+        }
+        chips={['Reingresante', 'Traslado', 'Convenio']}
+      />
 
       {/* Tarjetas informativas del diagrama */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="glass-card p-5 border-t-4 border-orange-400">
-          <h5 className="font-bold text-orange-700 text-sm mb-2">🔄 Reingresante</h5>
+        <div className="glass-card p-5 border-t-4 border-[#003A99]">
+          <h5 className="font-bold text-[#0B3D91] text-sm mb-2">Reingresante</h5>
           <p className="text-xs text-slate-500 mb-3">Debe cumplir 4 condiciones:</p>
           <ol className="space-y-1.5">
             {CONDICIONES_REINGRESO.map((c, i) => (
               <li key={c.key} className="flex gap-2 text-xs text-slate-600 leading-relaxed">
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-orange-100 text-[9px] font-extrabold text-orange-700">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-[#EAF3FF] text-[9px] font-extrabold text-[#0047B3]">
                   {i + 1}
                 </span>
                 <span>{c.label}</span>
@@ -125,17 +129,17 @@ export function EspecialesPanel() {
           </ol>
         </div>
 
-        <div className="glass-card p-5 border-t-4 border-sky-400">
-          <h5 className="font-bold text-sky-700 text-sm mb-2">↔️ Traslado</h5>
+        <div className="glass-card p-5 border-t-4 border-[#0A63D8]">
+          <h5 className="font-bold text-[#0A63D8] text-sm mb-2">Traslado</h5>
           <div className="space-y-2">
-            <div className="rounded-lg border border-sky-100 bg-sky-50/70 p-2.5">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-sky-600">Interno</p>
+            <div className="rounded-lg border border-[#D9EBFF] bg-[#EAF3FF]/70 p-2.5">
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#0047B3]">Interno</p>
               <p className="mt-1 text-[11px] text-slate-600 leading-relaxed">
                 Entre programas de la misma institución, con equivalencia curricular validada por la dirección de estudios.
               </p>
             </div>
-            <div className="rounded-lg border border-sky-100 bg-sky-50/70 p-2.5">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-sky-600">Externo</p>
+            <div className="rounded-lg border border-[#D9EBFF] bg-[#EAF3FF]/70 p-2.5">
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#0047B3]">Externo</p>
               <p className="mt-1 text-[11px] text-slate-600 leading-relaxed">
                 Desde otra institución, con carta de presentación, certificado de estudios y convalidación de asignaturas.
               </p>
@@ -143,8 +147,8 @@ export function EspecialesPanel() {
           </div>
         </div>
 
-        <div className="glass-card p-5 border-t-4 border-green-400">
-          <h5 className="font-bold text-green-700 text-sm mb-2">🤝 Estudiante de convenios</h5>
+        <div className="glass-card p-5 border-t-4 border-[#009DFF]">
+          <h5 className="font-bold text-[#003A99] text-sm mb-2">Estudiante de convenios</h5>
           <p className="text-xs text-slate-600 leading-relaxed">
             Procedente de una institución o programa con <b>convenio vigente</b>. Se matricula según el plan
             acordado, con las equivalencias y créditos definidos en el instrumento de cooperación.
@@ -221,8 +225,8 @@ export function EspecialesPanel() {
 
         {/* Checkboxes de Reingresante */}
         {casuistica === 'Reingresante' && (
-          <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-orange-600 mb-2">Condiciones de reingreso</p>
+          <div className="rounded-xl border border-[#D9EBFF] bg-[#EAF3FF]/60 p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-[#0047B3] mb-2">Condiciones de reingreso</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {CONDICIONES_REINGRESO.map((c) => (
                 <label key={c.key} className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer">

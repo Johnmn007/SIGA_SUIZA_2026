@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { BadgeCheck, Trophy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { apiClient, API_BASE } from '../../core/api/client';
+import { SectionInfoBlock } from './SectionInfoBlock';
 
 const PASOS = [
   'Se consolida la matrícula y se genera el registro académico del ciclo.',
@@ -98,26 +100,29 @@ export function ResultadoPanel() {
   return (
     <div className="animate-fade-in space-y-6">
       {/* Encabezado */}
-      <div className="glass-card p-6 border-t-4 border-emerald-500">
-        <h4 className="text-xl font-bold text-slate-800 flex items-center mb-1">
-          <span className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center mr-3">✅</span>
-          7. Resultado final
-        </h4>
-        <p className="text-slate-500 text-sm mb-4">
-          Cierre del proceso de matrícula: consolidación, códigos y docentes, boleta con QR,
-          notificación y actualización del historial.
-        </p>
+      <SectionInfoBlock
+        icon={Trophy}
+        ghostIcon={BadgeCheck}
+        title="7. Resultado final"
+        description={
+          <>
+            Presenta el estado final del proceso de matrícula del estudiante, incluyendo validaciones y
+            observaciones correspondientes. Cierre del proceso: consolidación, códigos y docentes,
+            boleta con QR, notificación y actualización del historial.
+          </>
+        }
+      >
         <ol className="grid gap-2 sm:grid-cols-2">
           {PASOS.map((p, i) => (
-            <li key={p} className="flex gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-900">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-extrabold text-white">
+            <li key={p} className="flex gap-2 rounded-lg border border-[#D9EBFF] bg-[#EAF3FF]/70 px-3 py-2 text-xs text-[#0B3D91]">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#0047B3] text-[10px] font-extrabold text-white">
                 {i + 1}
               </span>
               <span>{p}</span>
             </li>
           ))}
         </ol>
-      </div>
+      </SectionInfoBlock>
 
       {/* Resumen */}
       <div className="grid grid-cols-3 gap-3">

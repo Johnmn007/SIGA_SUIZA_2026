@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { UserCog, Users } from 'lucide-react';
 import { apiClient } from '../../core/api/client';
+import { SectionInfoBlock } from './SectionInfoBlock';
 
 const TIPOS = [
   { id: 'Ingresante', tone: 'bg-sky-100 text-sky-700 border-sky-200', icon: '🆕' },
@@ -62,17 +64,18 @@ export function TiposAlumnosPanel() {
   return (
     <div className="animate-fade-in space-y-6">
       {/* Encabezado */}
-      <div className="glass-card p-6">
-        <h4 className="text-xl font-bold text-slate-800 flex items-center mb-1">
-          <span className="w-9 h-9 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center mr-3">👥</span>
-          2. Tipos de Alumnos Históricos
-        </h4>
-        <p className="text-slate-500 text-sm">
-          Clasificación automática del alumnado: <b>Invicto</b> (sin cursos a cargo),
-          <b> Jalado</b> (con cursos a cargo por desaprobar/retirarse) y
-          <b> Histórico</b> (proviene de un plan de estudios anterior).
-        </p>
-      </div>
+      <SectionInfoBlock
+        icon={UserCog}
+        ghostIcon={Users}
+        title="2. Tipos de alumnos"
+        description={
+          <>
+            Clasifica a los estudiantes según su condición de ingreso y permanencia dentro del proceso
+            de matrícula académica: <b>Ingresante</b>, <b>Invicto</b>, <b>Jalado</b> e <b>Histórico</b>.
+          </>
+        }
+        chips={['Ingresante', 'Invicto', 'Jalado', 'Histórico']}
+      />
 
       {/* Tarjetas de resumen */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

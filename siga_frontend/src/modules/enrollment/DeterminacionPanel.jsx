@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
+import { ClipboardCheck, Scale } from 'lucide-react';
 import { apiClient } from '../../core/api/client';
+import { SectionInfoBlock } from './SectionInfoBlock';
 
 /** Sección 4 del diagrama — Determinación del ciclo y cursos. */
 export function DeterminacionPanel() {
@@ -104,17 +106,18 @@ export function DeterminacionPanel() {
   return (
     <div className="animate-fade-in space-y-6">
       {/* Encabezado */}
-      <div className="glass-card p-6">
-        <h4 className="text-xl font-bold text-slate-800 flex items-center mb-1">
-          <span className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center mr-3">📅</span>
-          4. Determinación del ciclo y cursos
-        </h4>
-        <p className="text-slate-500 text-sm">
-          El sistema detecta automáticamente el <b>siguiente ciclo</b> según el avance del plan y los
-          <b> cursos correspondientes</b>. Si el alumno tiene cursos a cargo (jalados/arrastre), se
-          asignan según su historial.
-        </p>
-      </div>
+      <SectionInfoBlock
+        icon={Scale}
+        ghostIcon={ClipboardCheck}
+        title="4. Determinación"
+        description={
+          <>
+            Evalúa la información del estudiante y determina su condición académica según las reglas
+            del proceso de matrícula, detectando el <b>siguiente ciclo</b> y los <b>cursos correspondientes</b>.
+          </>
+        }
+        chips={['Ciclo sugerido', 'Cursos a cargo', 'Casuística']}
+      />
 
       {/* Selección */}
       <div className="glass-card p-6 space-y-4">

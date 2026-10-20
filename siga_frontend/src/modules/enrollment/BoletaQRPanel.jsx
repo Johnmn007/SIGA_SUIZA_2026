@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { QrCode, ScanLine } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { apiClient, API_BASE } from '../../core/api/client';
+import { SectionInfoBlock } from './SectionInfoBlock';
 
 /** Sección 3 del diagrama — Boleta con QR. */
 export function BoletaQRPanel() {
@@ -91,16 +93,19 @@ export function BoletaQRPanel() {
   return (
     <div className="animate-fade-in space-y-6">
       {/* Encabezado */}
-      <div className="glass-card p-6">
-        <h4 className="text-xl font-bold text-slate-800 flex items-center mb-1">
-          <span className="w-9 h-9 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center mr-3">🧾</span>
-          3. Boleta con QR
-        </h4>
-        <p className="text-slate-500 text-sm">
-          El sistema emite la boleta con un <b>código QR único</b> por matrícula. El alumno o la
-          secretaría escanean el QR para <b>validar</b> la matrícula en tiempo real.
-        </p>
-      </div>
+      <SectionInfoBlock
+        icon={QrCode}
+        ghostIcon={ScanLine}
+        title="3. Boleta con QR"
+        description={
+          <>
+            Permite registrar y validar la boleta de pago mediante <b>código QR</b> para continuar con
+            el proceso de matrícula. El alumno o la secretaría escanean el código para validarlo en
+            tiempo real.
+          </>
+        }
+        chips={['Emisión', 'Validación QR', 'Tiempo real']}
+      />
 
       {/* Validación por código */}
       <div className="glass-card p-6">
