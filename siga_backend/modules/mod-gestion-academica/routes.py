@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends, status, Request
+from fastapi import APIRouter, HTTPException, Depends, status, Request, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
@@ -7,9 +8,106 @@ from models import Estudiante, Matricula, MatriculaDetalle
 from schemas import EstudianteCreate, EstudianteResponse, EstudianteUpdate, MatriculaCreate, MatriculaResponse, IngestaMasivaRequest
 from datetime import datetime
 from typing import List, Optional
+from pathlib import Path
 import uuid
 
 router = APIRouter()
+
+FOTO_DIR = Path(__file__).resolve().parent / "uploads" / "fotos"
+ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+MAX_FOTO_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+def _foto_path_for(filename: str) -> Path:
+    """Devuelve la ruta segura de un archivo de foto (previene path traversal)."""
+    return FOTO_DIR / Path(filename).name
+
+
+def _delete_foto(filename: str | None):
+    """Elimina una foto del disco de forma best-effort."""
+    if not filename:
+        return
+    file_name = Path(filename).name
+    if not file_name:
+        return
+    try:
+        _foto_path_for(file_name).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+@router.get("/fotos/{filename}")
+async def obtener_foto(filename: str):
+    """Sirve una foto de estudiante guardada en disco."""
+    path = _foto_path_for(filename)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Foto no encontrada")
+    return FileResponse(path, media_type="image/jpeg")
+
+@router.post("/estudiantes/{estudiante_id}/foto", response_model=EstudianteResponse)
+async def subir_foto(estudiante_id: int, request: Request, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+    """Sube o reemplaza la foto de un estudiante y guarda la URL en foto_url."""
+    result = await db.execute(select(Estudiante).where(Estudiante.id == estudiante_id))
+    db_estudiante = result.scalar_one_or_none()
+    if not db_estudiante:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Formato de imagen inválido. Use JPG, PNG o WEBP")
+
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Archivo vacío")
+    if len(content) > MAX_FOTO_SIZE:
+        raise HTTPException(status_code=400, detail="La imagen supera los 5 MB")
+
+    FOTO_DIR.mkdir(parents=True, exist_ok=True)
+    ext = ALLOWED_IMAGE_TYPES[file.content_type]
+    filename = f"{estudiante_id}_{uuid.uuid4().hex[:12]}{ext}"
+    (FOTO_DIR / filename).write_bytes(content)
+
+    if db_estudiante.foto_url:
+        _delete_foto(db_estudiante.foto_url)
+    db_estudiante.foto_url = f"/api/mod-gestion-academica/fotos/{filename}"
+
+    event_payload = {
+        "event_id": str(uuid.uuid4()),
+        "event_type": "gestion_academica.estudiante.foto_actualizada",
+        "source": "mod-gestion-academica",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "version": "1.0.0",
+        "data": {"id": db_estudiante.id},
+        "metadata": {"request_id": request.headers.get("X-Request-ID", "unknown")}
+    }
+    db.add(OutboxEvent(event_type=event_payload["event_type"], payload=event_payload))
+    await db.commit()
+    await db.refresh(db_estudiante)
+    return db_estudiante
+
+@router.delete("/estudiantes/{estudiante_id}/foto", response_model=EstudianteResponse)
+async def eliminar_foto(estudiante_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Elimina la foto de un estudiante (foto_url vuelve a null)."""
+    result = await db.execute(select(Estudiante).where(Estudiante.id == estudiante_id))
+    db_estudiante = result.scalar_one_or_none()
+    if not db_estudiante:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    if db_estudiante.foto_url:
+        _delete_foto(db_estudiante.foto_url)
+        db_estudiante.foto_url = None
+
+    event_payload = {
+        "event_id": str(uuid.uuid4()),
+        "event_type": "gestion_academica.estudiante.foto_eliminada",
+        "source": "mod-gestion-academica",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "version": "1.0.0",
+        "data": {"id": db_estudiante.id},
+        "metadata": {"request_id": request.headers.get("X-Request-ID", "unknown")}
+    }
+    db.add(OutboxEvent(event_type=event_payload["event_type"], payload=event_payload))
+    await db.commit()
+    await db.refresh(db_estudiante)
+    return db_estudiante
 
 @router.post("/admision/ingesta", status_code=status.HTTP_202_ACCEPTED)
 async def ingesta_admitidos(request: Request, data: IngestaMasivaRequest, db: AsyncSession = Depends(get_db)):
