@@ -18,8 +18,8 @@ if (-not (Test-Path $python)) {
 $env:DB_HOST     = "localhost"
 $env:DB_PORT     = "5432"
 $env:DB_USER     = "postgres"
-$env:DB_PASSWORD = "admin123"
-$env:DB_NAME     = "siga_local"
+$env:DB_PASSWORD = "john.007"
+$env:DB_NAME     = "siga_core"
 $env:SKIP_MIGRATIONS = "true"
 
 # Al ejecutar nativo no hay DNS de Docker: los manifests apuntan al nombre del

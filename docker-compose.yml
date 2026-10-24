@@ -1,4 +1,15 @@
 services:
+  # Base de datos: La aplicacion utiliza PostgreSQL local en el host (puerto 5432)
+  # accesible desde los contenedores via host.docker.internal:5432 con usuario postgres y credenciales de .env.
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: "admin123"
+  #     POSTGRES_DB: siga_core
+  #   ports:
+  #     - "5433:5432"
+
   nats:
     image: nats:2.9-alpine
     ports:
@@ -32,13 +43,12 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_PASSWORD=${DB_PASSWORD:-john.007}
       - DB_HOST=${DB_HOST:-host.docker.internal}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_local}
+      - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
-      - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
     depends_on:
@@ -59,10 +69,10 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_PASSWORD=${DB_PASSWORD:-john.007}
       - DB_HOST=${DB_HOST:-host.docker.internal}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_local}
+      - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8001
       - SKIP_MIGRATIONS=true
@@ -80,10 +90,10 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_PASSWORD=${DB_PASSWORD:-john.007}
       - DB_HOST=${DB_HOST:-host.docker.internal}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_local}
+      - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8002
       - SKIP_MIGRATIONS=true
@@ -101,10 +111,10 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_PASSWORD=${DB_PASSWORD:-john.007}
       - DB_HOST=${DB_HOST:-host.docker.internal}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_local}
+      - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8005
       - SKIP_MIGRATIONS=true
@@ -122,10 +132,10 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_PASSWORD=${DB_PASSWORD:-john.007}
       - DB_HOST=${DB_HOST:-host.docker.internal}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_local}
+      - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8006
       - SKIP_MIGRATIONS=true
@@ -143,10 +153,10 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_PASSWORD=${DB_PASSWORD:-john.007}
       - DB_HOST=${DB_HOST:-host.docker.internal}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_local}
+      - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8007
       - SKIP_MIGRATIONS=true
@@ -164,10 +174,10 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_PASSWORD=${DB_PASSWORD:-john.007}
       - DB_HOST=${DB_HOST:-host.docker.internal}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_local}
+      - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8008
       - SKIP_MIGRATIONS=true
@@ -185,10 +195,10 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_PASSWORD=${DB_PASSWORD:-john.007}
       - DB_HOST=${DB_HOST:-host.docker.internal}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_local}
+      - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8009
       - SKIP_MIGRATIONS=true
@@ -216,26 +226,6 @@ services:
     depends_on:
       - siga-core
 
-  # Contenedor opcional de Postgres en caso se requiera aislar totalmente de la BD local
-  postgres:
-    image: postgres:16-alpine
-    profiles:
-      - container-db
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
-      POSTGRES_DB: ${DB_NAME:-siga_core}
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./dump_siga_suiza_2026_20261021.sql:/docker-entrypoint-initdb.d/01-dump.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
 volumes:
-  postgres_data:
+  # postgres_data:
   frontend_node_modules:
