@@ -9,7 +9,6 @@ export function CoordinatorSupervision() {
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
-  const [personal, setPersonal] = useState([]);
   const [malla, setMalla] = useState([]);
   
   const [selectedProgram, setSelectedProgram] = useState('');
@@ -50,7 +49,6 @@ export function CoordinatorSupervision() {
         
         setPrograms(progRes || []);
         setPeriods(perRes || []);
-        setPersonal(personalRes || []);
         
         let hasProgram = false;
         if (personalRes && user) {
@@ -66,8 +64,8 @@ export function CoordinatorSupervision() {
         }
         
         if (perRes && perRes.length > 0) {
-          const active = perRes.find(p => p.estado === 'ACTIVO');
-          setSelectedPeriod(active ? active.id.toString() : perRes[perRes.length - 1].id.toString());
+          const active = perRes.find(p => ['ACTIVO', 'activo', 'matricula_abierta', 'en_curso'].includes(p.estado)) || perRes[0];
+          setSelectedPeriod(active ? active.id.toString() : perRes[0].id.toString());
         }
       } catch (e) {
         console.error('Error fetching initial data', e);
@@ -139,7 +137,8 @@ export function CoordinatorSupervision() {
     setLoadingUD(false);
   };
 
-  const isCoordinador = user?.rol === 'coordinador_programa';
+  const userRoles = Array.isArray(user?.roles) ? user.roles : (user?.role ? [user.role] : []);
+  const isCoordinador = !user?.is_superuser && userRoles.includes('coordinador_programa');
 
   return (
     <div className="animate-fade-in space-y-6">

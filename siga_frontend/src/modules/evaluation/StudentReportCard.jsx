@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
-import mockEvaluacion from './mockEvaluacion.json';
 import { BoletinImpresion } from './BoletinImpresion';
 import { obtenerNotasPorCiclo, resumenDesdeJson, construirListaCiclos, estudiantesBoletin, generarBoletinDesdeJson } from './notasPorCiclo';
 import {
@@ -510,11 +509,7 @@ export function StudentReportCard() {
             }
           }
         } else if (real) {
-          const evaluacion = mockEvaluacion.evaluaciones.find(
-            e => e.codigo_estudiante === real.estudiante.codigo_estudiante
-              && e.periodo === real.estudiante.periodo_codigo
-          );
-          setData(evaluacion ? { ...real, ...evaluacion } : real);
+          setData(real);
         } else {
           throw new Error('No se encontró información del boletín para este estudiante.');
         }

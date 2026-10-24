@@ -214,7 +214,7 @@ export function StudentMaster() {
         try {
           const cuerpo = await res.json();
           detalle = cuerpo.detail || cuerpo.message || detalle;
-        } catch (e) { /* cuerpo no-JSON */ }
+        } catch { /* cuerpo no-JSON */ }
         console.error('API Error:', detalle);
         setStudents([]);
         setLoadError(detalle);

@@ -22,11 +22,6 @@ export function ReceiptModal({ receipt, onClose }) {
     window.print();
   };
 
-  const handleDownload = () => {
-    // Generar archivo de texto legible o disparar impresión para guardar como PDF
-    window.print();
-  };
-
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in">

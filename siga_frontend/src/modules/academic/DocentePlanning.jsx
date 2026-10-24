@@ -12,7 +12,6 @@ export function DocentePlanning() {
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
   
-  const [planActual, setPlanActual] = useState(null);
   
   const [cargaLectiva, setCargaLectiva] = useState([]);
   const [mallaFlat, setMallaFlat] = useState([]);
@@ -124,7 +123,7 @@ export function DocentePlanning() {
       // Refresh silabos
       const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`);
       setSilabos(silabosRes || []);
-    } catch (e) {
+    } catch {
       alert("Error al enviar el sílabo");
     } finally {
       e.target.value = ''; // reset input
@@ -161,7 +160,7 @@ export function DocentePlanning() {
       // Refresh planes
       const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`);
       setPlanes(planesRes || []);
-    } catch (e) {
+    } catch {
       alert("Error al enviar el Plan de Trabajo");
     } finally {
       e.target.value = '';
@@ -175,8 +174,8 @@ export function DocentePlanning() {
   };
 
   // Filtrar carga lectiva del periodo activo
-  const cargaActiva = cargaLectiva.filter(c => c.periodo_id === parseInt(selectedPeriod));
-  const planActivo = planes.length > 0 ? planes[0] : null;
+  const cargaActiva = selectedPeriod ? cargaLectiva.filter(c => c.periodo_id === parseInt(selectedPeriod)) : cargaLectiva;
+  const planActual = planes.length > 0 ? planes[0] : null;
 
   return (
     <div className="space-y-6">
@@ -283,13 +282,13 @@ export function DocentePlanning() {
                 <div className="text-center py-10">
                   <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
                 </div>
-              ) : cargaLectiva.length === 0 ? (
+              ) : cargaActiva.length === 0 ? (
                 <div className="text-center p-8 bg-slate-50 rounded-xl border border-slate-100">
                   <p className="text-slate-500">No tienes carga lectiva asignada para este periodo en este programa.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {cargaLectiva.map(carga => {
+                  {cargaActiva.map(carga => {
                     const udNombre = getUnidadNombre(carga.unidad_didactica_id);
                     const silabo = silabos.find(s => s.carga_lectiva_id === carga.id);
                     

@@ -144,7 +144,7 @@ export function AcademicDashboard() {
   const getResolucion = (program) => {
     if (!program) return 'R.M. MINEDU';
     const text = (program.descripcion || '') + ' ' + (program.codigo || '');
-    const match = text.match(/(R\.?[MD]\.?\s*[\w\d\-\/]+)/i);
+    const match = text.match(/(R\.?[MD]\.?\s*[\w\d\-/]+)/i);
     if (match) return match[1];
     return `R.M. ${program.codigo}-MINEDU`;
   };

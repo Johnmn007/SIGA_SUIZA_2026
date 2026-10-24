@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
-import { API_BASE, apiClient } from '../../core/api/client';
+import { API_BASE } from '../../core/api/client';
 import { 
   Wallet, 
   Search, 

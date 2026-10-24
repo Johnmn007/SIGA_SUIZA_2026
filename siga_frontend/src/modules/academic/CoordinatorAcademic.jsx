@@ -24,7 +24,6 @@ export function CoordinatorAcademic() {
   // Data
   const [personal, setPersonal] = useState([]);
   const [docentes, setDocentes] = useState([]);
-  const [malla, setMalla] = useState([]);
   const [unidadesFlat, setUnidadesFlat] = useState([]);
   const [cargaLectiva, setCargaLectiva] = useState([]);
   const [horarios, setHorarios] = useState([]);
@@ -62,8 +61,8 @@ export function CoordinatorAcademic() {
         }
         
         if (perRes && perRes.length > 0) {
-          const active = perRes.find(p => p.estado === 'ACTIVO');
-          setSelectedPeriod(active ? active.id.toString() : perRes[perRes.length - 1].id.toString());
+          const active = perRes.find(p => ['ACTIVO', 'activo', 'matricula_abierta', 'en_curso'].includes(p.estado)) || perRes[0];
+          setSelectedPeriod(active ? active.id.toString() : perRes[0].id.toString());
         }
         
       } catch (error) {
@@ -77,7 +76,6 @@ export function CoordinatorAcademic() {
   // 2. Load Malla and filter docentes when Program changes
   useEffect(() => {
     if (!selectedProgram) {
-      setMalla([]);
       setUnidadesFlat([]);
       setDocentes([]);
       return;
@@ -97,7 +95,6 @@ export function CoordinatorAcademic() {
     const fetchMalla = async () => {
       try {
         const res = await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/malla`);
-        setMalla(res || []);
         
         // Flatten unidades for easy select dropdown
         const flat = [];
@@ -258,14 +255,15 @@ export function CoordinatorAcademic() {
       });
       alert(res.message);
       fetchCargaYHorarios();
-    } catch (e) {
+    } catch {
       alert("Error al clonar la carga lectiva. Verifique que el periodo origen tenga registros.");
     } finally {
       setLoading(false);
     }
   };
 
-  const isCoordinador = user?.rol === 'coordinador_programa';
+  const userRoles = Array.isArray(user?.roles) ? user.roles : (user?.role ? [user.role] : []);
+  const isCoordinador = !user?.is_superuser && userRoles.includes('coordinador_programa');
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">

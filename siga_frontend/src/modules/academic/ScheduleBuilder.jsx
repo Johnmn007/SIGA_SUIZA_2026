@@ -161,7 +161,7 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
                 </tr>
               </thead>
               <tbody>
-                {TIME_SLOTS.map((slot, index) => (
+                {TIME_SLOTS.map((slot) => (
                   <tr key={slot.id} className={slot.type === 'recreo' ? 'bg-amber-50' : 'bg-white'}>
                     <td className="border-b border-r border-slate-200 p-2 text-center align-middle font-medium text-xs text-slate-500 bg-slate-50/50">
                       <div>{slot.start}</div>

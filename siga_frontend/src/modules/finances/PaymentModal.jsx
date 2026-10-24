@@ -14,14 +14,14 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { TUPA_CONCEPTS, PAYMENT_METHODS, CAREERS_MAP } from './tupaCatalog';
-import { API_BASE, apiClient } from '../../core/api/client';
+import { API_BASE } from '../../core/api/client';
 
 export function PaymentModal({ student, cashierName, onClose, onSuccess }) {
   const [selectedConceptId, setSelectedConceptId] = useState('MAT-01');
   const [selectedMethodId, setSelectedMethodId] = useState('efectivo');
   const [numeroOperacion, setNumeroOperacion] = useState('');
   const [montoEfectivoRecibido, setMontoEfectivoRecibido] = useState('');
-  const [observaciones, setObservaciones] = useState('');
+  const observaciones = '';
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

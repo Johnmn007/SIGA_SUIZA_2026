@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { API_BASE } from '../../core/api/client';
-import { Pencil, X, Fingerprint, GraduationCap, Mail, Phone, MapPin, ShieldAlert } from 'lucide-react';
+import { Pencil, X, Fingerprint, GraduationCap, Mail, MapPin, ShieldAlert } from 'lucide-react';
 
 const SectionLabel = ({ label, icon: Icon }) => (
   <div className="flex items-center gap-2 mb-3">
@@ -30,16 +30,10 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [photoFile, setPhotoFile] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
-  const [removePhoto, setRemovePhoto] = useState(false);
 
   useEffect(() => {
     if (student) {
       setForm({ ...student });
-      setPhotoFile(null);
-      setPhotoPreview(null);
-      setRemovePhoto(false);
     }
   }, [student]);
 
@@ -54,22 +48,6 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
 
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handlePhotoChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
-    setRemovePhoto(false);
-  };
-
-  const handleRemovePhoto = () => {
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhotoFile(null);
-    setPhotoPreview(null);
-    setRemovePhoto(true);
   };
 
   const handleSubmit = async (e) => {
@@ -99,25 +77,6 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
         setError(`Error: ${errData}`);
         setLoading(false);
         return;
-      }
-
-      if (photoFile) {
-        const fd = new FormData();
-        fd.append('file', photoFile);
-        const upRes = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${student.id}/foto`, {
-          method: 'POST',
-          headers: { 'Authorization': auth },
-          body: fd
-        });
-        if (!upRes.ok) {
-          setError("Datos guardados, pero no se pudo subir la foto. Intenta de nuevo.");
-          return;
-        }
-      } else if (removePhoto) {
-        await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${student.id}/foto`, {
-          method: 'DELETE',
-          headers: { 'Authorization': auth }
-        });
       }
 
       onUpdated();
