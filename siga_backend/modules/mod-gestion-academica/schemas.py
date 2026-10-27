@@ -71,8 +71,8 @@ class MatriculaBase(BaseModel):
     estudiante_id: int
     programa_id: int
     periodo_id: int
-    tipo_ingreso: str = "Ordinario"
-    observaciones: str = ""
+    tipo_ingreso: Optional[str] = "Ordinario"
+    observaciones: Optional[str] = None
 
 class MatriculaCreate(MatriculaBase):
     detalles: List[MatriculaDetalleCreate]
