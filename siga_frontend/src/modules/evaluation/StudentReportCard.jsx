@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
-import mockEvaluacion from './mockEvaluacion.json';
 import { BoletinImpresion } from './BoletinImpresion';
-import { obtenerNotasPorCiclo, resumenDesdeJson, construirListaCiclos } from './notasPorCiclo';
 import {
   ArrowUpDown, BadgeCheck, BookOpen, ChevronDown,
   ClipboardList, GraduationCap, Hash, IdCard, Mail,
@@ -329,6 +327,7 @@ export function StudentReportCard() {
   const [allStudents, setAllStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedStudentName, setSelectedStudentName] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -352,11 +351,12 @@ export function StudentReportCard() {
         const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        if (res.ok) {
-          const data = await res.json();
-          setAllStudents(Array.isArray(data) ? data : []);
-        }
-      } catch (e) { console.error('Error fetching students', e); }
+        const dbData = res.ok ? await res.json() : [];
+        setAllStudents(Array.isArray(dbData) ? dbData : []);
+      } catch (e) {
+        console.error('Error fetching students', e);
+        setAllStudents([]);
+      }
       setSearchLoading(false);
     };
     fetchStudents();
@@ -400,6 +400,7 @@ export function StudentReportCard() {
 
   const handleSelectStudent = (student) => {
     setSelectedStudentId(student.id);
+    setSelectedStudent(student);
     setSelectedStudentName(`${student.apellidos}, ${student.nombres}`);
     setSearchTerm('');
     setShowDropdown(false);
@@ -417,6 +418,7 @@ export function StudentReportCard() {
 
   const handleClearSelection = () => {
     setSelectedStudentId(null);
+    setSelectedStudent(null);
     setSelectedStudentName('');
     setSearchTerm('');
     setData(null);
@@ -447,33 +449,20 @@ export function StudentReportCard() {
           `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin`,
           { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
         );
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.detail || 'No se pudo cargar el boletín');
-        }
-        const real = await res.json();
-        const notasJson = obtenerNotasPorCiclo(effectiveStudentId);
-        if (notasJson) {
-          const periodoActual = resumenDesdeJson(notasJson);
-          setData({
-            ...real,
-            estudiante: { ...real.estudiante, periodo_codigo: notasJson.periodoActual },
-            cursos_periodo: periodoActual.cursos_periodo,
-            resumen: { ...real.resumen, ...periodoActual.resumen },
-            _notasJson: notasJson,
-          });
+        if (res.ok) {
+          const real = await res.json();
+          setData(real);
         } else {
-          const evaluacion = mockEvaluacion.evaluaciones.find(
-            e => e.codigo_estudiante === real.estudiante.codigo_estudiante
-              && e.periodo === real.estudiante.periodo_codigo
-          );
-          setData(evaluacion ? { ...real, ...evaluacion } : real);
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'No se encontró información del boletín para este estudiante.');
         }
-      } catch (e) { setError(e.message); }
+      } catch (e) {
+        setError(e.message);
+      }
       setLoading(false);
     };
     fetchBoletin();
-  }, [effectiveStudentId]);
+  }, [effectiveStudentId, selectedStudent]);
 
   useEffect(() => {
     setBusquedaCursos('');
@@ -650,18 +639,27 @@ export function StudentReportCard() {
     );
   }
 
-  const { estudiante, matricula_estado, estado_academico, progreso_creditos, cursos_periodo, resumen, observaciones, ciclos, _notasJson } = data;
+  const {
+    estudiante = {},
+    matricula_estado = {},
+    estado_academico,
+    progreso_creditos = {},
+    cursos_periodo = [],
+    resumen = {},
+    observaciones,
+    ciclos = []
+  } = (data || {});
 
   const iniciales = `${(estudiante.nombres || '').trim().charAt(0)}${(estudiante.apellidos || '').trim().charAt(0)}`.toUpperCase() || 'ES';
   const creditosRestantes = Math.max(0, (progreso_creditos.creditos_totales || 0) - (progreso_creditos.creditos_aprobados || 0));
   const condicion = condicionTone(estado_academico);
 
-  const cursosConNota = cursos_periodo.filter(c => c.nota_final != null && c.creditos > 0);
+  const cursosConNota = (cursos_periodo || []).filter(c => c.nota_final != null && c.creditos > 0);
   const sumaCreditosEval = cursosConNota.reduce((s, c) => s + c.creditos, 0);
   const promedioPonderado = sumaCreditosEval > 0
     ? Math.round((cursosConNota.reduce((s, c) => s + c.nota_final * c.creditos, 0) / sumaCreditosEval) * 10) / 10
     : null;
-  const promedioAritmetico = resumen.promedio_general ?? null;
+  const promedioAritmetico = resumen?.promedio_general ?? null;
   const promediosListos = promedioPonderado != null || promedioAritmetico != null;
   const promedioRef = promedioPonderado ?? promedioAritmetico;
   const valoracion = valorarPromedio(promedioRef);
@@ -675,17 +673,15 @@ export function StudentReportCard() {
   const matriculaVigente = matricula_estado?.pago_matricula === true;
 
   /* ===== DOCUMENTO HISTÓRICO POR CICLOS ===== */
-  const listaCiclos = construirListaCiclos(ciclos, _notasJson, cursos_periodo);
+  const listaCiclos = Array.isArray(ciclos) ? ciclos : [];
   const unidadesPlan = listaCiclos.flatMap(c => Array.isArray(c.unidades) ? c.unidades : []);
 
   const notasHistoricas = unidadesPlan.filter(u => u.nota != null).map(u => u.nota);
   const promedioGeneralHistorico = notasHistoricas.length > 0
     ? Math.round((notasHistoricas.reduce((s, n) => s + n, 0) / notasHistoricas.length) * 100) / 100
     : null;
-  const ciclosCompletados = _notasJson
-    ? listaCiclos.filter(c => c.completado).length
-    : (resumen?.ciclos_completados ?? listaCiclos.filter(c => c.completado).length);
-  const ciclosTotales = _notasJson ? listaCiclos.length : (resumen?.ciclos_totales ?? listaCiclos.length);
+  const ciclosCompletados = resumen?.ciclos_completados ?? listaCiclos.filter(c => c.completado).length;
+  const ciclosTotales = resumen?.ciclos_totales ?? listaCiclos.length;
 
   const conteoEstado = {
     todos: unidadesPlan.length,

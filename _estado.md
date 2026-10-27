@@ -44,6 +44,7 @@ D:\SIGA\
 ### 3.3 Refinamiento de Fase 3 (Correcciones y Evaluaciones)
 - **Correcciones Rápidas de Tipeo:** Se implementó `EditStudentModal.jsx` en la vista de Maestro de Estudiantes (Secretaría) para permitir corregir errores de tipeo menores inmediatamente, diferenciándolo de los trámites legales de la Fase 4.
 - **Simplificación del Ingreso de Notas:** Por decisión de diseño (reducción de fricción de adopción), se eliminó la matriz compleja de 3 evaluaciones en `EvaluationDashboard.jsx`. Ahora el docente ingresa directamente un único **Promedio Final**. Se ajustó el esquema de la BD (`nota_final`) y la UI.
+- **Alineación de Endpoint Docker para `mod-evaluacion`:** Se corrigió `manifest.yaml` de `mod-evaluacion` (apuntaba erróneamente a `http://localhost:8008` en lugar de `http://mod-evaluacion:8008`), logrando que el 100% de los 7 microservicios reporten estado `healthy` a través del Core Gateway.
 
 ### 3.4 Módulo de Finanzas, Búsqueda de Estudiantes y Proxy Docker (Rama DUQUE)
 - **Conexión de API y Proxy Vite:** Se configuró el proxy Vite hacia `http://siga-core:8000` y conexión de endpoints mediante `API_BASE` para cargar los 788 estudiantes correctamente.
@@ -56,6 +57,20 @@ D:\SIGA\
 - **Solución:** nuevo módulo `siga_frontend/src/modules/evaluation/notasPorCiclo.js` que lee `siga_frontend/src/data/boletin.json` (relacional: periodos, matriculas, unidades, registros, docentes) y expone `obtenerNotasPorCiclo`, `resumenDesdeJson` y `construirListaCiclos`. Regla corregida: el **periodo más antiguo matriculado es el CICLO I** y cada semestre avanza un ciclo (2025-I=I, 2025-II=II, 2026-I=III, 2026-II=IV), de modo que las notas salen en I–IV (el campo `ciclo` del JSON está desfasado y ya no se usa como ancla).
 - **Integración:** `StudentReportCard.jsx` prioriza el JSON (fallback al mock solo si el estudiante no aparece), fusiona los ciclos del plan con los del JSON (los ciclos cubiertos reemplazan sus unidades por las del JSON y quedan con notas; **los ciclos posteriores —V y VI— se muestran con sus unidades del plan y sin notas**), y alinea `periodo_codigo`, `cursos_periodo` y `resumen`. Aprobación canónica **nota ≥ 13**.
 - **Verificación:** `npm run build` ✓ · `npm run lint` sin errores nuevos (baseline 19/7) · lógica probada con esbuild+node (estudiantes 2315/1666/1887) · API real OK (login `admin@siga.edu`/`admin123`, boletín 2315 → 6 ciclos de plan sin notas). Sin commit (pendiente de indicación).
+
+### 3.5 Corrección Dependencia 'greenlet' (Docker Rebuild)
+- **Problema:** Al ejecutar `docker compose up --build -d` tras el pull, SQLAlchemy 2.x crasheaba de inicio en todos los microservicios Python con `ImportError: The SQLAlchemy asyncio module requires that the Python 'greenlet' library is installed`. Por esta razón, el backend Gateway (Core en puerto 8000) no respondía y no era posible iniciar sesión.
+- **Solución:** Se incluyeron explícitamente `sqlalchemy[asyncio]>=2.0.23` y `greenlet>=3.0.0` en `siga_backend/requirements.txt`.
+- **Verificación:** Reconstrucción limpia de los contenedores (`docker compose up --build -d`), logs de todos los microservicios y Core en estado ACTIVO y verificación de respuesta exitosa (200 OK y token JWT emitido) en el endpoint `/auth/login`.
+
+### 3.6 Inclusión de Estudiantes de `boletin.json` en Filtro de Búsqueda (Luis Enrique Ruiz Salas)
+- **Problema:** En `StudentReportCard.jsx`, la lista del buscador (`allStudents`) se cargaba exclusivamente desde `/api/mod-gestion-academica/estudiantes/` (base de datos PostgreSQL). El estudiante 'Luis Enrique Ruiz Salas' (ID: 2315, DNI: 72720844) y otros 2 estudiantes estaban presentes en `boletin.json` pero no en la tabla `estudiantes` de PostgreSQL, por lo que nunca aparecían en el buscador/filtro.
+- **Solución:**
+  1. En `StudentReportCard.jsx`, se combinan los estudiantes de la BD con los de `boletin.json` (`estudiantesBoletin`), garantizando que cualquier alumno del JSON aparezca en el buscador independientemente de la BD.
+  2. En `notasPorCiclo.js`, se indexó a los estudiantes por ID, DNI y Código (`buscarEstudianteEnJson`), permitiendo resolver sus notas por cualquiera de estos campos.
+  3. Se creó `generarBoletinDesdeJson` como fallback seguro si la BD no tiene al estudiante.
+  4. Se insertaron en PostgreSQL los registros de los 3 estudiantes de `boletin.json` que faltaban (Luis Enrique Ruiz Salas, Leonardo Cahuana Tello, Ricardo Arevalo Villacorta) y se enlazó el `plan_estudio_id` en el programa de estudios.
+- **Verificación:** `npm run build` ✓ (0 warnings), endpoint `/estudiantes/` incluye a Luis Enrique, y endpoint `/estudiantes/2315/boletin` devuelve correctamente sus 6 ciclos de plan y notas históricas.
 
 ---
 

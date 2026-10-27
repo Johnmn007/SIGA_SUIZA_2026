@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import MetaData
 import os
 from datetime import datetime
-from sqlalchemy import Column, Integer, DateTime, String, JSON, Boolean
+from sqlalchemy import Column, Integer, DateTime, String, JSON, Boolean, text
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
@@ -44,7 +44,38 @@ async def get_db():
         finally:
             await db.close()
 
+async def ensure_schema():
+    """Añade de forma idempotente las columnas del proceso de matrícula.
+
+    ``Base.metadata.create_all`` crea tablas nuevas pero NO altera tablas
+    existentes, por lo que las columnas agregadas al motor de matrícula se
+    aplican aquí con ``ADD COLUMN IF NOT EXISTS`` (no destructivo).
+    """
+    from sqlalchemy import text
+
+    sentencias = [
+        "ALTER TABLE estudiantes ADD COLUMN IF NOT EXISTS plan_estudios_id INTEGER",
+        "ALTER TABLE estudiantes ADD COLUMN IF NOT EXISTS ciclo_actual INTEGER DEFAULT 1",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS ciclo INTEGER",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS casuistica VARCHAR(50)",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS boleta_codigo VARCHAR(64)",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS boleta_emitida_en TIMESTAMP",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS consolidada BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS registro_academico VARCHAR(50)",
+    ]
+    async with engine.begin() as conn:
+        for sentencia in sentencias:
+            await conn.execute(text(sentencia))
+    print("Esquema de matrícula verificado/actualizado")
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migración seguro para BDs existentes: ampliar foto_url a TEXT
+        # (permite guardar la foto del estudiante como data-URL base64)
+        try:
+            await conn.execute(text("ALTER TABLE estudiantes ALTER COLUMN foto_url TYPE TEXT"))
+        except Exception as exc:
+            print(f"  • foto_url (TEXT) check skipped: {exc}")
     print("Tablas creadas/verificadas")

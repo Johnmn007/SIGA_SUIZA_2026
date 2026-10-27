@@ -16,13 +16,16 @@ class Estudiante(BaseModel):
     celular = Column(String(20))
     direccion_domicilio = Column(String(255))
     estado_academico = Column(String(30), default="postulante")
-    foto_url = Column(String(255))
+    foto_url = Column(Text)
     observaciones = Column(Text)
     pago_matricula = Column(Boolean, default=False)
     documentos_completos = Column(Boolean, default=True)
     fecha_limite_documentos = Column(TIMESTAMP)
     modalidad_admision = Column(String(100), default="ORDINARIO")
     metadata_admision = Column(JSON, default={})
+    # Proceso de matrícula (sección 2: alumnos históricos; sección 3: ciclo)
+    plan_estudios_id = Column(Integer, index=True)  # Plan de ORIGEN (históricos)
+    ciclo_actual = Column(Integer, default=1)
 
 class Matricula(BaseModel):
     __tablename__ = "matriculas"
@@ -33,6 +36,14 @@ class Matricula(BaseModel):
     tipo_ingreso = Column(String(50))
     estado_matricula = Column(String(30), default="pendiente")
     observaciones = Column(String(255))
+
+    # Resultado del motor de matrícula (diagrama, secciones 3-8)
+    ciclo = Column(Integer)                     # Ciclo al que corresponde
+    casuistica = Column(String(50))             # Ingresante/Regular/Irregular/...
+    boleta_codigo = Column(String(64), index=True)  # Código único de la boleta QR
+    boleta_emitida_en = Column(TIMESTAMP)       # Fecha de emisión de la boleta
+    consolidada = Column(Boolean, default=False)    # Ya pasó por "resultado final"
+    registro_academico = Column(String(50))     # Código de registro académico
 
     # Relación con el detalle de la matrícula (las UDs matriculadas)
     detalles = relationship("MatriculaDetalle", back_populates="matricula", cascade="all, delete-orphan")

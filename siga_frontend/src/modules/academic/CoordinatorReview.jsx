@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
-import { FileText, BookOpen, ExternalLink } from 'lucide-react';
+import { FileText, BookOpen, ExternalLink, Filter } from 'lucide-react';
 
 export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva, unidadesFlat }) {
   const [silabos, setSilabos] = useState([]);
   const [planes, setPlanes] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('ALL');
 
   const fetchData = async () => {
     if (!programId || !periodId) return;
@@ -60,6 +61,10 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
     return carga ? getDocenteName(carga.docente_id) : 'Desconocido';
   };
 
+  const filteredSilabos = filterStatus === 'ALL' 
+    ? silabos 
+    : silabos.filter(s => s.estado === filterStatus);
+
   if (!programId || !periodId) return <div className="text-center text-slate-500 py-10">Seleccione programa y periodo.</div>;
   if (loading) return <div className="text-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div></div>;
 
@@ -111,19 +116,36 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
 
       {/* Sílabos */}
       <div>
-        <h3 className="text-lg font-bold text-slate-text mb-4 flex items-center">
-          <span className="w-8 h-8 rounded-lg bg-primary-soft text-primary flex items-center justify-center mr-2">
-            <BookOpen size={16} />
-          </span>
-          Revisión de Sílabos por Unidad Didáctica
-        </h3>
-        {silabos.length === 0 ? (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+          <h3 className="text-lg font-bold text-slate-text flex items-center">
+            <span className="w-8 h-8 rounded-lg bg-primary-soft text-primary flex items-center justify-center mr-2">
+              <BookOpen size={16} />
+            </span>
+            Revisión de Sílabos por Unidad Didáctica
+          </h3>
+          
+          <div className="flex items-center space-x-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+            <Filter size={16} className="text-slate-400 ml-1" />
+            <select 
+              className="bg-transparent text-sm font-semibold text-slate-600 border-none focus:ring-0 cursor-pointer outline-none"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="ALL">Todos los estados</option>
+              <option value="en_revision">En Revisión</option>
+              <option value="aprobado">Aprobados</option>
+              <option value="observado">Observados</option>
+            </select>
+          </div>
+        </div>
+
+        {filteredSilabos.length === 0 ? (
           <div className="text-center p-6 bg-slate-50 border border-slate-100 rounded-xl text-slate-500 text-sm">
-            Ningún sílabo ha sido presentado aún.
+            {silabos.length === 0 ? 'Ningún sílabo ha sido presentado aún.' : 'No hay sílabos que coincidan con el filtro actual.'}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {silabos.map(silabo => (
+            {filteredSilabos.map(silabo => (
               <div key={silabo.id} className="bg-white border border-slate-200 p-5 rounded-xl hover:shadow-md transition-all">
                 <div className="font-bold text-slate-text leading-tight mb-1">{getUnidadName(silabo.carga_lectiva_id)}</div>
                 <div className="text-xs text-slate-500 mb-3 font-medium">Docente: {getDocenteByCarga(silabo.carga_lectiva_id)}</div>

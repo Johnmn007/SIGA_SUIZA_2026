@@ -20,7 +20,7 @@ async def seed_roles():
             {"name": "coordinador_programa", "description": "Coordinador de Programa de Estudio"},
             {"name": "secretaria_academica", "description": "Secretaría Académica"},
             {"name": "admin_admision", "description": "Responsable de Admisión"},
-            {"name": "tesoreria", "description": "Tesorería / Caja"},
+            {"name": "caja_tesoreria", "description": "Tesorería / Caja"},
             {"name": "bienestar", "description": "Bienestar Estudiantil"},
             {"name": "docente", "description": "Docente"},
             {"name": "estudiante", "description": "Estudiante Regular"},
