@@ -10,6 +10,7 @@ export function EvaluationDashboard() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showActaModal, setShowActaModal] = useState(false);
+  const [gradeError, setGradeError] = useState(null);
   
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
@@ -104,11 +105,18 @@ export function EvaluationDashboard() {
   }, [selectedUnit, selectedPeriod]);
 
   const handleGradeChange = (studentId, criteria, value) => {
-    if (value !== '' && !/^\d+$/.test(value)) return;
+    if (value !== '' && !/^\d+$/.test(value)) {
+      setGradeError('La nota debe ser un número entero entre 0 y 20');
+      return;
+    }
     
     const numValue = parseInt(value, 10);
-    if (value !== '' && (numValue < 0 || numValue > 20)) return;
+    if (value !== '' && (numValue < 0 || numValue > 20)) {
+      setGradeError('La nota debe estar entre 0 y 20');
+      return;
+    }
 
+    setGradeError(null);
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
         return { ...s, [criteria]: value };
@@ -358,6 +366,14 @@ export function EvaluationDashboard() {
           {/* Tabla de Registro de Promedios */}
           {selectedUnit && selectedPeriod && (
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden animate-fade-in">
+              {/* Alerta de Error de Validación */}
+              {gradeError && (
+                <div data-testid="grade-error-alert" className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2 animate-fade-in">
+                  <AlertTriangle size={15} className="text-rose-600 flex-shrink-0" />
+                  <span className="font-medium">{gradeError}</span>
+                </div>
+              )}
+
               {/* Barra superior de estado */}
               <div className="px-6 py-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                 <div className="flex items-center gap-3">

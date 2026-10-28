@@ -148,7 +148,7 @@ describe('Auditoría Frontend - Rol Docente (EvaluationDashboard & DocentePlanni
     );
   });
 
-  it.fails('4. [BUG-D10] Debe mostrar un mensaje de error visual cuando se ingresa una nota fuera de rango', async () => {
+  it('4. [BUG-D10] Debe mostrar un mensaje de error visual cuando se ingresa una nota fuera de rango', async () => {
     // BUG-D10: EvaluationDashboard actualmente ignora en silencio las notas inválidas sin mostrar ningún mensaje de advertencia o feedback al usuario
     apiClient.request.mockImplementation((endpoint) => {
       if (endpoint.includes('/programas-estudio/programas') && !endpoint.includes('/malla')) {
