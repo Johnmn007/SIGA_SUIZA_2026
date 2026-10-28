@@ -610,7 +610,7 @@ async def eliminar_horario(programa_id: int, horario_id: int, db: AsyncSession =
 # --- Schemas Docente (Sílabo y Plan de Trabajo) ---
 class SilaboBase(BaseModel):
     carga_lectiva_id: int
-    estado: str = "borrador"
+    estado: Optional[str] = "borrador"
     archivo_url: Optional[str] = None
     observaciones: Optional[str] = None
 
@@ -619,14 +619,14 @@ class SilaboCreate(SilaboBase):
 
 class SilaboResponse(SilaboBase):
     id: int
-    created_at: datetime
+    created_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 class PlanTrabajoDocenteBase(BaseModel):
     periodo_id: int
     programa_id: int
     docente_id: int
-    estado: str = "borrador"
+    estado: Optional[str] = "borrador"
     archivo_url: Optional[str] = None
     observaciones: Optional[str] = None
 
@@ -635,7 +635,7 @@ class PlanTrabajoDocenteCreate(PlanTrabajoDocenteBase):
 
 class PlanTrabajoDocenteResponse(PlanTrabajoDocenteBase):
     id: int
-    created_at: datetime
+    created_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 # --- Endpoints Docente (Sílabos y Planes) ---

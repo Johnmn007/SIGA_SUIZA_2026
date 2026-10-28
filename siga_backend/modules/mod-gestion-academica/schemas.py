@@ -45,11 +45,11 @@ class EstudianteUpdate(BaseModel):
 
 class EstudianteResponse(EstudianteBase):
     id: int
-    estado_academico: str
+    estado_academico: Optional[str] = "regular"
     foto_url: Optional[str] = None
     observaciones: Optional[str] = None
-    pago_matricula: bool
-    documentos_completos: bool
+    pago_matricula: Optional[bool] = False
+    documentos_completos: Optional[bool] = True
     fecha_limite_documentos: Optional[datetime] = None
     modalidad_admision: Optional[str] = "ORDINARIO"
     metadata_admision: Optional[dict] = {}

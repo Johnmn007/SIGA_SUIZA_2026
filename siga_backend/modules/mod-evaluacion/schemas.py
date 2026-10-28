@@ -24,5 +24,5 @@ class RegistroEvaluacionUpdate(BaseModel):
 class RegistroEvaluacionResponse(RegistroEvaluacionBase):
     id: int
     nota_final: Optional[int] = None
-    estado: str
+    estado: Optional[str] = "cursando"
     model_config = ConfigDict(from_attributes=True)

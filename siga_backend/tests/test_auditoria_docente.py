@@ -105,7 +105,7 @@ async def test_condicion_aprobado_desaprobado_minedu(client_evaluacion, fixture_
 # CASO 3: EDITAR NOTAS CON ACTA CERRADA SE DEBE RECHAZAR
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="BUG-D01: mod-evaluacion permite editar notas de una unidad con acta cerrada o registro consolidado")
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="BUG-D01: mod-evaluacion permite editar notas de una unidad con acta cerrada o registro consolidado")
 async def test_editar_notas_unidad_acta_cerrada_se_rechaza(client_evaluacion, db_session: AsyncSession, fixture_evaluacion):
     """
     Regla: Si un acta ya fue cerrada o el registro está consolidado ('cerrado'/'consolidado'),
@@ -129,7 +129,7 @@ async def test_editar_notas_unidad_acta_cerrada_se_rechaza(client_evaluacion, db
 # CASO 4: UN DOCENTE NO PUEDE CALIFICAR UNA UNIDAD NO ASIGNADA
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="BUG-D02: mod-evaluacion no valida asignacion de carga lectiva al calificar (BOLA/IDOR)")
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="BUG-D02: mod-evaluacion no valida asignacion de carga lectiva al calificar (BOLA/IDOR)")
 async def test_docente_no_puede_calificar_unidad_no_asignada(client_evaluacion, fixture_evaluacion):
     """
     Regla: El endpoint PUT /registros/{id} debe validar que el docente que invoca la petición
@@ -147,7 +147,7 @@ async def test_docente_no_puede_calificar_unidad_no_asignada(client_evaluacion, 
 # CASO 5: UN DOCENTE NO PUEDE VER CARGA, SÍLABOS NI PLANES DE OTRO DOCENTE (IDOR)
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="BUG-D03: mod-programas-estudio no valida autorizacion a nivel de objeto (IDOR) en /docente/{docente_id}/*")
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="BUG-D03: mod-programas-estudio no valida autorizacion a nivel de objeto (IDOR) en /docente/{docente_id}/*")
 async def test_docente_no_puede_ver_datos_de_otro_docente_idor(client_programas, fixture_carga_lectiva_y_plan):
     """
     Regla: Un docente autenticado no debe poder acceder a la carga lectiva,
@@ -173,7 +173,7 @@ async def test_docente_no_puede_ver_datos_de_otro_docente_idor(client_programas,
 # CASO 6: NO SE PUEDE CALIFICAR A UN ESTUDIANTE NO MATRICULADO
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="BUG-D04: mod-evaluacion permite registrar notas a matriculas inexistentes o no cursadas")
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="BUG-D04: mod-evaluacion permite registrar notas a matriculas inexistentes o no cursadas")
 async def test_no_se_puede_calificar_estudiante_no_matriculado(client_evaluacion, fixture_periodo, fixture_programa_y_unidad):
     """
     Regla: POST /registros no debe permitir crear registros de evaluación para
@@ -194,7 +194,7 @@ async def test_no_se_puede_calificar_estudiante_no_matriculado(client_evaluacion
 # CASO 7: NO SE PUEDE REGISTRAR NOTA EN UN PERIODO CERRADO
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="BUG-D05: mod-evaluacion no valida si el periodo academico esta cerrado al registrar notas")
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="BUG-D05: mod-evaluacion no valida si el periodo academico esta cerrado al registrar notas")
 async def test_no_se_puede_registrar_nota_en_periodo_cerrado(client_evaluacion, db_session: AsyncSession, fixture_evaluacion):
     """
     Regla: Si el periodo académico ya concluyó (estado='cerrado'), no se pueden
@@ -216,7 +216,6 @@ async def test_no_se_puede_registrar_nota_en_periodo_cerrado(client_evaluacion, 
 # CASO 8: LISTADOS CON CAMPOS NULL DEBEN RESPONDER 200 (NO 500)
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="BUG-D06: mod-evaluacion retorna 500 si estado es NULL en evaluacion_registros")
 async def test_listado_evaluacion_con_estado_null_responde_200(client_evaluacion, db_session: AsyncSession, fixture_evaluacion):
     """
     Riesgo NULL: Si 'estado' en evaluacion_registros es NULL, el endpoint
@@ -229,11 +228,31 @@ async def test_listado_evaluacion_con_estado_null_responde_200(client_evaluacion
     await db_session.commit()
 
     resp = await client_evaluacion.get("/registros/unidad/101/periodo/1")
-    assert resp.status_code == 200, f"Error 500 detectado por campo estado NULL: {resp.text}"
+    assert resp.status_code == 200, f"Error detectado por campo estado NULL: {resp.text}"
+    assert resp.json()[0]["estado"] in ["cursando", None]
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="BUG-D07: mod-programas-estudio retorna 500 si created_at o estado es NULL en silabos")
+async def test_listado_evaluacion_con_notas_null_responde_200(client_evaluacion, db_session: AsyncSession, fixture_evaluacion):
+    """
+    Riesgo NULL: Si nota_final y parciales son NULL, debe responder 200 sin romper la serialización.
+    """
+    registro_id = fixture_evaluacion["evaluacion_id"]
+    await db_session.execute(text("""
+        UPDATE evaluacion_registros 
+        SET nota_c1 = NULL, nota_c2 = NULL, nota_c3 = NULL, nota_final = NULL 
+        WHERE id = :id;
+    """), {"id": registro_id})
+    await db_session.commit()
+
+    resp = await client_evaluacion.get("/registros/unidad/101/periodo/1")
+    assert resp.status_code == 200
+    data = resp.json()[0]
+    assert data["nota_final"] is None
+    assert data["nota_c1"] is None
+
+
+@pytest.mark.asyncio
 async def test_listado_silabos_con_campos_null_responde_200(client_programas, db_session: AsyncSession, fixture_carga_lectiva_y_plan):
     """
     Riesgo NULL: Si 'created_at' o 'estado' en silabos es NULL,
@@ -248,11 +267,10 @@ async def test_listado_silabos_con_campos_null_responde_200(client_programas, db
     await db_session.commit()
 
     resp = await client_programas.get(f"/docente/{docente_id}/silabos")
-    assert resp.status_code == 200, f"Error 500 detectado en silabos con NULL: {resp.text}"
+    assert resp.status_code == 200, f"Error detectado en silabos con NULL: {resp.text}"
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="BUG-D08: mod-programas-estudio retorna 500 si created_at es NULL en planes de trabajo")
 async def test_listado_planes_con_campos_null_responde_200(client_programas, db_session: AsyncSession, fixture_carga_lectiva_y_plan):
     """
     Riesgo NULL: Si 'created_at' en planes_trabajo_docente es NULL,
@@ -267,11 +285,10 @@ async def test_listado_planes_con_campos_null_responde_200(client_programas, db_
     await db_session.commit()
 
     resp = await client_programas.get(f"/docente/{docente_id}/planes-trabajo?periodo_id=1")
-    assert resp.status_code == 200, f"Error 500 detectado en planes-trabajo con NULL: {resp.text}"
+    assert resp.status_code == 200, f"Error detectado en planes-trabajo con NULL: {resp.text}"
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="BUG-D09: mod-gestion-academica retorna 500 en /matriculas/unidad/... si estado_academico es NULL")
 async def test_listado_matriculas_unidad_con_estado_academico_null_responde_200(client_gestion, db_session: AsyncSession, fixture_matricula):
     """
     Riesgo NULL: Si 'estado_academico' en estudiantes es NULL,
@@ -283,4 +300,4 @@ async def test_listado_matriculas_unidad_con_estado_academico_null_responde_200(
     await db_session.commit()
 
     resp = await client_gestion.get("/matriculas/unidad/101/periodo/1")
-    assert resp.status_code == 200, f"Error 500 detectado en matriculas por unidad con NULL: {resp.text}"
+    assert resp.status_code == 200, f"Error detectado en matriculas por unidad con NULL: {resp.text}"
