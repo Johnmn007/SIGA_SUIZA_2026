@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from typing import List
 
 from database import get_db, OutboxEvent
@@ -33,6 +33,44 @@ def _determinar_estado(promedio):
 
 @router.post("/registros", response_model=RegistroEvaluacionResponse, status_code=status.HTTP_201_CREATED)
 async def crear_registro(data: RegistroEvaluacionCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    # 1. Validar que el periodo académico esté en curso (BUG-D05)
+    per_res = await db.execute(
+        text("SELECT estado FROM periodos_academicos WHERE id = :p_id"),
+        {"p_id": data.periodo_id}
+    )
+    estado_periodo = per_res.scalar_one_or_none()
+    if estado_periodo != "en_curso":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"El periodo académico no se encuentra en curso (estado: {estado_periodo or 'no encontrado'}). No se permite registrar calificaciones."
+        )
+
+    # 2. Validar que la matrícula exista y corresponda a la unidad y periodo (BUG-D04)
+    mat_res = await db.execute(
+        text("""
+            SELECT md.id 
+            FROM matricula_detalles md
+            JOIN matriculas m ON md.matricula_id = m.id
+            WHERE md.id = :det_id 
+              AND md.unidad_didactica_id = :u_id
+              AND m.estudiante_id = :est_id
+              AND m.periodo_id = :per_id
+              AND m.estado_matricula != 'anulada'
+        """),
+        {
+            "det_id": data.matricula_detalle_id,
+            "u_id": data.unidad_didactica_id,
+            "est_id": data.estudiante_id,
+            "per_id": data.periodo_id
+        }
+    )
+    if not mat_res.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No se encontró una matrícula activa válida que corresponda al estudiante, unidad didáctica y periodo indicados."
+        )
+
+    # 3. Validar no duplicidad
     result = await db.execute(select(RegistroEvaluacion).where(RegistroEvaluacion.matricula_detalle_id == data.matricula_detalle_id))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="El registro de evaluación ya existe para esta matrícula")
@@ -82,6 +120,18 @@ async def actualizar_notas(registro_id: int, data: RegistroEvaluacionUpdate, req
     db_obj = result.scalar_one_or_none()
     if not db_obj:
         raise HTTPException(status_code=404, detail="Registro de evaluación no encontrado")
+    
+    # Validar que el periodo académico esté en curso (BUG-D05)
+    per_res = await db.execute(
+        text("SELECT estado FROM periodos_academicos WHERE id = :p_id"),
+        {"p_id": db_obj.periodo_id}
+    )
+    estado_periodo = per_res.scalar_one_or_none()
+    if estado_periodo != "en_curso":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"El periodo académico no se encuentra en curso (estado: {estado_periodo or 'no encontrado'}). No se permite modificar calificaciones."
+        )
     
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():

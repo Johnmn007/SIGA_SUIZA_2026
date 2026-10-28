@@ -170,10 +170,9 @@ async def test_docente_no_puede_ver_datos_de_otro_docente_idor(client_programas,
 
 
 # ==============================================================================
-# CASO 6: NO SE PUEDE CALIFICAR A UN ESTUDIANTE NO MATRICULADO
+# CASO 6: NO SE PUEDE CALIFICAR A UN ESTUDIANTE NO MATRICULADO (BUG-D04 CORREGIDO)
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="BUG-D04: mod-evaluacion permite registrar notas a matriculas inexistentes o no cursadas")
 async def test_no_se_puede_calificar_estudiante_no_matriculado(client_evaluacion, fixture_periodo, fixture_programa_y_unidad):
     """
     Regla: POST /registros no debe permitir crear registros de evaluación para
@@ -187,14 +186,13 @@ async def test_no_se_puede_calificar_estudiante_no_matriculado(client_evaluacion
         "nota_final": 17
     }
     resp = await client_evaluacion.post("/registros", json=payload_invalido)
-    assert resp.status_code in [400, 404, 422], f"Permitió calificar a estudiante no matriculado! Status: {resp.status_code}"
+    assert resp.status_code in [404, 422], f"Permitió calificar a estudiante no matriculado! Status: {resp.status_code}"
 
 
 # ==============================================================================
-# CASO 7: NO SE PUEDE REGISTRAR NOTA EN UN PERIODO CERRADO
+# CASO 7: NO SE PUEDE REGISTRAR NOTA EN UN PERIODO CERRADO (BUG-D05 CORREGIDO)
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="BUG-D05: mod-evaluacion no valida si el periodo academico esta cerrado al registrar notas")
 async def test_no_se_puede_registrar_nota_en_periodo_cerrado(client_evaluacion, db_session: AsyncSession, fixture_evaluacion):
     """
     Regla: Si el periodo académico ya concluyó (estado='cerrado'), no se pueden
@@ -209,7 +207,18 @@ async def test_no_se_puede_registrar_nota_en_periodo_cerrado(client_evaluacion, 
 
     registro_id = fixture_evaluacion["evaluacion_id"]
     resp = await client_evaluacion.put(f"/registros/{registro_id}", json={"nota_final": 15})
-    assert resp.status_code in [400, 403, 409], f"Permitió calificar en periodo cerrado! Status: {resp.status_code}"
+    assert resp.status_code == 409, f"Se esperaba 409 y se obtuvo {resp.status_code}"
+    assert "periodo" in resp.json()["detail"].lower()
+
+    # Probar también creación en periodo cerrado
+    resp_post = await client_evaluacion.post("/registros", json={
+        "matricula_detalle_id": 80,
+        "estudiante_id": 100,
+        "unidad_didactica_id": 101,
+        "periodo_id": periodo_id,
+        "nota_final": 15
+    })
+    assert resp_post.status_code == 409, f"Se esperaba 409 y se obtuvo {resp_post.status_code}"
 
 
 # ==============================================================================
