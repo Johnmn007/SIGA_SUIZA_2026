@@ -295,3 +295,32 @@ async def fixture_evaluacion(db_session: AsyncSession, fixture_matricula):
     """))
     await db_session.commit()
     return {"evaluacion_id": 200, "nota_final": 16, "estado": "aprobado"}
+
+
+@pytest.fixture
+async def fixture_carga_lectiva_y_plan(db_session: AsyncSession, fixture_docente, fixture_programa_y_unidad, fixture_periodo):
+    """Crea carga lectiva docente, sílabo y plan de trabajo de prueba."""
+    await db_session.execute(text("""
+        INSERT INTO carga_lectiva (id, periodo_id, programa_id, docente_id, unidad_didactica_id, turno, seccion, estado, created_at, updated_at)
+        VALUES (1, 1, 1, 10, 101, 'MAÑANA', 'A', 'activo', NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING;
+    """))
+    await db_session.execute(text("""
+        INSERT INTO silabos (id, carga_lectiva_id, estado, archivo_url, observaciones, created_at, updated_at)
+        VALUES (1, 1, 'aprobado', '/docs/silabo_dsi.pdf', 'Sílabo validado', NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING;
+    """))
+    await db_session.execute(text("""
+        INSERT INTO planes_trabajo_docente (id, periodo_id, programa_id, docente_id, estado, archivo_url, observaciones, created_at, updated_at)
+        VALUES (1, 1, 1, 10, 'aprobado', '/docs/plan_dsi.pdf', 'Plan aprobado', NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING;
+    """))
+    await db_session.commit()
+    return {
+        "carga_id": 1,
+        "silabo_id": 1,
+        "plan_id": 1,
+        "docente_id": 10,
+        "unidad_id": 101,
+        "periodo_id": 1
+    }

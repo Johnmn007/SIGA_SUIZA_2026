@@ -19,9 +19,16 @@ def load_module_component(module_name: str, component_name: str = "main"):
     internos (from database import ..., from models import ...) se resuelvan limpiamente.
     """
     mod_dir = str(get_module_dir(module_name))
-    if mod_dir not in sys.path:
+    
+    # Limpiar módulos locales conflictivos de la caché de imports
+    for name in ['routes', 'models', 'schemas', 'database', 'main', 'matricula_routes', 'outbox_worker', 'config']:
+        sys.modules.pop(name, None)
+
+    if sys.path[0] != mod_dir:
+        if mod_dir in sys.path:
+            sys.path.remove(mod_dir)
         sys.path.insert(0, mod_dir)
 
-    # Forzar recarga o import limpio
+    # Forzar import limpio
     module = importlib.import_module(component_name)
     return module
