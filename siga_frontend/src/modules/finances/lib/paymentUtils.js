@@ -118,7 +118,8 @@ export function publicBaseUrl(receipt) {
 export function buildBoletaLink(receipt) {
   const base = publicBaseUrl(receipt);
   if (!base || !receipt?.qrBoleta) return null;
-  return `${base}/boleta.html?${new URLSearchParams({ boleta: receipt.qrBoleta.datos, f: receipt.qrBoleta.firma })}`;
+  const { datos, firma, sello } = receipt.qrBoleta;
+  return `${base}/boleta.html?${new URLSearchParams({ boleta: datos, f: firma, ...(sello ? { s: sello } : {}) })}`;
 }
 
 export function receiptQrContent(receipt) {

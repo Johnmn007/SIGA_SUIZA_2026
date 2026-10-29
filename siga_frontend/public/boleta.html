@@ -161,9 +161,15 @@
 
   <script>
     (function () {
+      // Clave pública del sello digital. Tesorería la incrusta al descargar esta página para publicarla en internet
+      // (Tarifario TUPA → Datos de cobro): así la copia publicada verifica el sello sin el servidor del SIGA.
+      var CLAVE_SELLO = '__CLAVE_SELLO__';
+      var PUBLICADA = CLAVE_SELLO.indexOf('__') !== 0;
+
       var params = new URLSearchParams(location.search);
       var datos = params.get('boleta') || '';
       var firma = params.get('f') || '';
+      var sello = params.get('s') || '';
       var $ = function (id) { return document.getElementById(id); };
       var mostrar = function (id) { $(id).classList.remove('oculto'); };
       var API = '/api/mod-gestion-academica/tesoreria/publico/';
@@ -222,6 +228,7 @@
       var ESTADOS = {
         verificando: ['', '', 'Verificando con Tesorería...', 'Los datos vienen del propio código QR.', 'PAGADO (verificando...)', '', 'VERIFICANDO', ''],
         vigente: ['ok', '✓', 'Boleta auténtica', '', 'PAGADO', 'verde', 'PAGADO', 'pagado'],
+        sellada: ['ok', '✓', 'Boleta auténtica', 'Sello digital de Tesorería del IESTP SUIZA verificado en este celular.', 'PAGADO', 'verde', 'PAGADO', 'pagado'],
         anulada: ['warn', '!', 'Boleta ya no vigente', 'Fue emitida por Tesorería, pero el recibo no figura como pagado. Consulta en Tesorería.', 'NO VIGENTE', 'ambar', 'NO VIGENTE', 'ambar'],
         alterada: ['bad', '✕', 'Boleta no válida', 'Los datos del QR fueron alterados o no los emitió Tesorería.', 'NO VÁLIDA', 'rojo', 'NO VÁLIDA', 'rojo'],
         sin_conexion: ['warn', '!', 'Boleta leída del QR (sin verificar)', 'No se pudo conectar con el IESTP SUIZA; se muestran los datos del código QR.', 'PAGADO (sin verificar)', '', 'SIN VERIFICAR', ''],
@@ -248,7 +255,24 @@
         mostrarEstado('vigente', verificadoEn);
       } else {
         mostrarEstado('verificando');
-        verificarEnlace();
+        if (PUBLICADA) verificarSello(); else verificarEnlace();
+      }
+
+      // Copia publicada en internet: verifica el sello ECDSA con la clave pública, sin llamar al servidor
+      function verificarSello() {
+        if (!sello) { mostrarEstado('alterada'); return; }
+        if (!(window.crypto && crypto.subtle)) { mostrarEstado('sin_conexion'); return; }
+        var bytes64 = function (t) {
+          var b = t.replace(/-/g, '+').replace(/_/g, '/');
+          b += '='.repeat((4 - (b.length % 4)) % 4);
+          return Uint8Array.from(atob(b), function (ch) { return ch.charCodeAt(0); });
+        };
+        crypto.subtle.importKey('raw', bytes64(CLAVE_SELLO), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+          .then(function (clave) {
+            return crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, clave, bytes64(sello), new TextEncoder().encode(datos));
+          })
+          .then(function (ok) { mostrarEstado(ok ? 'sellada' : 'alterada'); })
+          .catch(function () { mostrarEstado('alterada'); });
       }
 
       // Verificación en línea (con límite: si la red del celular falla, la boleta del QR igual queda visible)

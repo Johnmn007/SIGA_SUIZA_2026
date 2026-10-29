@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import { PRICE_TYPES } from './tupaCatalog';
 import { ConceptFormModal } from './ConceptFormModal';
-import { isPublicUrl } from './lib/tesoreriaApi';
+import { isPublicUrl, publicApiBase } from './lib/tesoreriaApi';
+import { downloadBlob } from './lib/xlsxWriter';
 
 const PRICE_TYPE_STYLE = {
   fijo: { icon: Tag, cls: 'bg-blue-50 text-blue-700 border-blue-200' },
@@ -56,6 +57,26 @@ export function TupaCatalogManager({ catalog, catalogError, onSaveConcept, onDel
       setConfigStatus({ saving: false, message: 'Datos de cobro guardados en la base de datos.', error: '' });
     } catch (e) {
       setConfigStatus({ saving: false, message: '', error: e.message });
+    }
+  };
+
+  // Página de la boleta lista para publicar en un hosting gratuito (Netlify, Cloudflare Pages...):
+  // lleva incrustada la clave pública del sello, así verifica las boletas sin el servidor del SIGA.
+  const [pageStatus, setPageStatus] = useState('');
+  const handleDownloadBoletaPage = async () => {
+    setPageStatus('');
+    try {
+      const [plantilla, { clave }] = await Promise.all([
+        fetch('/boleta.html').then(r => { if (!r.ok) throw new Error('No se encontró boleta.html'); return r.text(); }),
+        fetch(`${publicApiBase()}/api/mod-gestion-academica/tesoreria/publico/clave-sello`).then(r => { if (!r.ok) throw new Error('No se pudo leer la clave del sello'); return r.json(); }),
+      ]);
+      const marcador = "var CLAVE_SELLO = '__CLAVE_SELLO__';";
+      if (!plantilla.includes(marcador)) throw new Error('La plantilla de boleta.html no tiene el marcador de la clave.');
+      const pagina = plantilla.replace(marcador, `var CLAVE_SELLO = ${JSON.stringify(clave)};`);
+      downloadBlob(new Blob([pagina], { type: 'text/html;charset=utf-8' }), 'boleta.html');
+      setPageStatus('ok');
+    } catch (e) {
+      setPageStatus(e.message);
     }
   };
 
@@ -249,6 +270,29 @@ export function TupaCatalogManager({ catalog, catalogError, onSaveConcept, onDel
               Es una dirección local: no se usará en el QR (la boleta igual va escrita dentro del código).
             </p>
           )}
+
+          {/* Publicar solo la página de la boleta: el QR funciona siempre, aunque el SIGA no esté en internet */}
+          <div className="mt-4 pt-4 border-t border-slate-200">
+            <p className="text-xs font-bold text-slate-700 mb-1">¿El SIGA no está en internet? Publica solo la página de la boleta (gratis)</p>
+            <ol className="text-[11px] text-slate-600 leading-relaxed list-decimal pl-4 space-y-0.5">
+              <li>Descarga la página (lleva la clave pública del sello; no contiene datos de alumnos).</li>
+              <li>Crea una cuenta gratuita en <b>app.netlify.com</b>, entra a <b>Add new site → Deploy manually</b> y arrastra una carpeta que contenga ese <b>boleta.html</b>.</li>
+              <li>Copia la dirección que te da (ej. https://boleta-iestp-suiza.netlify.app), pégala arriba en <b>Dominio público</b> y guarda.</li>
+            </ol>
+            <button
+              type="button"
+              onClick={handleDownloadBoletaPage}
+              className="mt-2.5 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white text-xs font-bold transition cursor-pointer"
+            >
+              <Upload size={13} className="rotate-180" /> Descargar página de la boleta para publicar
+            </button>
+            {pageStatus === 'ok' && (
+              <p className="mt-2 text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5"><CheckCircle2 size={13} /> boleta.html descargada. Súbela a Netlify como se indica arriba.</p>
+            )}
+            {pageStatus && pageStatus !== 'ok' && (
+              <p className="mt-2 text-[11px] text-red-700 font-semibold flex items-center gap-1.5"><AlertCircle size={13} /> {pageStatus}</p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-4 items-start">

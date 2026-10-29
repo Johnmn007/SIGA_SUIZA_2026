@@ -6,8 +6,9 @@ La base de datos es la fuente de verdad:
 * Cada cobro genera un recibo correlativo (``tesoreria_pagos``) y, si el concepto
   habilita la matrícula, actualiza ``estudiantes.pago_matricula`` en la misma transacción.
 * El estado de cuenta (deuda / habilitado) se deriva siempre de ``pago_matricula``.
-* El QR de cada recibo guarda los datos del pago (fijados al momento de cobrar) con su
-  código de verificación HMAC: cualquier celular lo lee sin conexión al sistema.
+* El QR de cada recibo lleva la boleta completa (se arma al mostrarla, no se guarda) con su
+  código de verificación HMAC y un sello digital ECDSA. Con dirección pública configurada, el QR es
+  el enlace a la página de la boleta, que verifica el sello en el propio celular (sin el servidor).
   Los endpoints ``/tesoreria/publico/*`` permiten además verificarlo en línea.
 """
 import base64
@@ -23,6 +24,9 @@ from urllib.parse import urlencode, urlparse
 from decimal import Decimal
 from typing import List, Optional
 
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import func, select, text
@@ -151,11 +155,14 @@ async def obtener_config(db: AsyncSession, clave: str) -> Optional[Configuracion
 
 
 _secreto_cache: Optional[bytes] = None
+_clave_ec_cache: Optional[ec.EllipticCurvePrivateKey] = None
 
 
 async def secreto_qr(db: AsyncSession) -> bytes:
-    """Clave HMAC para firmar los QR (se genera una sola vez y se guarda en la BD)."""
+    """Clave HMAC para firmar los QR (se genera una sola vez y se guarda en la BD).
+    También deja cargada la clave ECDSA del sello digital de las boletas (ver sellar_boleta)."""
     global _secreto_cache
+    await clave_sello(db)
     if _secreto_cache:
         return _secreto_cache
     fila = await obtener_config(db, "qr_secreto")
@@ -165,6 +172,37 @@ async def secreto_qr(db: AsyncSession) -> bytes:
         await db.commit()
     _secreto_cache = fila.valor["clave"].encode()
     return _secreto_cache
+
+
+async def clave_sello(db: AsyncSession) -> ec.EllipticCurvePrivateKey:
+    """Clave ECDSA P-256 del sello digital (se genera una sola vez y se guarda en la BD).
+    Su clave pública va dentro de la página publicada de la boleta: el celular verifica el sello sin el servidor."""
+    global _clave_ec_cache
+    if _clave_ec_cache:
+        return _clave_ec_cache
+    fila = await obtener_config(db, "qr_sello_ec")
+    if not fila:
+        nueva = ec.generate_private_key(ec.SECP256R1())
+        pem = nueva.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                  serialization.NoEncryption()).decode()
+        fila = ConfiguracionCaja(clave="qr_sello_ec", valor={"pem": pem})
+        db.add(fila)
+        await db.commit()
+    _clave_ec_cache = serialization.load_pem_private_key(fila.valor["pem"].encode(), password=None)
+    return _clave_ec_cache
+
+
+def sellar_boleta(datos: str) -> str:
+    """Sello ECDSA (SHA-256) de los datos de la boleta, en formato r||s (el que verifica WebCrypto en el navegador)."""
+    der = _clave_ec_cache.sign(datos.encode(), ec.ECDSA(hashes.SHA256()))
+    r, s = decode_dss_signature(der)
+    return b64url(r.to_bytes(32, "big") + s.to_bytes(32, "big"))
+
+
+def clave_publica_sello() -> str:
+    punto = _clave_ec_cache.public_key().public_bytes(serialization.Encoding.X962,
+                                                      serialization.PublicFormat.UncompressedPoint)
+    return b64url(punto)
 
 
 def firmar(secreto: bytes, *partes: str) -> str:
@@ -239,7 +277,8 @@ def qr_boleta(m: dict, secreto: bytes) -> dict:
     }
     compacto = {k: v for k, v in campos.items() if v not in ("", 0)}
     datos = b64url(json.dumps(compacto, ensure_ascii=False, separators=(",", ":")).encode())
-    return {"datos": datos, "firma": firmar(secreto, "BOLETA", datos)}
+    # firma: código de verificación corto (HMAC, lo valida el servidor); sello: firma digital que valida el propio celular
+    return {"datos": datos, "firma": firmar(secreto, "BOLETA", datos), "sello": sellar_boleta(datos)}
 
 
 def texto_qr_boleta(m: dict, firma: str) -> str:
@@ -772,6 +811,13 @@ async def verificar_recibo(codigo: str, dni: str, t: str, db: AsyncSession = Dep
     if not recibo:
         raise HTTPException(404, detail=NO_VALIDO)
     return {"valido": True, "recibo": recibo, "verificadoEn": formato_fecha_hora(ahora_peru())}
+
+
+@router.get("/publico/clave-sello")
+async def clave_publica_boletas(db: AsyncSession = Depends(get_db)):
+    """Clave pública del sello digital: se incrusta en la página de la boleta que se publica en internet."""
+    await clave_sello(db)
+    return {"clave": clave_publica_sello(), "algoritmo": "ECDSA P-256 / SHA-256"}
 
 
 @router.get("/publico/boleta")
