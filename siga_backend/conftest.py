@@ -227,7 +227,7 @@ async def fixture_docente(db_session: AsyncSession):
     """Crea un docente con usuario institucional y perfil de personal."""
     await db_session.execute(text("""
         INSERT INTO core_users (id, email, full_name, hashed_password, is_active, is_superuser, created_at)
-        VALUES (10, 'docente.test@siga.edu', 'Prof. Roberto Saboya', 'hash_test_123', true, false, NOW())
+        VALUES (10, 'docente.test@siga.edu', 'Prof. Docente Prueba', 'hash_test_123', true, false, NOW())
         ON CONFLICT (id) DO NOTHING;
     """))
     await db_session.execute(text("""
@@ -236,7 +236,7 @@ async def fixture_docente(db_session: AsyncSession):
         ON CONFLICT (id) DO NOTHING;
     """))
     await db_session.commit()
-    return {"docente_id": 10, "email": "docente.test@siga.edu", "full_name": "Prof. Roberto Saboya"}
+    return {"docente_id": 10, "email": "docente.test@siga.edu", "full_name": "Prof. Docente Prueba"}
 
 
 @pytest.fixture
@@ -244,7 +244,7 @@ async def fixture_coordinador(db_session: AsyncSession):
     """Crea un coordinador de programa."""
     await db_session.execute(text("""
         INSERT INTO core_users (id, email, full_name, hashed_password, is_active, is_superuser, created_at)
-        VALUES (20, 'coordinador.test@siga.edu', 'Ing. Carlos Coordinador', 'hash_test_123', true, false, NOW())
+        VALUES (20, 'coordinador.test@siga.edu', 'Ing. Coordinador Prueba', 'hash_test_123', true, false, NOW())
         ON CONFLICT (id) DO NOTHING;
     """))
     await db_session.execute(text("""
@@ -261,11 +261,11 @@ async def fixture_estudiante(db_session: AsyncSession, fixture_programa_y_unidad
     """Crea un estudiante de prueba matriculado."""
     await db_session.execute(text("""
         INSERT INTO estudiantes (id, codigo_estudiante, dni, nombres, apellidos, programa_id, estado_academico, pago_matricula, documentos_completos, created_at, updated_at)
-        VALUES (100, '2026-72720844', '72720844', 'Luis Enrique', 'Ruiz Salas', 1, 'regular', true, true, NOW(), NOW())
+        VALUES (100, 'TEST-00000001', '00000001', 'Estudiante', 'Prueba SIGA', 1, 'regular', true, true, NOW(), NOW())
         ON CONFLICT (id) DO NOTHING;
     """))
     await db_session.commit()
-    return {"estudiante_id": 100, "dni": "72720844", "nombre_completo": "Luis Enrique Ruiz Salas"}
+    return {"estudiante_id": 100, "dni": "00000001", "nombre_completo": "Estudiante Prueba SIGA"}
 
 
 @pytest.fixture

@@ -43,7 +43,7 @@ describe('Auditoría Frontend - Rol Docente (EvaluationDashboard & DocentePlanni
       }
       if (endpoint.includes('/matriculas/unidad/101/periodo/1')) {
         return Promise.resolve([
-          { id: 100, matricula_detalle_id: 80, nombres: 'Luis Enrique', apellidos: 'Ruiz Salas' },
+          { id: 100, matricula_detalle_id: 80, nombres: 'Estudiante', apellidos: 'Prueba SIGA' },
           { id: 101, matricula_detalle_id: 81, nombres: 'Ana María', apellidos: 'Gómez Perez' }
         ]);
       }
@@ -64,7 +64,7 @@ describe('Auditoría Frontend - Rol Docente (EvaluationDashboard & DocentePlanni
 
     // Verificar que los estudiantes se renderizan en la nómina
     await waitFor(() => {
-      expect(screen.getByText(/Ruiz Salas, Luis Enrique/i)).toBeInTheDocument();
+      expect(screen.getByText(/Prueba SIGA, Estudiante/i)).toBeInTheDocument();
       expect(screen.getByText(/Gómez Perez, Ana María/i)).toBeInTheDocument();
     });
 
