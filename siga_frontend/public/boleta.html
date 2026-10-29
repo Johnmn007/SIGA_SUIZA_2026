@@ -2,116 +2,162 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0A2552">
   <title>Boleta de pago · IESTP SUIZA</title>
   <!--
-    Página liviana que abre el celular al escanear el QR de una boleta (un solo archivo, sin React ni el resto del SIGA).
-    La boleta se arma con los datos firmados que trae el propio QR (?boleta=...&f=..., ver qr_boleta en tesoreria_routes.py);
-    el servidor solo confirma la firma y que el recibo siga vigente.
+    Página que abre el celular al escanear el QR de una boleta. Pensada primero para celular:
+    un solo archivo liviano (sin React ni el resto del SIGA), resumen arriba, formulario en una columna
+    y barra inferior con Compartir / Guardar PDF.
+    La boleta se arma con los datos firmados que trae el propio QR (?boleta=...&f=..., ver qr_boleta en
+    tesoreria_routes.py); el servidor solo confirma la firma y que el recibo siga vigente.
   -->
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f1f5f9; color: #0f172a; }
-    header { background: linear-gradient(90deg, #071329, #0A2552, #00388F); color: #fff; }
-    .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .logo { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25); display: flex; align-items: center; justify-content: center; font-weight: 900; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #eef2f7; color: #0f172a; font-size: 16px; line-height: 1.4; }
+    .mono { font-family: ui-monospace, Consolas, "Courier New", monospace; }
+    .oculto { display: none !important; }
+
+    header { background: linear-gradient(90deg, #071329, #0A2552, #00388F); color: #fff; padding: calc(12px + env(safe-area-inset-top)) 16px 12px; }
+    .brand { max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+    .logo { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25); display: flex; align-items: center; justify-content: center; font-weight: 900; flex-shrink: 0; }
     .brand b { display: block; font-size: 16px; }
-    .brand small { color: #bfdbfe; font-size: 12px; }
-    main.wrap { display: grid; gap: 14px; padding-top: 18px; padding-bottom: 28px; }
-    .estado { display: flex; gap: 12px; align-items: flex-start; background: #fff; border: 2px solid #e2e8f0; border-radius: 22px; padding: 14px 16px; }
-    .estado .ico { font-size: 24px; line-height: 1; }
-    .estado h2 { font-size: 16px; font-weight: 900; }
-    .estado p { font-size: 12px; color: #64748b; margin-top: 2px; }
-    .estado.ok { border-color: #6ee7b7; color: #065f46; }
-    .estado.warn { border-color: #fcd34d; color: #92400e; }
-    .estado.bad { border-color: #fca5a5; color: #b91c1c; }
+    .brand small { color: #bfdbfe; font-size: 13px; }
+
+    main { max-width: 560px; margin: 0 auto; padding: 14px 14px calc(96px + env(safe-area-inset-bottom)); display: grid; gap: 14px; }
+
+    /* Estado de la verificación */
+    .estado { display: flex; gap: 12px; align-items: center; background: #fff; border: 2px solid #e2e8f0; border-radius: 18px; padding: 12px 14px; }
+    .estado .ico { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 900; flex-shrink: 0; background: #e2e8f0; color: #475569; }
+    .estado h2 { font-size: 16px; font-weight: 800; line-height: 1.25; }
+    .estado p { font-size: 13px; color: #64748b; margin-top: 2px; }
+    .estado.ok { border-color: #6ee7b7; } .estado.ok .ico { background: #d1fae5; color: #047857; } .estado.ok h2 { color: #065f46; }
+    .estado.warn { border-color: #fcd34d; } .estado.warn .ico { background: #fef3c7; color: #b45309; } .estado.warn h2 { color: #92400e; }
+    .estado.bad { border-color: #fca5a5; } .estado.bad .ico { background: #fee2e2; color: #b91c1c; } .estado.bad h2 { color: #b91c1c; }
+    .girando { animation: girar 1s linear infinite; }
+    @keyframes girar { to { transform: rotate(360deg); } }
+
+    /* Resumen: lo que se lee de un vistazo en el celular */
+    .resumen { background: #0A2552; color: #fff; border-radius: 22px; padding: 18px; }
+    .resumen .fila { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .chip { font-size: 12px; font-weight: 800; letter-spacing: .04em; padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,.14); }
+    .chip.pagado { background: #10b981; color: #fff; }
+    .chip.rojo { background: #ef4444; color: #fff; }
+    .chip.ambar { background: #f59e0b; color: #fff; }
+    .resumen .monto { font-size: 40px; font-weight: 900; letter-spacing: -.01em; margin: 10px 0 2px; }
+    .resumen .letras { font-size: 12px; color: #bfdbfe; }
+    .resumen .concepto { font-size: 17px; font-weight: 700; margin-top: 12px; }
+    .resumen .alumno { font-size: 14px; color: #dbeafe; margin-top: 4px; }
+    .resumen .alumno b { color: #fff; }
+
+    /* Formulario de la boleta (solo lectura), una columna */
     form { background: #fff; border: 1px solid #e2e8f0; border-radius: 22px; overflow: hidden; }
-    form.invalida { border-color: #fca5a5; opacity: .7; }
-    .cab { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 14px 18px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
-    .cab h1 { font-size: 17px; font-weight: 900; }
-    .cab p { font-size: 11px; color: #64748b; }
-    .num { background: #0A2552; color: #fff; border-radius: 10px; padding: 6px 12px; font-family: Consolas, "Courier New", monospace; font-weight: 900; }
-    .cuerpo { padding: 18px; display: grid; gap: 18px; }
-    fieldset { border: 0; }
-    legend { font-size: 11px; font-weight: 900; color: #0A2552; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .ancho { grid-column: 1 / -1; }
-    label span { display: block; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
-    input { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; font: inherit; font-size: 14px; font-weight: 600; color: #0f172a; }
-    input.mono { font-family: Consolas, "Courier New", monospace; }
+    form.invalida { border-color: #fca5a5; }
+    form.invalida .seccion { opacity: .6; }
+    .seccion { padding: 16px; border-bottom: 1px solid #eef2f7; }
+    .seccion:last-child { border-bottom: 0; }
+    .seccion h3 { font-size: 12px; font-weight: 900; color: #0A2552; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+    .campos { display: grid; gap: 10px; }
+    label span { display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
+    input { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; font: inherit; font-size: 16px; font-weight: 600; color: #0f172a; -webkit-appearance: none; appearance: none; }
+    input:focus { outline: 2px solid #93c5fd; }
     input.verde { color: #047857; } input.azul { color: #0044B2; }
     input.ambar { color: #b45309; font-weight: 900; } input.rojo { color: #b91c1c; font-weight: 900; }
-    .total { background: #0A2552; color: #fff; border-radius: 16px; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
-    .total small { display: block; font-size: 10px; font-weight: 700; color: #bfdbfe; text-transform: uppercase; }
-    .total em { font-style: normal; font-size: 11px; color: #dbeafe; }
-    .total strong { font-size: 28px; font-family: Consolas, "Courier New", monospace; }
-    .libera { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; border-radius: 12px; padding: 10px 12px; font-size: 12px; font-weight: 600; }
-    .pie { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 12px 18px; display: flex; justify-content: flex-end; }
-    button { background: #0044B2; color: #fff; border: 0; border-radius: 12px; padding: 10px 16px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-    .error { background: #fff; border: 2px solid #fca5a5; border-radius: 22px; padding: 22px; text-align: center; color: #b91c1c; }
-    .error p { color: #475569; font-size: 14px; margin-top: 6px; }
-    .oculto { display: none !important; }
-    @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+    .libera { margin: 0 16px 16px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; border-radius: 12px; padding: 12px; font-size: 14px; font-weight: 600; }
+    .inst { text-align: center; font-size: 12px; color: #64748b; padding: 0 8px; }
+
+    /* Barra inferior fija con las acciones (zona del pulgar) */
+    .acciones { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,.96); border-top: 1px solid #e2e8f0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    .acciones .in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn { min-height: 50px; border: 0; border-radius: 14px; font: inherit; font-size: 16px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn svg { width: 20px; height: 20px; }
+    .btn-share { background: #10b981; color: #fff; }
+    .btn-pdf { background: #0044B2; color: #fff; }
+    .btn:active { transform: scale(.98); }
+    .aviso { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #0f172a; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 14px; }
+
+    .error { background: #fff; border: 2px solid #fca5a5; border-radius: 22px; padding: 24px 18px; text-align: center; }
+    .error h2 { color: #b91c1c; font-size: 18px; }
+    .error p { color: #475569; font-size: 15px; margin-top: 8px; }
+
+    @media (min-width: 640px) { .campos.dos { grid-template-columns: 1fr 1fr; } .campos .ancho { grid-column: 1 / -1; } }
     @media print {
-      body { background: #fff; } header, .pie, .estado { display: none; }
-      form { border: 1px solid #94a3b8; opacity: 1; } main.wrap { padding: 0; }
+      body { background: #fff; } header, .acciones, .estado, .aviso { display: none !important; }
+      main { padding: 0; max-width: none; }
+      .resumen { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      form { border: 1px solid #94a3b8; }
     }
   </style>
 </head>
 <body>
-  <header><div class="wrap brand"><div class="logo">IS</div><div><b>IESTP SUIZA</b><small>Tesorería · Boleta de pago</small></div></div></header>
+  <header><div class="brand"><div class="logo">IS</div><div><b>IESTP SUIZA</b><small>Tesorería · Boleta de pago</small></div></div></header>
 
-  <main class="wrap">
+  <main>
     <div id="error" class="error oculto">
       <h2>No se pudo leer la boleta</h2>
       <p>El código QR no contiene una boleta válida. Si el documento es auténtico, acércate a Tesorería del IESTP SUIZA.</p>
     </div>
 
-    <div id="estado" class="estado oculto"><div class="ico" id="estado-ico">⏳</div><div><h2 id="estado-titulo"></h2><p id="estado-texto"></p></div></div>
+    <div id="estado" class="estado oculto"><div class="ico" id="estado-ico"></div><div><h2 id="estado-titulo"></h2><p id="estado-texto"></p></div></div>
 
-    <form id="boleta" class="oculto" onsubmit="return false">
-      <div class="cab">
-        <div><h1>Boleta de Pago · Recibo de Caja</h1><p>Instituto de Educación Superior Tecnológico Público "Suiza" · RUC 20172839211</p></div>
-        <span class="num" data-campo="r"></span>
-      </div>
-      <div class="cuerpo">
-        <fieldset><legend>Datos del comprobante</legend><div class="grid">
-          <label><span>N° de recibo</span><input readonly class="mono" data-campo="r"></label>
-          <label><span>Fecha y hora de pago</span><input readonly data-campo="f"></label>
-          <label><span>Estado</span><input readonly id="campo-estado"></label>
-          <label><span>Cajero responsable</span><input readonly data-campo="j"></label>
-        </div></fieldset>
+    <section id="resumen" class="resumen oculto" aria-label="Resumen de la boleta">
+      <div class="fila"><span class="chip mono" data-campo="r"></span><span class="chip" id="chip-estado"></span></div>
+      <div class="monto mono" id="monto"></div>
+      <div class="letras" id="letras"></div>
+      <div class="concepto" data-campo="n"></div>
+      <div class="alumno"><b data-campo="a"></b> · DNI <span class="mono" data-campo="d"></span></div>
+    </section>
 
-        <fieldset><legend>Datos del alumno</legend><div class="grid">
-          <label class="ancho"><span>Apellidos y nombres</span><input readonly data-campo="a"></label>
-          <label><span>DNI</span><input readonly class="mono azul" data-campo="d"></label>
-          <label><span>Código de alumno</span><input readonly class="mono" data-campo="c"></label>
-          <label class="ancho"><span>Programa de estudio</span><input readonly data-campo="p"></label>
-        </div></fieldset>
+    <form id="boleta" class="oculto" onsubmit="return false" aria-label="Boleta de pago">
+      <div class="seccion"><h3>Comprobante</h3><div class="campos dos">
+        <label><span>N° de recibo</span><input readonly class="mono" data-campo="r"></label>
+        <label><span>Fecha y hora de pago</span><input readonly data-campo="f"></label>
+        <label><span>Estado</span><input readonly id="campo-estado"></label>
+        <label><span>Cajero responsable</span><input readonly data-campo="j"></label>
+      </div></div>
 
-        <fieldset><legend>Detalle del pago</legend><div class="grid">
-          <label><span>Código TUPA</span><input readonly class="mono" data-campo="k"></label>
-          <label><span>Categoría</span><input readonly data-campo="g"></label>
-          <label class="ancho"><span>Concepto</span><input readonly data-campo="n"></label>
-          <label data-si="t"><span>Tarifa</span><input readonly data-campo="t"></label>
-          <label class="ancho" data-si="b"><span>Observaciones</span><input readonly data-campo="b"></label>
-        </div></fieldset>
+      <div class="seccion"><h3>Alumno</h3><div class="campos dos">
+        <label class="ancho"><span>Apellidos y nombres</span><input readonly data-campo="a"></label>
+        <label><span>DNI</span><input readonly class="mono azul" data-campo="d" inputmode="numeric"></label>
+        <label><span>Código de alumno</span><input readonly class="mono" data-campo="c"></label>
+        <label class="ancho"><span>Programa de estudio</span><input readonly data-campo="p"></label>
+      </div></div>
 
-        <fieldset><legend>Forma de pago</legend><div class="grid">
-          <label><span>Medio de pago</span><input readonly data-campo="mp"></label>
-          <label><span>N° de operación / referencia</span><input readonly class="mono" data-campo="o"></label>
-        </div></fieldset>
+      <div class="seccion"><h3>Pago</h3><div class="campos dos">
+        <label class="ancho"><span>Concepto</span><input readonly data-campo="n"></label>
+        <label><span>Código TUPA</span><input readonly class="mono" data-campo="k"></label>
+        <label><span>Categoría</span><input readonly data-campo="g"></label>
+        <label data-si="t"><span>Tarifa</span><input readonly data-campo="t"></label>
+        <label><span>Medio de pago</span><input readonly data-campo="mp"></label>
+        <label><span>N° de operación</span><input readonly class="mono" data-campo="o"></label>
+        <label class="ancho" data-si="b"><span>Observaciones</span><input readonly data-campo="b"></label>
+        <label class="ancho"><span>Monto pagado</span><input readonly class="mono verde" id="campo-monto"></label>
+      </div></div>
 
-        <div class="total"><div><small>Total pagado</small><em id="letras"></em></div><strong id="monto"></strong></div>
-        <div class="libera oculto" id="libera">✓ Pago habilitante: este pago liberó el bloqueo de matrícula del alumno.</div>
+      <div class="libera oculto" id="libera">✓ Pago habilitante: este pago liberó el bloqueo de matrícula del alumno.</div>
 
-        <div class="grid"><label><span>Código de verificación</span><input readonly class="mono" id="codigo-verificacion"></label></div>
-      </div>
-      <div class="pie"><button type="button" id="imprimir" onclick="window.print()">Imprimir / Guardar PDF</button></div>
+      <div class="seccion"><h3>Verificación</h3><div class="campos">
+        <label><span>Código de verificación</span><input readonly class="mono" id="codigo-verificacion"></label>
+      </div></div>
     </form>
+
+    <p class="inst oculto" id="inst">Instituto de Educación Superior Tecnológico Público "Suiza" · RUC 20172839211</p>
   </main>
+
+  <nav class="acciones oculto" id="acciones" aria-label="Acciones">
+    <div class="in">
+      <button type="button" class="btn btn-share" id="compartir">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+        Compartir
+      </button>
+      <button type="button" class="btn btn-pdf" id="pdf">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+        Guardar PDF
+      </button>
+    </div>
+  </nav>
+  <div class="aviso oculto" id="aviso" role="status"></div>
 
   <script>
     (function () {
@@ -119,18 +165,40 @@
       var datos = params.get('boleta') || '';
       var firma = params.get('f') || '';
       var $ = function (id) { return document.getElementById(id); };
+      var mostrar = function (id) { $(id).classList.remove('oculto'); };
+      var API = '/api/mod-gestion-academica/tesoreria/publico/';
 
-      var boleta;
+      // Enlace corto "VER BOLETA" del QR (?recibo=...&dni=...&t=...): la boleta se pide al servidor
+      if (params.has('recibo')) {
+        fetch(API + 'recibo?' + new URLSearchParams({ codigo: params.get('recibo') || '', dni: params.get('dni') || '', t: params.get('t') || '' }))
+          .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
+          .then(function (body) {
+            var r = body.recibo;
+            iniciar({
+              r: r.codigoRecibo, f: r.fechaHora, a: r.estudianteNombre, d: r.dni, c: r.codigoEstudiante, p: r.carreraNombre,
+              k: r.conceptoCodigo, n: r.conceptoNombre, g: r.conceptoCategoria, t: r.tarifaNombre !== 'General' ? r.tarifaNombre : '',
+              m: r.monto, mp: r.metodoPagoNombre, o: r.numeroOperacion !== '-' ? r.numeroOperacion : '', j: r.cajero,
+              b: r.observaciones, l: r.liberaMatricula,
+            }, (r.qrBoleta && r.qrBoleta.firma) || '', body.verificadoEn);
+          })
+          .catch(function () { mostrar('error'); });
+        return;
+      }
+
+      // Boleta completa dentro del enlace (?boleta=...&f=...)
       try {
         var b64 = datos.replace(/-/g, '+').replace(/_/g, '/');
         b64 += '='.repeat((4 - (b64.length % 4)) % 4);
         var bytes = Uint8Array.from(atob(b64), function (ch) { return ch.charCodeAt(0); });
-        boleta = JSON.parse(new TextDecoder().decode(bytes));
-        if (!boleta.r || !boleta.d) throw new Error('incompleta');
+        var leida = JSON.parse(new TextDecoder().decode(bytes));
+        if (!leida.r || !leida.d) throw new Error('incompleta');
+        iniciar(leida, firma, null);
       } catch (e) {
-        $('error').classList.remove('oculto');
-        return;
+        mostrar('error');
       }
+
+    // verificadoEn: si viene del servidor la boleta ya está verificada; si no, se verifica la firma del enlace
+    function iniciar(boleta, firma, verificadoEn) {
 
       // Los valores se escriben como texto (nunca como HTML)
       document.querySelectorAll('[data-campo]').forEach(function (el) {
@@ -141,37 +209,53 @@
         if (!boleta[el.getAttribute('data-si')]) el.classList.add('oculto');
       });
       var monto = parseFloat(boleta.m) || 0;
-      $('monto').textContent = 'S/ ' + monto.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      var montoTexto = 'S/ ' + monto.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      $('monto').textContent = montoTexto;
+      $('campo-monto').value = montoTexto;
       $('letras').textContent = 'SON: ' + montoEnLetras(monto);
-      if (boleta.l) $('libera').classList.remove('oculto');
+      if (boleta.l) mostrar('libera');
       $('codigo-verificacion').value = (firma.toUpperCase().match(/.{1,4}/g) || []).join('-');
       document.title = 'Boleta ' + boleta.r + ' · IESTP SUIZA';
-      $('boleta').classList.remove('oculto');
+      ['resumen', 'boleta', 'inst', 'acciones'].forEach(mostrar);
 
+      // [clase del aviso, ícono, título, texto, valor del campo Estado, color del campo, chip del resumen, color del chip]
       var ESTADOS = {
-        verificando: ['', '⏳', 'Verificando la boleta con Tesorería...', 'Los datos que ves vienen del propio código QR.', 'PAGADO (verificando...)', ''],
-        vigente: ['ok', '✅', 'Boleta auténtica · Pago registrado', '', 'PAGADO', 'verde'],
-        anulada: ['warn', '⚠️', 'Boleta emitida por Tesorería, pero ya no está vigente', 'El recibo no figura como pagado actualmente. Consulta en Tesorería.', 'NO VIGENTE', 'ambar'],
-        alterada: ['bad', '⛔', 'Boleta no válida', 'Los datos del QR fueron alterados o no los emitió Tesorería.', 'NO VÁLIDA', 'rojo'],
-        sin_conexion: ['warn', '📶', 'Boleta leída del QR (sin verificar)', 'No se pudo conectar con el servidor del IESTP SUIZA; los datos mostrados son los del código QR.', 'PAGADO (sin verificar)', ''],
+        verificando: ['', '', 'Verificando con Tesorería...', 'Los datos vienen del propio código QR.', 'PAGADO (verificando...)', '', 'VERIFICANDO', ''],
+        vigente: ['ok', '✓', 'Boleta auténtica', '', 'PAGADO', 'verde', 'PAGADO', 'pagado'],
+        anulada: ['warn', '!', 'Boleta ya no vigente', 'Fue emitida por Tesorería, pero el recibo no figura como pagado. Consulta en Tesorería.', 'NO VIGENTE', 'ambar', 'NO VIGENTE', 'ambar'],
+        alterada: ['bad', '✕', 'Boleta no válida', 'Los datos del QR fueron alterados o no los emitió Tesorería.', 'NO VÁLIDA', 'rojo', 'NO VÁLIDA', 'rojo'],
+        sin_conexion: ['warn', '!', 'Boleta leída del QR (sin verificar)', 'No se pudo conectar con el IESTP SUIZA; se muestran los datos del código QR.', 'PAGADO (sin verificar)', '', 'SIN VERIFICAR', ''],
       };
+      var estadoActual = 'verificando';
       function mostrarEstado(clave, verificadoEn) {
         var e = ESTADOS[clave];
+        estadoActual = clave;
         $('estado').className = 'estado ' + e[0];
         $('estado-ico').textContent = e[1];
+        $('estado-ico').classList.toggle('girando', clave === 'verificando');
+        if (clave === 'verificando') $('estado-ico').textContent = '◌';
         $('estado-titulo').textContent = e[2];
-        $('estado-texto').textContent = clave === 'vigente' ? 'Confirmado en Tesorería del IESTP SUIZA el ' + verificadoEn + '.' : e[3];
+        $('estado-texto').textContent = clave === 'vigente' ? 'Pago registrado en Tesorería · verificado el ' + verificadoEn : e[3];
         $('campo-estado').value = e[4];
         $('campo-estado').className = e[5];
+        $('chip-estado').textContent = e[6];
+        $('chip-estado').className = 'chip ' + e[7];
         $('boleta').classList.toggle('invalida', clave === 'alterada');
-        $('imprimir').classList.toggle('oculto', clave === 'alterada');
+        $('acciones').classList.toggle('oculto', clave === 'alterada');
       }
-      mostrarEstado('verificando');
+      mostrar('estado');
+      if (verificadoEn) {
+        mostrarEstado('vigente', verificadoEn);
+      } else {
+        mostrarEstado('verificando');
+        verificarEnlace();
+      }
 
-      // Verificación en línea (con límite de tiempo: si la red falla, la boleta del QR igual queda visible)
+      // Verificación en línea (con límite: si la red del celular falla, la boleta del QR igual queda visible)
+      function verificarEnlace() {
       var control = window.AbortController ? new AbortController() : null;
       var limite = setTimeout(function () { if (control) control.abort(); }, 8000);
-      fetch('/api/mod-gestion-academica/tesoreria/publico/boleta?' + new URLSearchParams({ datos: datos, f: firma }), control ? { signal: control.signal } : {})
+      fetch(API + 'boleta?' + new URLSearchParams({ datos: datos, f: firma }), control ? { signal: control.signal } : {})
         .then(function (res) {
           return res.json().catch(function () { return null; }).then(function (body) {
             if (!res.ok) mostrarEstado('alterada');
@@ -180,6 +264,28 @@
         })
         .catch(function () { mostrarEstado('sin_conexion'); })
         .then(function () { clearTimeout(limite); });
+      }
+
+      // Compartir: menú nativo del celular (WhatsApp, Gmail...) o, si no existe, WhatsApp / copiar enlace
+      var avisoTimer;
+      function aviso(texto) {
+        $('aviso').textContent = texto;
+        mostrar('aviso');
+        clearTimeout(avisoTimer);
+        avisoTimer = setTimeout(function () { $('aviso').classList.add('oculto'); }, 2500);
+      }
+      $('compartir').addEventListener('click', function () {
+        var texto = 'Boleta ' + boleta.r + ' · ' + (boleta.n || '') + ' · ' + montoTexto + ' · ' + (boleta.a || '');
+        if (navigator.share) {
+          navigator.share({ title: 'Boleta ' + boleta.r + ' · IESTP SUIZA', text: texto, url: location.href }).catch(function () {});
+        } else if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+          location.href = 'https://wa.me/?text=' + encodeURIComponent(texto + '\n' + location.href);
+        } else if (navigator.clipboard) {
+          navigator.clipboard.writeText(location.href).then(function () { aviso('Enlace de la boleta copiado'); });
+        }
+      });
+      $('pdf').addEventListener('click', function () { window.print(); });
+    }
 
       // Monto en letras (formato de comprobantes peruanos)
       function montoEnLetras(valor) {

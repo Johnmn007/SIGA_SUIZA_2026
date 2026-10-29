@@ -199,15 +199,15 @@ def texto_ascii(texto: str) -> str:
 
 
 def es_url_publica(url: str) -> bool:
-    """Dirección que un celular puede abrir: dominio en internet o IP de la red del instituto (no localhost)."""
+    """Solo un dominio o IP de internet: quien escanea no está en la red del instituto (ni localhost ni IP privada)."""
     if not url or urlparse(url).scheme not in ("http", "https"):
         return False
     host = urlparse(url).hostname or ""
-    if host in ("localhost", "0.0.0.0") or host.endswith(".localhost"):
+    if host in ("localhost",) or host.endswith(".local") or host.endswith(".localhost"):
         return False
     try:
         ip = ipaddress.ip_address(host)
-        return not (ip.is_loopback or ip.is_link_local or ip.is_unspecified)
+        return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified)
     except ValueError:
         return "." in host
 
@@ -240,6 +240,50 @@ def qr_boleta(m: dict, secreto: bytes) -> dict:
     compacto = {k: v for k, v in campos.items() if v not in ("", 0)}
     datos = b64url(json.dumps(compacto, ensure_ascii=False, separators=(",", ":")).encode())
     return {"datos": datos, "firma": firmar(secreto, "BOLETA", datos)}
+
+
+def texto_qr_boleta(m: dict, firma: str, url_publica: Optional[str] = None) -> str:
+    """Contenido del QR: la boleta escrita como formulario. Cualquier celular la muestra al escanear,
+    sin internet ni conexión al sistema (quien escanea no está en la red del instituto).
+    Solo si el sistema está publicado en internet se agrega un enlace corto a la boleta en formato web."""
+    raya, doble = "-" * 32, "=" * 32
+    operacion = m.get("numeroOperacion") or ""
+    tarifa = m.get("tarifaNombre") or ""
+    lineas = [
+        "IESTP SUIZA", "BOLETA DE PAGO - RECIBO DE CAJA", doble,
+        f"RECIBO: {m['codigoRecibo']}",
+        f"FECHA: {m.get('fechaHora') or '-'}",
+        "ESTADO: PAGADO", raya,
+        f"ALUMNO: {m['estudianteNombre']}",
+        f"DNI: {m['dni']}",
+        f"CODIGO: {m.get('codigoEstudiante') or '-'}",
+    ]
+    if m.get("carreraNombre"):
+        lineas.append(f"PROGRAMA: {m['carreraNombre']}")
+    lineas += [raya, f"CONCEPTO: {m.get('conceptoCodigo') or ''} {m.get('conceptoNombre') or ''}".rstrip()]
+    if m.get("conceptoCategoria"):
+        lineas.append(f"CATEGORIA: {m['conceptoCategoria']}")
+    if tarifa and tarifa != "General":
+        lineas.append(f"TARIFA: {tarifa}")
+    lineas += [f"MONTO PAGADO: S/ {a_float(m['monto']):.2f}", f"MEDIO DE PAGO: {m.get('metodoPagoNombre') or '-'}"]
+    if operacion and operacion != "-":
+        lineas.append(f"N. OPERACION: {operacion}")
+    lineas.append(f"CAJERO: {m.get('cajero') or 'Caja Central'}")
+    if m.get("observaciones"):
+        lineas.append(f"OBS: {m['observaciones']}")
+    if m.get("liberaMatricula"):
+        lineas.append("* Pago habilitante de matricula")
+    lineas += [doble, f"VERIFICACION: {formato_token(firma)}"]
+    if url_publica and m.get("token"):
+        lineas.append(f"VER BOLETA: {url_publica}/boleta.html?{urlencode({'recibo': m['codigoRecibo'], 'dni': m['dni'], 't': m['token']})}")
+    return texto_ascii("\n".join(lineas))
+
+
+def agregar_qr(m: dict, secreto: bytes, url_publica: Optional[str]) -> dict:
+    """El QR se arma al mostrar la boleta (no se guarda en la base de datos)."""
+    m["qrBoleta"] = qr_boleta(m, secreto)
+    m["qrTexto"] = texto_qr_boleta(m, m["qrBoleta"]["firma"], url_publica)
+    return m
 
 
 def texto_qr_estado_cuenta(estado: dict, emitido: str, url_publica: Optional[str] = None) -> str:
@@ -310,10 +354,7 @@ def pago_dict(p: PagoCaja, secreto: bytes, url_publica: Optional[str] = None) ->
         "origen": "caja",
         "token": firmar(secreto, p.codigo_recibo, p.dni),
     }
-    # El QR se arma al mostrar la boleta: el enlace lleva todos sus datos firmados (no se guarda en la base de datos)
-    datos["qrBoleta"] = qr_boleta(datos, secreto)
-    datos["qrBase"] = url_publica or ""
-    return datos
+    return agregar_qr(datos, secreto, url_publica)
 
 
 def normalizar_tarifas(data: ConceptoIn) -> list:
@@ -424,8 +465,7 @@ async def construir_estado_cuenta(db: AsyncSession, est: Estudiante, secreto: by
     # QR de los comprobantes de admisión y acreditación (no se emiten en caja)
     for m in movimientos:
         if m["estado"] == "PAGADO" and "qrBoleta" not in m:
-            m["qrBoleta"] = qr_boleta(m, secreto)
-            m["qrBase"] = url_publica or ""
+            agregar_qr(m, secreto, url_publica)
 
     total_pagado = sum(m["monto"] for m in movimientos if m["estado"] == "PAGADO")
     total_pendiente = sum(m["monto"] for m in movimientos if m["estado"] == "PENDIENTE")

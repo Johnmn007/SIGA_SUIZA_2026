@@ -221,30 +221,30 @@ export function TupaCatalogManager({ catalog, catalogError, onSaveConcept, onDel
           <p className="mb-3 text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5"><CheckCircle2 size={13} /> {configStatus.message}</p>
         )}
 
-        {/* El QR de la boleta es un enlace con todos sus datos: necesita una dirección que el celular pueda abrir */}
+        {/* El QR lleva la boleta escrita: se lee sin internet. El enlace web es opcional */}
         <div className="mb-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
           <p className="text-xs text-slate-700 mb-3 flex items-start gap-1.5">
             <QrCode size={14} className="text-primary flex-shrink-0 mt-0.5" />
             <span>
-              <b>El QR de cada boleta lleva todo su contenido</b> (recibo, fecha, alumno, DNI, programa, concepto, monto, forma de pago
-              y firma de verificación). Al escanearlo, el celular o la PC <b>abre la boleta como formulario</b> en esta dirección.
+              <b>El QR de cada boleta lleva la boleta completa</b> (recibo, fecha, alumno, DNI, programa, concepto, monto, medio de pago,
+              cajero y código de verificación). Cualquier celular la muestra al escanear, <b>sin internet y en cualquier red</b>.
             </span>
           </p>
-          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-1"><Globe size={13} /> Dirección del sistema para el QR</label>
+          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-1"><Globe size={13} /> Dominio público del sistema <span className="font-medium text-slate-400">(opcional)</span></label>
           <input
             value={configForm.urlPublica || ''}
             onChange={(e) => updateConfig('urlPublica', e.target.value)}
-            placeholder="http://192.168.1.50:3000  o  https://siga.iestpsuiza.edu.pe"
+            placeholder="https://siga.iestpsuiza.edu.pe"
             className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
           <p className="text-[10.5px] text-slate-500 mt-1.5 leading-relaxed">
-            Usa la IP de esta PC en la red del instituto (el celular debe estar en la misma red Wi-Fi) o el dominio si el sistema está en internet.
-            Si lo dejas vacío, el QR usa la dirección con la que abriste el sistema.
+            Solo cuando el sistema esté publicado en internet: el QR agrega al final un enlace “VER BOLETA” que abre la boleta
+            en formato web para celular. Las direcciones locales (localhost o IP de la red interna) no se agregan, porque quien escanea no está en esa red.
           </p>
           {(configForm.urlPublica || '').trim() && !isPublicUrl(configForm.urlPublica.trim()) && (
             <p className="mt-2 text-[11px] text-amber-700 font-semibold flex items-start gap-1.5">
               <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
-              Dirección no válida para el QR: un celular no puede abrir localhost. Usa la IP de la red (ej. http://192.168.1.50:3000).
+              Es una dirección local: no se agregará al QR (la boleta igual va escrita dentro del código).
             </p>
           )}
         </div>
