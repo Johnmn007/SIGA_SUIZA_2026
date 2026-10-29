@@ -55,7 +55,7 @@ Se ejecutó una consulta de solo lectura (SELECT) en `siga_local` para verificar
 
 | ID | Severidad | Estado | Componente / Archivo y Línea | Causa Raíz | Prueba Demostrativa | Corrección Aplicada / Propuesta |
 |---|---|---|---|---|---|---|
-| **BUG-D01** | **Alta** | **Pendiente**<br>*(Sin mecanismo en backend)* | `siga_backend/modules/mod-evaluacion/routes.py`<br>Líneas 80–135 | `actualizar_notas` no verifica el estado del acta ni si el registro está consolidado/cerrado. Permite alterar calificaciones de periodos o actas ya oficializadas. | `test_editar_notas_unidad_acta_cerrada_se_rechaza` (xfail) | Se investigó el esquema y código: hoy **no existe tabla ni modelo de actas en el backend**; en el frontend es solo un modal HTML imprimible. Se documentan opciones en Sección 4. |
+| **BUG-D01** | **Alta** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py`<br>Líneas 65–105, 178–220 | `actualizar_notas` no verificaba el estado del acta ni si el registro estaba consolidado/cerrado. Permitía alterar calificaciones de periodos o actas ya oficializadas. | `test_editar_notas_unidad_acta_cerrada_se_rechaza` (PASSED)<br>`test_cierre_actas.py` (10 pruebas PASSED) | Se implementó la verificación de `carga_lectiva` (`acta_cerrada`, `fecha_limite_notas`) y de `evaluacion_registros.estado` ('cerrado'/'consolidado') tanto en `POST /registros` como en `PUT /registros/{registro_id}`. Si el acta está cerrada o el plazo venció (zona horaria America/Lima), responde **409 Conflict**. Además se agregaron los endpoints de gestión de actas en `mod-evaluacion`. |
 | **BUG-D02** | **Alta** | **Pendiente**<br>*(Diferido a tarea de autorizaciones)* | `siga_backend/modules/mod-evaluacion/routes.py`<br>Líneas 80–135 | No valida la relación entre el docente autenticado (`X-User-ID`) y la `carga_lectiva` asignada a la unidad didáctica. Cualquier docente puede calificar unidades ajenas (BOLA). | `test_docente_no_puede_calificar_unidad_no_asignada` (xfail) | Requiere inspección de cabeceras de identidad (`X-User-ID`) o JWT en los microservicios. Diferido por alcance de la tarea. |
 | **BUG-D03** | **Alta** | **Pendiente**<br>*(Diferido a tarea de autorizaciones)* | `siga_backend/modules/mod-programas-estudio/routes.py`<br>Líneas 566, 644, 660, 678 | Endpoints `/docente/{docente_id}/*` confían ciegamente en el ID de la URL. Un docente puede visualizar y alterar carga, sílabos y planes de cualquier otro docente (IDOR). | `test_docente_no_puede_ver_datos_de_otro_docente_idor` (xfail) | Comparar el `docente_id` de la ruta con el `X-User-ID` de la cabecera, o restringir la consulta a rol Coordinador/Admin si difiere. Diferido por alcance. |
 | **BUG-D04** | **Alta** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py`<br>Líneas 48–66 | `crear_registro` permitía registrar notas a estudiantes sin matrícula activa en la unidad didáctica. | `test_no_se_puede_calificar_estudiante_no_matriculado` (PASSED) | En `mod-evaluacion/routes.py` (`POST /registros`), se valida contra `matricula_detalles` y `matriculas` que el estudiante posea matrícula activa (`estado != 'retirado'`). Si no existe, retorna **404 Not Found**. |
@@ -68,11 +68,36 @@ Se ejecutó una consulta de solo lectura (SELECT) en `siga_local` para verificar
 
 ---
 
-## 3. Análisis Técnico de "Acta Cerrada" (BUG-D01) y Opciones de Implementación
+## 3. Implementación del Cierre de Actas y Gestión de Plazos (BUG-D01)
 
-### Diagnóstico del Estado Actual
-Tras inspeccionar exhaustivamente la base de datos `siga_local`/`siga_test` y el código fuente de backend y frontend:
-1. **Inexistencia de Modelo de Acta:** No existe ninguna tabla `actas` o `actas_evaluacion` en el modelo relacional.
+### Arquitectura de Actas sobre `carga_lectiva`
+El acta de evaluación corresponde a la relación entre una unidad didáctica y un periodo lectivo en `carga_lectiva`:
+- Columnas de soporte: `fecha_limite_notas` (`DATE`), `acta_cerrada` (`BOOLEAN DEFAULT FALSE`), `acta_cerrada_at` (`TIMESTAMP`), `acta_cerrada_por` (`INTEGER`).
+- Modelado en `mod-programas-estudio`: agregadas las 4 columnas a `CargaLectiva` y a `CargaLectivaResponse` (como opcionales).
+
+### Reglas de Negocio en `mod-evaluacion`
+1. **Acta Cerrada:** Si todas las cargas lectivas correspondientes a una unidad y periodo tienen `acta_cerrada = true`, se rechazan `POST /registros` y `PUT /registros/{id}` con **409 Conflict**:
+   > *"El acta de la unidad X del periodo Y está cerrada. Solicite su reapertura al coordinador."*
+2. **Fecha Límite Vencida:** Si las cargas abiertas tienen fecha límite y `hoy` (en zona horaria `America/Lima`) supera dicha fecha (inclusive), se rechaza la calificación con **409 Conflict**:
+   > *"El plazo para ingresar notas venció el DD/MM/AAAA. Solicite una ampliación al coordinador."*
+   *(Si alguna carga abierta tiene `fecha_limite_notas = NULL`, se considera sin límite temporal).*
+3. **Limitación de Secciones Múltiples:** Cuando existen múltiples secciones (filas) de `carga_lectiva` para un mismo par `(unidad_didactica_id, periodo_id)`:
+   - El acta se considera cerrada **únicamente si todas las secciones están cerradas**.
+   - La fecha límite efectiva es **la más tardía** entre las secciones abiertas.
+4. **Endpoints de Actas Añadidos (`/actas/...`):**
+   - `GET /actas/unidad/{unidad_id}/periodo/{periodo_id}`: devuelve `tiene_carga`, `acta_cerrada`, `fecha_limite_notas`, `editable` (bool) y `motivo_bloqueo` para el Panel Docente.
+   - `GET /actas/periodo/{periodo_id}/programa/{programa_id}`: consolidado para Coordinación con total de matrículas activas (`confirmada`), con nota final, faltantes y unidades sin carga.
+   - `PUT /actas/carga/{carga_id}/fecha-limite`: fija fecha hoy o futura (si no 422), rechaza en acta o periodo cerrado (409).
+   - `POST /actas/programa/{programa_id}/periodo/{periodo_id}/fecha-limite`: fijación masiva a cargas abiertas del programa y periodo.
+   - `POST /actas/carga/{carga_id}/cerrar`: exige que todas las matrículas activas posean calificación final. Si faltan notas, responde **409** indicando el conteo de faltantes y los IDs de matrícula. Al cerrar guarda `acta_cerrada = true`, `acta_cerrada_at` y `acta_cerrada_por` (`X-User-ID`).
+   - `POST /actas/carga/{carga_id}/reabrir`: exige motivo (mínimo 10 caracteres, 422) y nueva fecha hoy o futura (422). Reactiva el acta y devuelve la edición al docente.
+
+> [!WARNING]
+> ### Riesgo de Seguridad Conocido: Autorización de Rol Coordinador Pendiente
+> Los endpoints de gestión de actas (`/actas/...`) extraen y asocian la identidad del usuario llamante mediante la cabecera `X-User-ID` inyectada por el Gateway Core. Sin embargo, **aún no validan a nivel de microservicio que el usuario posea explícitamente el rol o permiso de Coordinador**.
+> Dicha validación de autorización RBAC/BOLA/IDOR forma parte integral del alcance de los bugs **BUG-D02** y **BUG-D03**, cuya resolución está reservada para una tarea dedicada posterior.
+
+---
 2. **Frontend como Simulación Visual:** En `EvaluationDashboard.jsx`, el botón "Generar Acta Oficial" abre un modal (`showActaModal`) que toma las notas en memoria de los estudiantes y maqueta un documento HTML imprimible en el navegador (`window.print()`). No persiste ningún estado ni invoca ningún endpoint de cierre en el backend.
 3. **Módulo Gestión Académica vs Evaluación:** En `matriculas`, existe una bandera booleana `consolidada`, pero representa la matrícula global de un estudiante en el semestre completo (todas sus asignaturas), no el cierre de acta de una unidad didáctica por un docente.
 4. **Decisión:** Siguiendo la regla de no inventar mecanismos sin aprobación de arquitectura, la prueba `test_editar_notas_unidad_acta_cerrada_se_rechaza` se mantiene con `xfail` (documentando el comportamiento esperado).

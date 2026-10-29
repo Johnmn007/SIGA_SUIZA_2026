@@ -76,13 +76,22 @@ La tabla debe contar con 14 columnas, incluyendo:
 
 ---
 
-## 4. Procedimiento de Reversión (Rollback)
+## 4. Procedimiento de Reversión (Rollback) y Política de Respaldos
 
-Si por alguna razón técnica se necesita revertir el cambio en el esquema:
+### A) Deshacer la migración 001
+Para revertir el cambio de esquema de las 4 columnas de actas de forma segura y precisa, **se debe utilizar exclusivamente el script de reversión**:
 
 ```powershell
 $env:PGPASSWORD = 'tu_password_local_aqui'; & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h 127.0.0.1 -p 5432 -d siga_local -f siga_backend/db_scripts/001_carga_lectiva_actas_rollback.sql
 ```
+
+### B) Política Estricta de Restauración de Respaldos
+> [!CAUTION]
+> **NUNCA RESTAURAR UN VOLCADO SQL ENCIMA DE UNA BASE DE DATOS EXISTENTE:**
+> 1. Un volcado SQL plano generado por `pg_dump` contiene sentencias `CREATE TABLE` y `COPY` de todas las tablas institucionales. Por definición, **solo se puede restaurar en una base de datos completamente vacía**.
+> 2. Si se ejecuta un volcado sobre una base de datos existente (`siga_local`), se generarán errores masivos de colisión de llaves primarias (`duplicate key violates unique constraint`), datos corruptos o estados inconsistentes.
+> 3. Para deshacer una migración nunca se restaura un respaldo; para eso existe el script de rollback.
+> 4. Si por una eventualidad de desastre mayor se requiriese restaurar `siga_local`, la operación debe realizarse con asistencia técnica y sobre una **base de datos completamente nueva** (ej. `siga_local_nueva`), verificando su integridad antes de cualquier redirección de servicios.
 
 ---
 
