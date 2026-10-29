@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   X,
   Banknote,
@@ -55,6 +55,8 @@ export function PaymentModal({
   const [editingConcept, setEditingConcept] = useState(null); // null | 'new' | concepto
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Evita un segundo cobro por doble clic antes de que el botón se deshabilite
+  const submitLockRef = useRef(false);
 
   if (!student) return null;
 
@@ -93,6 +95,7 @@ export function PaymentModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitLockRef.current) return;
     setError('');
 
     if (!selectedConcept) {
@@ -120,6 +123,7 @@ export function PaymentModal({
       return;
     }
 
+    submitLockRef.current = true;
     setLoading(true);
 
     try {
@@ -138,8 +142,9 @@ export function PaymentModal({
       onSuccess(result);
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Error al procesar la recaudación');
+      setError(err.message || 'Error al procesar la recaudación. Verifique la conexión e inténtelo nuevamente.');
     } finally {
+      submitLockRef.current = false;
       setLoading(false);
     }
   };
@@ -517,14 +522,14 @@ export function PaymentModal({
                 <button
                   type="submit"
                   disabled={loading || !selectedConcept}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:hover:scale-100"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   {loading ? (
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <ShieldCheck size={16} />
                   )}
-                  <span>Registrar Pago y Emitir Recibo</span>
+                  <span>{loading ? 'Procesando pago...' : 'Registrar Pago y Emitir Recibo'}</span>
                 </button>
               </div>
             </div>
