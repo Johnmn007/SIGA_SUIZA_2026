@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   Printer, 
@@ -12,8 +14,29 @@ import {
   Calendar
 } from 'lucide-react';
 import { CAREERS_MAP } from './tupaCatalog';
+import './receiptPrint.css';
 
 export function AnnualStatementModal({ student, payments, onClose }) {
+  // La clase `statement-printing` en <body> activa receiptPrint.css
+  // (sección IMPRESIÓN DEL ESTADO DE CUENTA): oculta el resto del
+  // sistema y convierte el portal en flujo normal de documento,
+  // para imprimir exclusivamente el estado de cuenta.
+  // Se añade/quita durante el ciclo de impresión: beforeprint → afterprint.
+  useEffect(() => {
+    const body = document.body;
+    const handleBeforePrint = () => body.classList.add('statement-printing');
+    const handleAfterPrint = () => body.classList.remove('statement-printing');
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+      body.classList.remove('statement-printing');
+    };
+  }, []);
+
   if (!student) return null;
 
   const careerName = CAREERS_MAP[student.programa_id] || 'Programa de Estudio General';
@@ -28,12 +51,15 @@ export function AnnualStatementModal({ student, payments, onClose }) {
     .reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0);
 
   const handlePrint = () => {
+    document.body.classList.add('statement-printing');
     window.print();
+    // Fallback por si el navegador no dispara afterprint.
+    setTimeout(() => document.body.classList.remove('statement-printing'), 1500);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in">
+  return createPortal(
+    <div className="statement-print-portal fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="statement-modal-card relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in">
         
         {/* Cabecera del Modal (No se imprime) */}
         <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between print:hidden">
@@ -65,10 +91,10 @@ export function AnnualStatementModal({ student, payments, onClose }) {
         </div>
 
         {/* CONTENEDOR DEL ESTADO DE CUENTA (Imprimible) */}
-        <div className="p-6 sm:p-8 bg-white text-slate-900 print:p-0 print:m-0 space-y-6">
+        <div className="statement-document p-6 sm:p-8 bg-white text-slate-900 print:p-0 print:m-0 space-y-6">
           
           {/* Membrete Oficial */}
-          <div className="flex justify-between items-start pb-4 border-b-2 border-slate-900">
+          <div className="statement-section flex justify-between items-start pb-4 border-b-2 border-slate-900">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-white font-black text-lg flex items-center justify-center shadow-md">
                 IS
@@ -97,7 +123,7 @@ export function AnnualStatementModal({ student, payments, onClose }) {
           </div>
 
           {/* Título */}
-          <div className="text-center py-1">
+          <div className="statement-section text-center py-1">
             <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight">
               ESTADO DE CUENTA Y CONSTANCIA ANUAL DE PAGOS
             </h3>
@@ -107,7 +133,7 @@ export function AnnualStatementModal({ student, payments, onClose }) {
           </div>
 
           {/* Datos del Estudiante */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className="statement-section p-4 rounded-2xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
               <span className="text-slate-400 block text-[10px] font-bold uppercase">Nombres y Apellidos Completos:</span>
               <span className="font-extrabold text-slate-900 text-sm">{student.nombres} {student.apellidos}</span>
@@ -127,7 +153,7 @@ export function AnnualStatementModal({ student, payments, onClose }) {
           </div>
 
           {/* Tabla de Pagos Realizados durante Todo el Año */}
-          <div>
+          <div className="statement-section">
             <h4 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-2">
               Detalle de Pagos y Obligaciones del Año 2026
             </h4>
@@ -186,7 +212,7 @@ export function AnnualStatementModal({ student, payments, onClose }) {
           </div>
 
           {/* Resumen de Balances */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="statement-section grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-right">
               <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Total Pagado en el Año:</span>
               <span className="text-xl font-black text-emerald-800 font-mono">S/ {totalPagado.toFixed(2)}</span>
@@ -206,7 +232,7 @@ export function AnnualStatementModal({ student, payments, onClose }) {
           </div>
 
           {/* Sellos de Validación */}
-          <div className="pt-4 flex items-center justify-between border-t border-slate-200">
+          <div className="statement-section pt-4 flex items-center justify-between border-t border-slate-200">
             <div className="flex items-center gap-3">
               <div className="w-16 h-16 p-1 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center">
                 <QrCode size={48} className="text-slate-800" />
@@ -245,6 +271,7 @@ export function AnnualStatementModal({ student, payments, onClose }) {
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

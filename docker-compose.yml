@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "admin123"
-      POSTGRES_DB: siga_core
+      POSTGRES_PASSWORD: "dariana"
+      POSTGRES_DB: siga_suiza_2026
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./dump_railway.sql:/docker-entrypoint-initdb.d/01-dump_railway.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d siga_suiza_2026"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -47,10 +47,10 @@ services:
       - "8000:8000"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=admin123
+      - DB_PASSWORD=dariana
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_NAME=siga_suiza_2026
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
     volumes:
@@ -73,10 +73,10 @@ services:
       - "8001:8001"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=admin123
+      - DB_PASSWORD=dariana
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_NAME=siga_suiza_2026
       - NATS_URL=nats://nats:4222
       - PORT=8001
       - SKIP_MIGRATIONS=true
@@ -95,10 +95,10 @@ services:
       - "8002:8002"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=admin123
+      - DB_PASSWORD=dariana
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_NAME=siga_suiza_2026
       - NATS_URL=nats://nats:4222
       - PORT=8002
       - SKIP_MIGRATIONS=true
@@ -117,10 +117,10 @@ services:
       - "8005:8005"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=admin123
+      - DB_PASSWORD=dariana
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_NAME=siga_suiza_2026
       - NATS_URL=nats://nats:4222
       - PORT=8005
       - SKIP_MIGRATIONS=true
@@ -139,10 +139,10 @@ services:
       - "8006:8006"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=admin123
+      - DB_PASSWORD=dariana
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_NAME=siga_suiza_2026
       - NATS_URL=nats://nats:4222
       - PORT=8006
       - SKIP_MIGRATIONS=true
@@ -161,10 +161,10 @@ services:
       - "8007:8007"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=admin123
+      - DB_PASSWORD=dariana
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_NAME=siga_suiza_2026
       - NATS_URL=nats://nats:4222
       - PORT=8007
       - SKIP_MIGRATIONS=true
@@ -183,10 +183,10 @@ services:
       - "8008:8008"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=admin123
+      - DB_PASSWORD=dariana
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_NAME=siga_suiza_2026
       - NATS_URL=nats://nats:4222
       - PORT=8008
       - SKIP_MIGRATIONS=true
@@ -205,10 +205,10 @@ services:
       - "8009:8009"
     environment:
       - DB_USER=postgres
-      - DB_PASSWORD=admin123
+      - DB_PASSWORD=dariana
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=siga_core
+      - DB_NAME=siga_suiza_2026
       - NATS_URL=nats://nats:4222
       - PORT=8009
       - SKIP_MIGRATIONS=true

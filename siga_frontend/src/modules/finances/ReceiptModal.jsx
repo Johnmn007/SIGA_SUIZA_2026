@@ -1,38 +1,81 @@
-import { useRef } from 'react';
-import { 
-  X, 
-  Printer, 
-  Download, 
-  CheckCircle2, 
-  Building2, 
-  QrCode, 
-  ShieldCheck,
-  Calendar,
-  User,
-  CreditCard,
-  FileText
+import { useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  X,
+  Printer,
+  CheckCircle2,
+  ShieldCheck
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import './receiptPrint.css';
 
 export function ReceiptModal({ receipt, onClose }) {
   const printRef = useRef(null);
 
+  // La clase `receipt-printing` en <body> activa receiptPrint.css,
+  // que aísla la impresión al comprobante seleccionado (una sola
+  // hoja A4, sin dashboard ni fondo del sistema). Se aplica solo
+  // durante el ciclo de impresión: beforeprint → afterprint.
+  useEffect(() => {
+    const body = document.body;
+    const handleBeforePrint = () => body.classList.add('receipt-printing');
+    const handleAfterPrint = () => body.classList.remove('receipt-printing');
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+      body.classList.remove('receipt-printing');
+    };
+  }, []);
+
   if (!receipt) return null;
 
+  // Imprime únicamente el recibo seleccionado. No reejecuta el cobro
+  // ni genera nuevas operaciones: solo invoca la vista previa del
+  // navegador sobre el documento ya renderizado.
   const handlePrint = () => {
+    document.body.classList.add('receipt-printing');
     window.print();
+    // Fallback por si el navegador no dispara afterprint.
+    setTimeout(() => document.body.classList.remove('receipt-printing'), 1500);
   };
 
-  const handleDownload = () => {
-    // Generar archivo de texto legible o disparar impresión para guardar como PDF
-    window.print();
-  };
+  const monto = parseFloat(receipt.monto) || 0;
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in">
-        
+  // Contenido del QR: referencia de verificación institucional con datos reales del recibo.
+  // Mantiene la finalidad original del QR (verificación de autenticidad).
+  // ESTUDIANTE y PERIODO provienen de datos reales ( PaymentModal ); los centinelas
+  // ('S/N', 'S/P') se usan solo cuando el dato no existe (recibos históricos/demo),
+  // siguiendo el mismo criterio de 'S/R', 'S/D', 'S/C' ya existente.
+  const estudianteQr = receipt.estudianteNombreCompleto || receipt.estudianteNombre || 'S/N';
+  const periodoQr = receipt.periodoCodigo || 'S/P';
+  const qrVerificacion = [
+    'IESTP-SUIZA-VERIFICACION',
+    receipt.codigoRecibo || 'S/R',
+    `DNI:${receipt.dni || 'S/D'}`,
+    `ESTUDIANTE:${estudianteQr}`,
+    `COD:${receipt.codigoEstudiante || 'S/C'}`,
+    `CONCEPTO:${receipt.conceptoCodigo || 'S/C'}`,
+    `MONTO:${monto.toFixed(2)}`,
+    `OP:${receipt.numeroOperacion || 'N/A'}`,
+    `PERIODO:${periodoQr}`,
+    `FECHA:${receipt.fechaHora || ''}`
+  ].join('|');
+
+  const referenciaVerificacion = `IESTP-SUIZA-${receipt.codigoRecibo || 'S/R'}-${receipt.dni || 'S/D'}`;
+
+  // El modal se teletransporta a <body> (portal). En pantalla se ve
+  // igual (fixed + centrado); al imprimir, las reglas de receiptPrint.css
+  // ocultan todo lo demás y lo convierten en un documento A4 en flujo.
+  return createPortal(
+    <div className="receipt-print-portal fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="receipt-modal-card relative w-full max-w-lg max-h-[92vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-y-auto animate-fade-in">
+
         {/* Cabecera del Modal (No se imprime) */}
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between print:hidden">
+        <div className="sticky top-0 z-10 p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between print:hidden">
           <div className="flex items-center gap-2">
             <span className="p-2 rounded-xl bg-emerald-100 text-emerald-700">
               <CheckCircle2 size={18} />
@@ -42,7 +85,7 @@ export function ReceiptModal({ receipt, onClose }) {
               <p className="text-[11px] text-slate-500">Transacción registrada exitosamente en tesorería</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
@@ -61,134 +104,181 @@ export function ReceiptModal({ receipt, onClose }) {
         </div>
 
         {/* CONTENEDOR DEL COMPROBANTE OFICIAL (Imprimible) */}
-        <div ref={printRef} className="p-6 sm:p-8 bg-white text-slate-900 print:p-0 print:m-0">
-          
-          {/* Encabezado Institucional */}
-          <div className="text-center pb-4 border-b-2 border-dashed border-slate-200">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-white font-black text-lg mb-2 shadow-md">
-              IS
+        <div ref={printRef} className="receipt-document bg-white text-slate-900 print:m-0">
+
+          {/* ENCABEZADO INSTITUCIONAL */}
+          <div className="receipt-section px-6 sm:px-8 pt-6 pb-4 border-b-2 border-slate-900">
+            <div className="flex items-start gap-4">
+              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-primary-dark text-white font-black text-2xl flex items-center justify-center shadow-md flex-shrink-0 print:shadow-none">
+                IS
+              </div>
+              <div className="flex-1 text-left">
+                <h2 className="font-extrabold text-sm sm:text-base tracking-tight text-slate-900 uppercase leading-tight">
+                  Instituto de Educación Superior Tecnológico Público "Suiza"
+                </h2>
+                <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                  RUC: 20172839211 · Jr. Guillermo Sisley N° 450 · Pucallpa, Ucayali
+                </p>
+                <p className="text-[10px] text-slate-400 leading-snug">
+                  IESTP Suiza — Caja y Tesorería
+                </p>
+              </div>
             </div>
-            <h2 className="font-extrabold text-sm sm:text-base tracking-tight text-slate-900 uppercase">
-              IESTP SUIZA
-            </h2>
-            <p className="text-[11px] font-semibold text-slate-600">
-              Instituto de Educación Superior Tecnológico Público "Suiza"
-            </p>
-            <p className="text-[10px] text-slate-400">
-              RUC: 20172839211 · Jr. Guillermo Sisley N° 450 · Pucallpa, Ucayali
-            </p>
-            <div className="mt-2 inline-block px-3 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-700 uppercase tracking-widest">
-              Recibo de Caja Electrónico
+
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-t border-slate-200 pt-3">
+              <div>
+                <h3 className="text-base sm:text-lg font-extrabold text-slate-900 uppercase tracking-wide leading-none">
+                  Recibo de Caja
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Comprobante interno de recaudación de aranceles TUPA
+                </p>
+              </div>
+              <div className="sm:text-right">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase block">N° Comprobante</span>
+                <span className="font-mono font-black text-slate-900 text-lg leading-none">
+                  {receipt.codigoRecibo || 'REC-2026-0000'}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Folio y Fecha */}
-          <div className="grid grid-cols-2 gap-3 py-3 border-b border-slate-100 text-xs">
+          {/* FECHA */}
+          <div className="receipt-section px-6 sm:px-8 py-2.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center text-[11px]">
+            <span className="text-slate-500 font-semibold uppercase tracking-wider">Fecha y Hora de Emisión</span>
+            <span className="font-semibold text-slate-800">{receipt.fechaHora || new Date().toLocaleString()}</span>
+          </div>
+
+          {/* DATOS DEL ESTUDIANTE */}
+          <div className="receipt-section px-6 sm:px-8 py-4 border-b border-slate-200">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5">
+              Datos del Estudiante
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+              <div className="flex justify-between sm:justify-start sm:gap-2">
+                <span className="text-slate-500 font-medium">Nombres y Apellidos:</span>
+                <span className="font-bold text-slate-900 text-right">{receipt.estudianteNombre}</span>
+              </div>
+              <div className="flex justify-between sm:justify-start sm:gap-2">
+                <span className="text-slate-500 font-medium">DNI:</span>
+                <span className="font-mono font-semibold text-slate-800">{receipt.dni || '—'}</span>
+              </div>
+              <div className="flex justify-between sm:justify-start sm:gap-2">
+                <span className="text-slate-500 font-medium">Código:</span>
+                <span className="font-mono font-semibold text-slate-800">{receipt.codigoEstudiante || '—'}</span>
+              </div>
+              <div className="flex justify-between sm:justify-start sm:gap-2">
+                <span className="text-slate-500 font-medium">Programa:</span>
+                <span className="font-semibold text-primary-dark text-right text-[11px]">{receipt.carreraNombre || '—'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* DETALLE DEL PAGO */}
+          <div className="receipt-section px-6 sm:px-8 py-4 border-b border-slate-200">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5">
+              Detalle del Pago
+            </h4>
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left font-bold text-slate-500 uppercase text-[9px] tracking-wider py-1.5">Concepto</th>
+                  <th className="text-left font-bold text-slate-500 uppercase text-[9px] tracking-wider py-1.5">Método</th>
+                  <th className="text-right font-bold text-slate-500 uppercase text-[9px] tracking-wider py-1.5">Importe</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-slate-100">
+                  <td className="py-2 pr-2">
+                    <span className="font-bold text-slate-900 block leading-snug">{receipt.conceptoNombre}</span>
+                    <span className="text-[10px] text-slate-500">
+                      {receipt.conceptoCategoria} · Código: {receipt.conceptoCodigo || '—'}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-2 align-top">
+                    <span className="text-slate-800 font-semibold block leading-snug">{receipt.metodoPagoNombre}</span>
+                    {receipt.numeroOperacion && (
+                      <span className="text-[10px] font-mono text-indigo-700 font-bold">
+                        Op: {receipt.numeroOperacion}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 text-right align-top font-mono font-bold text-slate-900 whitespace-nowrap">
+                    S/ {monto.toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-[11px]">
+              <div className="flex items-center gap-3">
+                <span className="text-slate-500">Estado: <b className="text-emerald-700 uppercase">Pagado</b></span>
+                <span className="text-slate-500">Cajero: <b className="text-slate-800">{receipt.cajero || 'Caja Central'}</b></span>
+              </div>
+              {receipt.observaciones && (
+                <span className="text-slate-500 italic">Obs: {receipt.observaciones}</span>
+              )}
+            </div>
+          </div>
+
+          {/* RESUMEN - TOTAL DESTACADO */}
+          <div className="receipt-total-band receipt-section px-6 sm:px-8 py-4 bg-slate-900 text-white flex justify-between items-center print:bg-white print:text-slate-900 print:border print:border-slate-300">
             <div>
-              <span className="text-slate-400 block text-[10px] font-semibold uppercase">N° Comprobante:</span>
-              <span className="font-mono font-bold text-slate-800 text-sm">{receipt.codigoRecibo || 'REC-2026-0000'}</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block print:text-slate-500">Total Pagado</span>
+              <span className="text-[11px] text-slate-300 print:text-slate-500">Moneda Nacional (Soles)</span>
             </div>
-            <div className="text-right">
-              <span className="text-slate-400 block text-[10px] font-semibold uppercase">Fecha y Hora:</span>
-              <span className="font-medium text-slate-700">{receipt.fechaHora || new Date().toLocaleString()}</span>
-            </div>
+            <span className="text-2xl font-black font-mono">
+              S/ {monto.toFixed(2)}
+            </span>
           </div>
 
-          {/* Datos del Estudiante */}
-          <div className="py-3.5 border-b border-slate-100 space-y-1.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-slate-500 font-medium">Estudiante:</span>
-              <span className="font-bold text-slate-900 text-right">{receipt.estudianteNombre}</span>
+          {receipt.liberaMatricula && (
+            <div className="receipt-section px-6 sm:px-8 py-2.5 bg-emerald-50 border-b border-slate-200 flex items-center gap-2 text-[11px] font-semibold text-emerald-800">
+              <ShieldCheck size={16} className="text-emerald-600 flex-shrink-0" />
+              <span>Candado de matrícula liberado en el sistema académico.</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500 font-medium">DNI / Documento:</span>
-              <span className="font-mono font-semibold text-slate-800">{receipt.dni}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500 font-medium">Código Alumno:</span>
-              <span className="font-mono font-semibold text-slate-800">{receipt.codigoEstudiante}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500 font-medium">Programa de Estudio:</span>
-              <span className="font-semibold text-primary-dark text-right text-[11px]">{receipt.carreraNombre}</span>
-            </div>
-          </div>
+          )}
 
-          {/* Detalle del Concepto Cobrado */}
-          <div className="py-4 border-b-2 border-dashed border-slate-200">
-            <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-wider pb-2 border-b border-slate-100">
-              <span>Concepto TUPA</span>
-              <span>Total</span>
-            </div>
-            <div className="flex justify-between items-start py-2.5 text-xs">
-              <div>
-                <span className="font-bold text-slate-900 block">{receipt.conceptoNombre}</span>
-                <span className="text-[10px] text-slate-500 block">{receipt.conceptoCategoria} · Código: {receipt.conceptoCodigo}</span>
+          {/* VERIFICACIÓN - QR INSTITUCIONAL GRANDE */}
+          <div className="receipt-section px-6 sm:px-8 py-6 border-b border-slate-200">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">
+              Verificación del Comprobante
+            </h4>
+            <div className="flex flex-col items-center gap-3">
+              <div className="receipt-qr-box bg-white p-3 rounded-2xl border border-slate-200 shadow-sm print:shadow-none print:border-slate-300">
+                <QRCodeSVG
+                  value={qrVerificacion}
+                  size={240}
+                  level="M"
+                  marginSize={2}
+                  bgColor="#FFFFFF"
+                  fgColor="#000000"
+                  className="receipt-qr block w-[200px] h-[200px] sm:w-[240px] sm:h-[240px]"
+                />
               </div>
-              <span className="font-bold text-sm text-slate-900 font-mono">
-                S/ {parseFloat(receipt.monto).toFixed(2)}
-              </span>
-            </div>
-
-            {/* Total General */}
-            <div className="mt-3 pt-3 bg-slate-50 rounded-xl p-3 flex justify-between items-center">
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Pagado:</span>
-                <span className="text-[11px] font-medium text-slate-500">Moneda Nacional (Soles)</span>
-              </div>
-              <div className="text-xl font-extrabold text-primary-dark font-mono">
-                S/ {parseFloat(receipt.monto).toFixed(2)}
+              <p className="text-[10px] text-slate-500 text-center leading-relaxed max-w-[280px]">
+                Escanee el código para verificar la autenticidad de este recibo en el portal del IESTP Suiza.
+              </p>
+              <div className="text-center">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Referencia de Verificación</span>
+                <span className="font-mono font-bold text-slate-700 text-[11px]">{referenciaVerificacion}</span>
               </div>
             </div>
           </div>
 
-          {/* Método de Pago y Transacción */}
-          <div className="py-3 border-b border-slate-100 text-xs space-y-1">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Forma de Pago:</span>
-              <span className="font-bold text-slate-800">{receipt.metodoPagoNombre}</span>
-            </div>
-            {receipt.numeroOperacion && (
-              <div className="flex justify-between">
-                <span className="text-slate-500">N° de Operación / Ref:</span>
-                <span className="font-mono font-bold text-indigo-700">{receipt.numeroOperacion}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-slate-500">Cajero Responsable:</span>
-              <span className="font-medium text-slate-700">{receipt.cajero || 'Caja Central'}</span>
-            </div>
-            {receipt.liberaMatricula && (
-              <div className="mt-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-2 text-[11px] font-semibold">
-                <ShieldCheck size={16} className="text-emerald-600 flex-shrink-0" />
-                <span>Candado de Matrícula liberado en el sistema académico.</span>
-              </div>
-            )}
-          </div>
-
-          {/* Sello y Código QR */}
-          <div className="pt-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-16 h-16 p-1 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center">
-                <QrCode size={48} className="text-slate-800" />
-              </div>
-              <div className="text-[10px] text-slate-400 leading-tight">
-                <span className="font-bold text-slate-600 block">Validez Institucional</span>
-                Escanea para verificar la autenticidad del recibo en el portal del IESTP Suiza.
-              </div>
-            </div>
-
-            {/* Sello de Pagado */}
-            <div className="border-2 border-emerald-600 rounded-xl px-3 py-1.5 text-center rotate-[-6deg] opacity-90">
-              <span className="block text-[11px] font-black text-emerald-700 uppercase tracking-widest leading-none">PAGADO</span>
-              <span className="text-[8px] font-bold text-emerald-600 tracking-wider">CONFORME</span>
-            </div>
+          {/* PIE DE PÁGINA INSTITUCIONAL */}
+          <div className="receipt-section px-6 sm:px-8 py-4 bg-slate-50 border-t border-slate-200">
+            <p className="text-[9px] text-slate-400 text-center leading-relaxed">
+              IESTP Suiza · Jr. Guillermo Sisley N° 450, Pucallpa, Ucayali · RUC 20172839211<br />
+              Documento interno de caja emitido por el sistema SIGA. No constituye comprobante tributario electrónico SUNAT.<br />
+              Conservar para trámites internos. Cualquier observación, acudir a Tesorería dentro de los 3 días hábiles.
+            </p>
           </div>
 
         </div>
 
         {/* Footer Modal (No se imprime) */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2 print:hidden">
+        <div className="sticky bottom-0 p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2 print:hidden">
           <button
             onClick={onClose}
             className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-100 transition cursor-pointer"
@@ -205,6 +295,7 @@ export function ReceiptModal({ receipt, onClose }) {
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

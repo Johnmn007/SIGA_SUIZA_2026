@@ -1,0 +1,186 @@
+/* ============================================================
+   IMPRESIÓN DE BOLETAS DE PAGO — Finanzas y Pagos (IESTP SUIZA)
+   ------------------------------------------------------------
+   Estas reglas solo se activan cuando <body> tiene la clase
+   `.receipt-printing`, que ReceiptModal añade durante el ciclo
+   beforeprint → afterprint. Así el resto del sistema (boletines,
+   estados de cuenta, etc.) conserva su comportamiento de
+   impresión habitual.
+
+   Objetivo: una boleta = una sola hoja A4 vertical, con fondo
+   blanco y sin ningún elemento de la interfaz del dashboard.
+   ============================================================ */
+
+@media print {
+  /* 1. OCULTAR TODO EL SISTEMA
+     Se oculta cualquier hijo directo del <body> que no sea el
+     portal del comprobante seleccionado (menús, tablas de
+     estudiantes, botones, fondo azul del dashboard, etc.). */
+  body.receipt-printing > *:not(.receipt-print-portal) {
+    display: none !important;
+  }
+
+  /* 2. EL PORTAL DEJA DE SER MODAL
+     En pantalla es un overlay fixed centrado; en papel se
+     convierte en flujo normal de documento (sin posición fixed,
+     que es la causa clásica de comprobantes repetidos en cada
+     página al imprimir). */
+  body.receipt-printing .receipt-print-portal {
+    position: static !important;
+    display: block !important;
+    inset: auto !important;
+    z-index: auto !important;
+    background: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* 3. SIN ESTÉTICA DE MODAL EN PAPEL
+     Elimina bordes, sombras, redondeos y scroll de la ventana. */
+  body.receipt-printing .receipt-modal-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+
+  /* 4. DOCUMENTO DEL COMPROBANTE
+     Hoja blanca, ancho completo, sin recortes ni desbordes. */
+  body.receipt-printing .receipt-document {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 5. SECCIONES DEL RECIBO
+     Ritmo vertical compacto para que el comprobante completo
+     quepa en una sola hoja A4, sin cortar contenido. */
+  body.receipt-printing .receipt-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+  }
+
+  /* 6. QR DE VERIFICACIÓN
+     Tamaño suficiente para escanear, centrado, sin deformar. */
+  body.receipt-printing .receipt-qr-box {
+    padding: 8px !important;
+    box-shadow: none !important;
+  }
+  body.receipt-printing .receipt-qr {
+    display: block !important;
+    width: 150px !important;
+    height: 150px !important;
+    max-width: 150px !important;
+    max-height: 150px !important;
+  }
+  body.receipt-printing .receipt-qr svg {
+    display: block !important;
+    width: 150px !important;
+    height: 150px !important;
+  }
+
+  /* 7. BANDA DE TOTAL Y DEMÁS BLOQUES CON FONDO
+     Se conserva el color en papel para la presentación
+     institucional profesional. */
+  body.receipt-printing .receipt-total-band {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* ============================================================
+   IMPRESIÓN DEL ESTADO DE CUENTA ANUAL — Finanzas y Pagos
+   ------------------------------------------------------------
+   Mismo mecanismo que las boletas: estas reglas solo se activan
+   cuando <body> tiene la clase `.statement-printing`, que
+   AnnualStatementModal añade durante el ciclo beforeprint →
+   afterprint. La impresión captura exclusivamente el estado de
+   cuenta: sin modal, sin overlay y sin el dashboard de fondo.
+   ============================================================ */
+
+@media print {
+  /* 1. OCULTAR TODO EL SISTEMA SALVO EL PORTAL DEL ESTADO DE CUENTA */
+  body.statement-printing > *:not(.statement-print-portal) {
+    display: none !important;
+  }
+
+  /* 2. EL PORTAL DEJA DE SER MODAL (sin fixed: evita contenido
+     repetido en cada página por la repetición de fixed en papel) */
+  body.statement-printing .statement-print-portal {
+    position: static !important;
+    display: block !important;
+    inset: auto !important;
+    z-index: auto !important;
+    background: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* 3. SIN ESTÉTICA DE MODAL EN PAPEL */
+  body.statement-printing .statement-modal-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+
+  /* 4. DOCUMENTO DEL ESTADO DE CUENTA (hoja blanca completa) */
+  body.statement-printing .statement-document {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 5. SECCIONES DEL ESTADO DE CUENTA
+     Evita que bloques (membrete, tablas, balances, sellos) se
+     corten entre páginas cuando el historial es largo. */
+  body.statement-printing .statement-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* 6. TABLA DEL HISTORIAL: cabecera visible y filas sin cortar */
+  body.statement-printing .statement-section thead {
+    display: table-header-group;
+  }
+  body.statement-printing .statement-section tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

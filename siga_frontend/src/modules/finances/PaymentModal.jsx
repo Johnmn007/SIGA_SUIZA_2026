@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { 
   X, 
   Banknote, 
@@ -14,16 +14,59 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { TUPA_CONCEPTS, PAYMENT_METHODS, CAREERS_MAP } from './tupaCatalog';
-import { API_BASE, apiClient } from '../../core/api/client';
+import { API_BASE } from '../../core/api/client';
 
-export function PaymentModal({ student, cashierName, onClose, onSuccess }) {
+// Normaliza espacios dobles/heredados de la BD ("LOPEZ  FRANCO" -> "LOPEZ FRANCO").
+const limpiarTexto = (valor) => String(valor || '').replace(/\s+/g, ' ').trim();
+
+// Periodo académico referido explícitamente en un texto del catálogo TUPA
+// (ej. "Derecho de Matrícula Regular 2026-I" -> "2026-I"). No inventa datos:
+// si el texto no menciona un periodo, devuelve cadena vacía.
+const periodoDesdeTexto = (texto) => {
+  const match = String(texto || '').match(/\b((?:19|20)\d{2}-(?:I{1,3}|IV|V|VI))\b/);
+  return match ? match[1] : '';
+};
+
+// Resuelve el periodo académico vinculado al pago sin modificar Gestión Académica
+// (solo consumo de endpoints existentes de solo lectura):
+// 1) El periodo referido en el concepto TUPA cobrado (vinculación directa al arancel).
+// 2) Respaldo: matrícula más reciente del estudiante
+//    (GET /matriculas/estudiante/{id} + catálogo /periodos ordenado por fecha de inicio).
+// Si ninguna fuente está disponible devuelve '' (el QR mostrará el centinela 'S/P').
+async function resolverPeriodoCodigo(concepto, estudianteId) {
+  const periodoConcepto = periodoDesdeTexto(concepto?.nombre) || periodoDesdeTexto(concepto?.descripcion);
+  if (periodoConcepto) return periodoConcepto;
+
+  try {
+    const token = localStorage.getItem('token');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const [matRes, perRes] = await Promise.all([
+      fetch(`${API_BASE}/api/mod-gestion-academica/matriculas/estudiante/${estudianteId}`, { headers }),
+      fetch(`${API_BASE}/api/mod-programas-estudio/periodos`, { headers })
+    ]);
+    if (!matRes.ok || !perRes.ok) return '';
+    const matriculas = await matRes.json();
+    const periodos = await perRes.json();
+    if (!Array.isArray(matriculas) || !Array.isArray(periodos) || periodos.length === 0) return '';
+    const idsMatriculas = new Set(matriculas.map(m => m.periodo_id).filter(Boolean));
+    // /periodos viene ordenado por fecha de inicio desc: la primera coincidencia
+    // es la matrícula más reciente del estudiante (misma regla del boletín oficial).
+    const periodo = periodos.find(p => idsMatriculas.has(p.id));
+    return (periodo && periodo.codigo) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function PaymentModal({ student, cashierName, existingTransactions = [], onClose, onSuccess, onViewExistingReceipt }) {
   const [selectedConceptId, setSelectedConceptId] = useState('MAT-01');
   const [selectedMethodId, setSelectedMethodId] = useState('efectivo');
   const [numeroOperacion, setNumeroOperacion] = useState('');
   const [montoEfectivoRecibido, setMontoEfectivoRecibido] = useState('');
-  const [observaciones, setObservaciones] = useState('');
+  const [observaciones] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const submitLockRef = useRef(false);
 
   if (!student) return null;
 
@@ -35,8 +78,30 @@ export function PaymentModal({ student, cashierName, onClose, onSuccess }) {
   const efectivoNum = parseFloat(montoEfectivoRecibido) || 0;
   const vuelto = selectedMethodId === 'efectivo' && efectivoNum >= monto ? (efectivoNum - monto).toFixed(2) : '0.00';
 
+  // Comprobante de matrícula ya cobrado a este estudiante (en el libro de caja local)
+  const comprobanteMatriculaExistente = existingTransactions.find(t =>
+    String(t.estudianteId) === String(student.id) && t.liberaMatricula
+  );
+
+  // Duplicado de matrícula: confirmado en BD (pago_matricula) o ya cobrado en caja
+  const yaPagadoMatricula = selectedConcept.liberaMatricula &&
+    (student.pago_matricula || !!comprobanteMatriculaExistente);
+
+  const siguienteCorrelativo = () => {
+    let maxSeq = 107;
+    existingTransactions.forEach(t => {
+      const match = /^REC-2026-(\d+)$/.exec(t.codigoRecibo || '');
+      if (match) {
+        const seq = parseInt(match[1], 10);
+        if (seq > maxSeq) maxSeq = seq;
+      }
+    });
+    return `REC-2026-${String(maxSeq + 1).padStart(5, '0')}`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitLockRef.current || loading) return;
     setError('');
 
     // Validaciones por método
@@ -56,13 +121,46 @@ export function PaymentModal({ student, cashierName, onClose, onSuccess }) {
       setError(`El monto recibido en efectivo (S/ ${efectivoNum.toFixed(2)}) es menor al monto a cobrar (S/ ${monto.toFixed(2)}).`);
       return;
     }
+    if (yaPagadoMatricula) {
+      setError('Esta matrícula ya fue cancelada. Seleccione otro concepto arancelario para evitar un cobro duplicado.');
+      return;
+    }
 
+    // Verificación de duplicado local: misma referencia de operación ya cobrada
+    const refOp = numeroOperacion.trim().toLowerCase();
+    if (refOp && selectedMethodId !== 'efectivo') {
+      const duplicado = existingTransactions.find(t =>
+        String(t.estudianteId) === String(student.id) &&
+        t.conceptoId === selectedConcept.id &&
+        (t.numeroOperacion || '').trim().toLowerCase() === refOp
+      );
+      if (duplicado) {
+        setError(`Este pago ya fue registrado con el recibo ${duplicado.codigoRecibo} (${duplicado.fechaHora}). No se generará un segundo cobro.`);
+        return;
+      }
+    }
+
+    submitLockRef.current = true;
     setLoading(true);
 
     try {
-      // Si el concepto libera matrícula, actualizamos en el backend
+      // Verificación del estado previo en el backend (detecta pagos ya confirmados,
+      // incluso tras un fallo de conexión o un reintento)
       if (selectedConcept.liberaMatricula) {
         const token = localStorage.getItem('token');
+        const checkRes = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${student.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!checkRes.ok) {
+          throw new Error('No se pudo verificar el estado financiero del estudiante. Inténtelo nuevamente.');
+        }
+        const estadoActual = await checkRes.json();
+        if (estadoActual.pago_matricula) {
+          setError('Esta matrícula ya fue cancelada: existe un pago confirmado en el sistema para el estudiante. No se creará otro cobro.');
+          return;
+        }
+
+        // Liberación de matrícula (endpoint idempotente en backend)
         const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/${student.id}/pago_matricula?pagado=true`, {
           method: 'PUT',
           headers: {
@@ -74,15 +172,18 @@ export function PaymentModal({ student, cashierName, onClose, onSuccess }) {
         }
       }
 
-      // Generar código de recibo correlativo único
-      const randomSeq = Math.floor(10000 + Math.random() * 90000);
-      const codigoRecibo = `REC-2026-${randomSeq}`;
+      // Periodo académico vinculado al pago (fuentes reales; ver resolverPeriodoCodigo).
+      const periodoCodigo = await resolverPeriodoCodigo(selectedConcept, student.id);
+
+      const apellidosCompletos = limpiarTexto(student.apellidos);
+      const nombresCompletos = limpiarTexto(student.nombres);
 
       const receiptPayload = {
-        id: Date.now(),
-        codigoRecibo,
+        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `tx-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        codigoRecibo: siguienteCorrelativo(),
         estudianteId: student.id,
         estudianteNombre: `${student.nombres} ${student.apellidos}`,
+        estudianteNombreCompleto: [apellidosCompletos, nombresCompletos].filter(Boolean).join(', '),
         dni: student.dni,
         codigoEstudiante: student.codigo_estudiante,
         carreraNombre: careerName,
@@ -98,14 +199,16 @@ export function PaymentModal({ student, cashierName, onClose, onSuccess }) {
         fechaHora: new Date().toLocaleString(),
         timestamp: Date.now(),
         liberaMatricula: selectedConcept.liberaMatricula,
+        periodoCodigo,
         observaciones: observaciones.trim()
       };
 
       onSuccess(receiptPayload);
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Error al procesar la recaudación');
+      setError(err.message || 'Error al procesar la recaudación. Verifique la conexión e inténtelo nuevamente; no se realizó un segundo cobro.');
     } finally {
+      submitLockRef.current = false;
       setLoading(false);
     }
   };
@@ -140,6 +243,27 @@ export function PaymentModal({ student, cashierName, onClose, onSuccess }) {
             <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
               <AlertCircle size={18} className="flex-shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {yaPagadoMatricula && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
+              <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <span>
+                  <b>Esta matrícula ya fue cancelada.</b> Seleccione otro concepto arancelario para evitar un cobro duplicado.
+                </span>
+                {comprobanteMatriculaExistente && onViewExistingReceipt && (
+                  <button
+                    type="button"
+                    onClick={() => onViewExistingReceipt(comprobanteMatriculaExistente)}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-800 font-bold text-[11px] hover:bg-amber-100 transition cursor-pointer"
+                  >
+                    <Receipt size={13} />
+                    <span>Ver comprobante emitido ({comprobanteMatriculaExistente.codigoRecibo})</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -343,14 +467,14 @@ export function PaymentModal({ student, cashierName, onClose, onSuccess }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer disabled:opacity-50"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {loading ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <ShieldCheck size={16} />
                 )}
-                <span>Registrar Pago y Emitir Recibo</span>
+                <span>{loading ? 'Procesando pago...' : 'Registrar Pago y Emitir Recibo'}</span>
               </button>
             </div>
           </div>
