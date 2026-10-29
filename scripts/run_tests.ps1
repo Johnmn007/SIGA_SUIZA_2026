@@ -113,6 +113,20 @@ if ($testTablesCount -eq 0 -or $RebuildSchema) {
     Write-Host "      -> 'siga_test' ya cuenta con $testTablesCount tablas listas." -ForegroundColor Green
 }
 
+# Aplicar scripts de migración incrementales a siga_test (Idempotentes, NUNCA a siga_local)
+$dbScriptsDir = Join-Path $WorkspaceRoot "siga_backend\db_scripts"
+if (Test-Path $dbScriptsDir) {
+    $migrationScripts = Get-ChildItem -Path $dbScriptsDir -Filter "*.sql" | Where-Object { $_.Name -notlike "*rollback*" } | Sort-Object Name
+    foreach ($script in $migrationScripts) {
+        Write-Host "      -> Aplicando migración '$($script.Name)' en 'siga_test'..." -ForegroundColor Cyan
+        & $PsqlBin -h 127.0.0.1 -p 5432 -U postgres -d siga_test -f $script.FullName -q
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Fallo al aplicar la migración '$($script.Name)' a 'siga_test'."
+            exit 1
+        }
+    }
+}
+
 # 5. Ejecucion de Pruebas de Backend
 Write-Host ""
 Write-Host "[3/5] Ejecutando pruebas de Backend (pytest con motor aislado siga_test)..." -ForegroundColor Blue
