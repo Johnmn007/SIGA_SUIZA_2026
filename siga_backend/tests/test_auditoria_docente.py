@@ -105,7 +105,6 @@ async def test_condicion_aprobado_desaprobado_minedu(client_evaluacion, fixture_
 # CASO 3: EDITAR NOTAS CON ACTA CERRADA SE DEBE RECHAZAR
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="BUG-D01: mod-evaluacion permite editar notas de una unidad con acta cerrada o registro consolidado")
 async def test_editar_notas_unidad_acta_cerrada_se_rechaza(client_evaluacion, db_session: AsyncSession, fixture_evaluacion):
     """
     Regla: Si un acta ya fue cerrada o el registro está consolidado ('cerrado'/'consolidado'),
