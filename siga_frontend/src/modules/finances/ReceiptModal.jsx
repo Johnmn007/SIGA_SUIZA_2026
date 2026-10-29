@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { X, Printer, CheckCircle2 } from 'lucide-react';
 import { ModalPortal } from './ModalPortal';
 import { buildReceiptHtml, printIframe } from './lib/printTemplates';
+import { buildBoletaLink } from './lib/paymentUtils';
 
 export function ReceiptModal({ receipt, onClose }) {
   const frameRef = useRef(null);
@@ -23,7 +24,9 @@ export function ReceiptModal({ receipt, onClose }) {
               </span>
               <div>
                 <h4 className="font-bold text-sm text-slate-800">Recibo de Caja {receipt.codigoRecibo}</h4>
-                <p className="text-[11px] text-slate-500">DNI {receipt.dni} · El QR lleva la boleta completa: se lee con cualquier celular, sin internet</p>
+                <p className="text-[11px] text-slate-500">DNI {receipt.dni} · {buildBoletaLink(receipt)
+                    ? 'Al escanear el QR, el celular abre esta boleta con su propio internet'
+                    : 'El QR lleva la boleta escrita (al publicar el sistema en internet, abrirá la boleta en el celular)'}</p>
               </div>
             </div>
             <button

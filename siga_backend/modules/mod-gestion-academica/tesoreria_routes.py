@@ -242,10 +242,9 @@ def qr_boleta(m: dict, secreto: bytes) -> dict:
     return {"datos": datos, "firma": firmar(secreto, "BOLETA", datos)}
 
 
-def texto_qr_boleta(m: dict, firma: str, url_publica: Optional[str] = None) -> str:
-    """Contenido del QR: la boleta escrita como formulario. Cualquier celular la muestra al escanear,
-    sin internet ni conexión al sistema (quien escanea no está en la red del instituto).
-    Solo si el sistema está publicado en internet se agrega un enlace corto a la boleta en formato web."""
+def texto_qr_boleta(m: dict, firma: str) -> str:
+    """Respaldo del QR mientras el sistema no está en internet: la boleta escrita, que cualquier celular
+    muestra al escanear sin conexión. Con dirección pública el QR es el enlace a boleta.html (ver paymentUtils.js)."""
     raya, doble = "-" * 32, "=" * 32
     operacion = m.get("numeroOperacion") or ""
     tarifa = m.get("tarifaNombre") or ""
@@ -274,15 +273,15 @@ def texto_qr_boleta(m: dict, firma: str, url_publica: Optional[str] = None) -> s
     if m.get("liberaMatricula"):
         lineas.append("* Pago habilitante de matricula")
     lineas += [doble, f"VERIFICACION: {formato_token(firma)}"]
-    if url_publica and m.get("token"):
-        lineas.append(f"VER BOLETA: {url_publica}/boleta.html?{urlencode({'recibo': m['codigoRecibo'], 'dni': m['dni'], 't': m['token']})}")
     return texto_ascii("\n".join(lineas))
 
 
 def agregar_qr(m: dict, secreto: bytes, url_publica: Optional[str]) -> dict:
-    """El QR se arma al mostrar la boleta (no se guarda en la base de datos)."""
+    """El QR se arma al mostrar la boleta (no se guarda en la base de datos).
+    qrBase: dominio público configurado; si está vacío, el frontend usa su propia dirección cuando es pública."""
     m["qrBoleta"] = qr_boleta(m, secreto)
-    m["qrTexto"] = texto_qr_boleta(m, m["qrBoleta"]["firma"], url_publica)
+    m["qrTexto"] = texto_qr_boleta(m, m["qrBoleta"]["firma"])
+    m["qrBase"] = url_publica or ""
     return m
 
 

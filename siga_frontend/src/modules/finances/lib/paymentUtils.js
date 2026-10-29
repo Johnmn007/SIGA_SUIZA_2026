@@ -1,5 +1,6 @@
 // Utilidades compartidas de Tesorería: verificación, fechas, montos en letras y contenido de los QR.
 import { toQrSafeText } from './qrcode';
+import { isPublicUrl } from './tesoreriaApi';
 
 export const INSTITUTION = {
   sigla: 'IESTP SUIZA',
@@ -104,8 +105,27 @@ export function amountToWords(value) {
 }
 
 // ---------- Contenido de los códigos QR ----------
-// El servidor envía en cada recibo el texto de su QR (qrTexto): la boleta escrita, legible sin internet.
-// Este texto equivalente solo se usa si un comprobante no lo trae (mismo formato que texto_qr_boleta).
+// Quien escanea usa su propio internet (no la red del instituto). Si el sistema está en internet, el QR es el
+// enlace a public/boleta.html con toda la boleta firmada dentro (qrBoleta): abre el formulario en el celular.
+// Si el sistema solo corre en una PC, el QR lleva la boleta escrita (qrTexto), que se lee sin conexión.
+
+// Dirección pública del sistema: la configurada en Tesorería o la de esta misma página si ya está en internet
+export function publicBaseUrl(receipt) {
+  const base = receipt?.qrBase || (isPublicUrl(window.location.origin) ? window.location.origin : '');
+  return base.replace(/\/+$/, '');
+}
+
+export function buildBoletaLink(receipt) {
+  const base = publicBaseUrl(receipt);
+  if (!base || !receipt?.qrBoleta) return null;
+  return `${base}/boleta.html?${new URLSearchParams({ boleta: receipt.qrBoleta.datos, f: receipt.qrBoleta.firma })}`;
+}
+
+export function receiptQrContent(receipt) {
+  return buildBoletaLink(receipt) || receipt.qrTexto || buildReceiptQrPayload(receipt);
+}
+
+// Texto plano equivalente: solo si un comprobante no trae qrTexto (mismo formato que texto_qr_boleta)
 export function buildReceiptQrPayload(receipt) {
   const operacion = receipt.numeroOperacion && receipt.numeroOperacion !== '-' ? ` / ${receipt.numeroOperacion}` : '';
   return toQrSafeText([
