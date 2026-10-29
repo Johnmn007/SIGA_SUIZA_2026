@@ -104,8 +104,8 @@ export function amountToWords(value) {
 }
 
 // ---------- QR de la boleta ----------
-// El QR es un enlace a la página pública con TODO el contenido de la boleta (datos firmados por el servidor,
-// ver qr_boleta en tesoreria_routes.py). Al escanearlo se abre la boleta como formulario; no se guarda en la BD.
+// El QR es un enlace a public/boleta.html (página liviana, sin React) con TODO el contenido de la boleta
+// (datos firmados por el servidor, ver qr_boleta en tesoreria_routes.py). No se guarda en la BD.
 const BOLETA_CAMPOS = {
   r: 'codigoRecibo', f: 'fechaHora', a: 'estudianteNombre', d: 'dni', c: 'codigoEstudiante', p: 'carreraNombre',
   k: 'conceptoCodigo', n: 'conceptoNombre', g: 'conceptoCategoria', t: 'tarifaNombre', m: 'monto',
@@ -128,7 +128,7 @@ export function isLocalOnlyUrl(url) {
 export function buildBoletaQrUrl(receipt) {
   if (!receipt?.qrBoleta) return null;
   const { datos, firma } = receipt.qrBoleta;
-  return `${qrBaseUrl(receipt)}/?${new URLSearchParams({ boleta: datos, f: firma })}`;
+  return `${qrBaseUrl(receipt)}/boleta.html?${new URLSearchParams({ boleta: datos, f: firma })}`;
 }
 
 // Convierte los datos del enlace del QR en la boleta (mismos nombres de campo que un recibo del servidor)
