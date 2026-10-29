@@ -31,18 +31,23 @@ def _determinar_estado(promedio):
         return "cursando"
     return "aprobado" if promedio >= 13 else "desaprobado"
 
+ESTADOS_PERIODO_CALIFICABLES = {"en_curso", "matricula_abierta"}
+
 @router.post("/registros", response_model=RegistroEvaluacionResponse, status_code=status.HTTP_201_CREATED)
 async def crear_registro(data: RegistroEvaluacionCreate, request: Request, db: AsyncSession = Depends(get_db)):
-    # 1. Validar que el periodo académico esté en curso (BUG-D05)
+    # 1. Validar que el periodo académico permita calificación (BUG-D05)
     per_res = await db.execute(
-        text("SELECT estado FROM periodos_academicos WHERE id = :p_id"),
+        text("SELECT codigo, estado FROM periodos_academicos WHERE id = :p_id"),
         {"p_id": data.periodo_id}
     )
-    estado_periodo = per_res.scalar_one_or_none()
-    if estado_periodo != "en_curso":
+    per_row = per_res.fetchone()
+    codigo_periodo = per_row[0] if per_row else str(data.periodo_id)
+    estado_periodo = per_row[1] if per_row else None
+
+    if estado_periodo not in ESTADOS_PERIODO_CALIFICABLES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"El periodo académico no se encuentra en curso (estado: {estado_periodo or 'no encontrado'}). No se permite registrar calificaciones."
+            detail=f"El periodo académico {codigo_periodo} se encuentra en estado '{estado_periodo}'. No se permite registrar calificaciones."
         )
 
     # 2. Validar que la matrícula exista y corresponda a la unidad y periodo (BUG-D04)
@@ -121,16 +126,19 @@ async def actualizar_notas(registro_id: int, data: RegistroEvaluacionUpdate, req
     if not db_obj:
         raise HTTPException(status_code=404, detail="Registro de evaluación no encontrado")
     
-    # Validar que el periodo académico esté en curso (BUG-D05)
+    # Validar que el periodo académico permita calificación (BUG-D05)
     per_res = await db.execute(
-        text("SELECT estado FROM periodos_academicos WHERE id = :p_id"),
+        text("SELECT codigo, estado FROM periodos_academicos WHERE id = :p_id"),
         {"p_id": db_obj.periodo_id}
     )
-    estado_periodo = per_res.scalar_one_or_none()
-    if estado_periodo != "en_curso":
+    per_row = per_res.fetchone()
+    codigo_periodo = per_row[0] if per_row else str(db_obj.periodo_id)
+    estado_periodo = per_row[1] if per_row else None
+
+    if estado_periodo not in ESTADOS_PERIODO_CALIFICABLES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"El periodo académico no se encuentra en curso (estado: {estado_periodo or 'no encontrado'}). No se permite modificar calificaciones."
+            detail=f"El periodo académico {codigo_periodo} se encuentra en estado '{estado_periodo}'. No se permite modificar calificaciones."
         )
     
     update_data = data.model_dump(exclude_unset=True)

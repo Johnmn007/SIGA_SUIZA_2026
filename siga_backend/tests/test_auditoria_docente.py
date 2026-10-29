@@ -190,35 +190,81 @@ async def test_no_se_puede_calificar_estudiante_no_matriculado(client_evaluacion
 
 
 # ==============================================================================
-# CASO 7: NO SE PUEDE REGISTRAR NOTA EN UN PERIODO CERRADO (BUG-D05 CORREGIDO)
+# CASO 7: VALIDACIÓN DE ESTADOS DE PERIODO AL CALIFICAR (BUG-D05 AJUSTADO)
 # ==============================================================================
 @pytest.mark.asyncio
-async def test_no_se_puede_registrar_nota_en_periodo_cerrado(client_evaluacion, db_session: AsyncSession, fixture_evaluacion):
+async def test_periodos_calificables_en_curso_y_matricula_abierta_permiten_calificar(
+    client_evaluacion, db_session: AsyncSession, fixture_evaluacion
+):
     """
-    Regla: Si el periodo académico ya concluyó (estado='cerrado'), no se pueden
-    ingresar o modificar calificaciones en dicho periodo.
+    Regla: Los estados 'en_curso' y 'matricula_abierta' permiten el registro y
+    modificación de calificaciones (ambos son válidos durante el ciclo).
     """
     periodo_id = 1
-    # Marcar periodo como cerrado
-    await db_session.execute(text("""
-        UPDATE periodos_academicos SET estado = 'cerrado' WHERE id = :id;
-    """), {"id": periodo_id})
-    await db_session.commit()
-
     registro_id = fixture_evaluacion["evaluacion_id"]
-    resp = await client_evaluacion.put(f"/registros/{registro_id}", json={"nota_final": 15})
-    assert resp.status_code == 409, f"Se esperaba 409 y se obtuvo {resp.status_code}"
-    assert "periodo" in resp.json()["detail"].lower()
 
-    # Probar también creación en periodo cerrado
-    resp_post = await client_evaluacion.post("/registros", json={
-        "matricula_detalle_id": 80,
-        "estudiante_id": 100,
-        "unidad_didactica_id": 101,
-        "periodo_id": periodo_id,
-        "nota_final": 15
-    })
-    assert resp_post.status_code == 409, f"Se esperaba 409 y se obtuvo {resp_post.status_code}"
+    # 1. Probar con 'en_curso'
+    await db_session.execute(text("UPDATE periodos_academicos SET estado = 'en_curso' WHERE id = :id;"), {"id": periodo_id})
+    await db_session.commit()
+    resp_en_curso = await client_evaluacion.put(f"/registros/{registro_id}", json={"nota_final": 16})
+    assert resp_en_curso.status_code == 200, f"Fallo al calificar en 'en_curso': {resp_en_curso.status_code} - {resp_en_curso.text}"
+
+    # 2. Probar con 'matricula_abierta'
+    await db_session.execute(text("UPDATE periodos_academicos SET estado = 'matricula_abierta' WHERE id = :id;"), {"id": periodo_id})
+    await db_session.commit()
+    resp_mat_abierta = await client_evaluacion.put(f"/registros/{registro_id}", json={"nota_final": 17})
+    assert resp_mat_abierta.status_code == 200, f"Fallo al calificar en 'matricula_abierta': {resp_mat_abierta.status_code} - {resp_mat_abierta.text}"
+    assert resp_mat_abierta.json()["nota_final"] == 17
+
+
+@pytest.mark.asyncio
+async def test_periodos_no_calificables_cerrado_null_inventado_devuelven_409(
+    client_evaluacion, db_session: AsyncSession, fixture_evaluacion
+):
+    """
+    Regla: Si el estado del periodo no es calificable ('cerrado', NULL o un estado inventado),
+    POST y PUT deben responder 409 Conflict con un mensaje en español que incluya
+    el código del periodo y su estado.
+    """
+    periodo_id = 1
+    registro_id = fixture_evaluacion["evaluacion_id"]
+
+    casos_invalidos = [
+        ("cerrado", "cerrado"),
+        (None, "None"),
+        ("inventado_no_valido", "inventado_no_valido"),
+    ]
+
+    for estado_val, estado_str in casos_invalidos:
+        await db_session.execute(
+            text("UPDATE periodos_academicos SET estado = :est WHERE id = :id;"),
+            {"est": estado_val, "id": periodo_id}
+        )
+        await db_session.commit()
+
+        # Probar PUT
+        resp_put = await client_evaluacion.put(f"/registros/{registro_id}", json={"nota_final": 14})
+        assert resp_put.status_code == 409, f"Se esperaba 409 para estado '{estado_val}', se obtuvo {resp_put.status_code}"
+        detail_put = resp_put.json()["detail"]
+        assert "2026-I" in detail_put, f"El mensaje '{detail_put}' no contiene el código del periodo '2026-I'"
+        assert estado_str in detail_put, f"El mensaje '{detail_put}' no contiene el estado '{estado_str}'"
+
+        # Probar POST
+        resp_post = await client_evaluacion.post("/registros", json={
+            "matricula_detalle_id": 80,
+            "estudiante_id": 100,
+            "unidad_didactica_id": 101,
+            "periodo_id": periodo_id,
+            "nota_final": 14
+        })
+        assert resp_post.status_code == 409, f"Se esperaba 409 en POST para estado '{estado_val}', se obtuvo {resp_post.status_code}"
+        detail_post = resp_post.json()["detail"]
+        assert "2026-I" in detail_post, f"El mensaje '{detail_post}' no contiene el código del periodo '2026-I'"
+        assert estado_str in detail_post, f"El mensaje '{detail_post}' no contiene el estado '{estado_str}'"
+
+
+# Alias para compatibilidad con suites que busquen el nombre anterior
+test_no_se_puede_registrar_nota_en_periodo_cerrado = test_periodos_no_calificables_cerrado_null_inventado_devuelven_409
 
 
 # ==============================================================================
