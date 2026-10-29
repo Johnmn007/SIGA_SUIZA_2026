@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete, text
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 from pydantic import BaseModel, ConfigDict
 from database import get_db, OutboxEvent
 from models import ProgramaEstudio, ProgramaConfiguracion, ProgramaModulo, ProgramaUnidad, ProgramaRequisito, PeriodoAcademico
@@ -473,6 +473,10 @@ class CargaLectivaResponse(CargaLectivaBase):
     id: int
     programa_id: int
     created_at: datetime
+    fecha_limite_notas: Optional[date] = None
+    acta_cerrada: bool = False
+    acta_cerrada_at: Optional[datetime] = None
+    acta_cerrada_por: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 class HorarioPeriodoBase(BaseModel):
