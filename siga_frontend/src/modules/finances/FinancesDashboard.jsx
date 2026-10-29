@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
-import { API_BASE, apiClient } from '../../core/api/client';
+import { API_BASE } from '../../core/api/client';
 import { 
   Wallet, 
   Search, 
@@ -36,135 +36,36 @@ import {
   FileText,
   Eye,
   X,
-  UserCheck
+  UserCheck,
+  Tags
 } from 'lucide-react';
-import { TUPA_CONCEPTS, PAYMENT_METHODS, CAREERS_MAP, getStudentAnnualPayments } from './tupaCatalog';
+import { PAYMENT_METHODS, CAREERS_MAP, useTupaCatalog, useCajaConfig } from './tupaCatalog';
 import { PaymentModal } from './PaymentModal';
 import { ReceiptModal } from './ReceiptModal';
 import { AnnualStatementModal } from './AnnualStatementModal';
-
-const STORAGE_KEY_TRANSACTIONS = 'siga_transacciones_caja_2026';
-
-// Transacciones semilla iniciales alineadas a los estudiantes ya pagados en la BD
-const INITIAL_TRANSACTIONS = [
-  {
-    id: 1718000001,
-    codigoRecibo: 'REC-2026-00108',
-    estudianteId: 2314,
-    estudianteNombre: 'Leonardo Cahuana Tello',
-    dni: '77648746',
-    codigoEstudiante: '2024-77648746',
-    carreraNombre: 'Desarrollo de Sistemas de Información',
-    conceptoId: 'MAT-01',
-    conceptoCodigo: 'MAT-01',
-    conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
-    conceptoCategoria: 'Matrícula',
-    monto: 120.00,
-    metodoPagoId: 'banco_nacion',
-    metodoPagoNombre: 'Banco de la Nación (BN)',
-    numeroOperacion: 'BN-849201',
-    cajero: 'Caja Central - Tesorería',
-    fechaHora: '15/10/2026, 09:30:15',
-    timestamp: Date.now() - 86400000,
-    liberaMatricula: true
-  },
-  {
-    id: 1718000002,
-    codigoRecibo: 'REC-2026-00109',
-    estudianteId: 2313,
-    estudianteNombre: 'Ricardo Arevalo Villacorta',
-    dni: '60832237',
-    codigoEstudiante: '2025-60832237',
-    carreraNombre: 'Desarrollo de Sistemas de Información',
-    conceptoId: 'MAT-01',
-    conceptoCodigo: 'MAT-01',
-    conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
-    conceptoCategoria: 'Matrícula',
-    monto: 120.00,
-    metodoPagoId: 'efectivo',
-    metodoPagoNombre: 'Efectivo en Ventanilla',
-    numeroOperacion: 'PAGO EN VENTANILLA',
-    cajero: 'Caja Central - Tesorería',
-    fechaHora: '15/10/2026, 10:14:20',
-    timestamp: Date.now() - 82000000,
-    liberaMatricula: true
-  },
-  {
-    id: 1718000003,
-    codigoRecibo: 'REC-2026-00110',
-    estudianteId: 2031,
-    estudianteNombre: 'KEVIN MANUEL MARICHI GROMEZ',
-    dni: '75983142',
-    codigoEstudiante: '2026-75983142',
-    carreraNombre: 'Desarrollo de Sistemas de Información',
-    conceptoId: 'MAT-01',
-    conceptoCodigo: 'MAT-01',
-    conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
-    conceptoCategoria: 'Matrícula',
-    monto: 120.00,
-    metodoPagoId: 'yape_plin',
-    metodoPagoNombre: 'Billetera Digital (Yape / Plin)',
-    numeroOperacion: 'YP-918234',
-    cajero: 'Caja Central - Tesorería',
-    fechaHora: '15/10/2026, 11:45:00',
-    timestamp: Date.now() - 75000000,
-    liberaMatricula: true
-  },
-  {
-    id: 1718000004,
-    codigoRecibo: 'REC-2026-00111',
-    estudianteId: 2029,
-    estudianteNombre: 'DILBER ALEX MARICHI GORMEZ',
-    dni: '75975159',
-    codigoEstudiante: '2026-75975159',
-    carreraNombre: 'Desarrollo de Sistemas de Información',
-    conceptoId: 'CAR-01',
-    conceptoCodigo: 'CAR-01',
-    conceptoNombre: 'Carnet Estudiantil / Fotocheck Institucional',
-    conceptoCategoria: 'Identificación',
-    monto: 15.00,
-    metodoPagoId: 'efectivo',
-    metodoPagoNombre: 'Efectivo en Ventanilla',
-    numeroOperacion: 'PAGO EN VENTANILLA',
-    cajero: 'Caja Central - Tesorería',
-    fechaHora: '15/10/2026, 12:05:40',
-    timestamp: Date.now() - 70000000,
-    liberaMatricula: false
-  },
-  {
-    id: 1718000005,
-    codigoRecibo: 'REC-2026-00112',
-    estudianteId: 1887,
-    estudianteNombre: 'ASHLEY AMPUERO TAMANI',
-    dni: '75933316',
-    codigoEstudiante: '2026-75933316',
-    carreraNombre: 'Desarrollo de Sistemas de Información',
-    conceptoId: 'MAT-01',
-    conceptoCodigo: 'MAT-01',
-    conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
-    conceptoCategoria: 'Matrícula',
-    monto: 120.00,
-    metodoPagoId: 'banco_nacion',
-    metodoPagoNombre: 'Banco de la Nación (BN)',
-    numeroOperacion: 'BN-902341',
-    cajero: 'Caja Central - Tesorería',
-    fechaHora: '16/10/2026, 08:30:00',
-    timestamp: Date.now() - 14000000,
-    liberaMatricula: true
-  }
-];
+import { TupaCatalogManager } from './TupaCatalogManager';
+import { exportLibroDiarioXlsx } from './lib/libroDiarioExport';
+import { getReceiptVerificationCode } from './lib/paymentUtils';
+import { tesoreriaApi, migrateLocalDataOnce } from './lib/tesoreriaApi';
 
 export function FinancesDashboard() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('caja'); // 'caja' | 'historial' | 'arqueo'
-  
+  const [activeTab, setActiveTab] = useState('caja'); // 'caja' | 'historial' | 'arqueo' | 'tarifario'
+
   // Data states
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [transactions, setTransactions] = useState([]);
-  
+  const { catalog, catalogError, reloadCatalog, saveConcept, deleteConcept, resetCatalog } = useTupaCatalog();
+  const { config: cajaConfig, saveConfig: saveCajaConfig } = useCajaConfig();
+  const [dataError, setDataError] = useState('');
+  const [migrationNotice, setMigrationNotice] = useState('');
+
   // Modals & Dossier State
   const [payingStudent, setPayingStudent] = useState(null);
+  const [payingStatement, setPayingStatement] = useState(null);
+  const [payingConceptId, setPayingConceptId] = useState(null);
+  const [dossierStatement, setDossierStatement] = useState(null);
   const [viewingReceipt, setViewingReceipt] = useState(null);
   const [selectedStudentForDossier, setSelectedStudentForDossier] = useState(null);
   const [showAnnualModal, setShowAnnualModal] = useState(false);
@@ -172,7 +73,6 @@ export function FinancesDashboard() {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCareer, setFilterCareer] = useState('todas');
-  const [filterStatus, setFilterStatus] = useState('todos'); // 'todos' | 'con_deuda' | 'habilitados'
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
   const [historyMethodFilter, setHistoryMethodFilter] = useState('todos');
   const [historySearch, setHistorySearch] = useState('');
@@ -181,21 +81,16 @@ export function FinancesDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = viewMode === 'grid' ? 6 : 10;
 
-  // Cargar transacciones desde localStorage
-  useEffect(() => {
+  // Carga inicial: migra una sola vez los datos que la caja guardaba en el navegador
+  // y luego lee pagos, tarifario y estudiantes desde la base de datos.
+  const fetchTransactions = async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_TRANSACTIONS);
-      if (stored) {
-        setTransactions(JSON.parse(stored));
-      } else {
-        localStorage.setItem(STORAGE_KEY_TRANSACTIONS, JSON.stringify(INITIAL_TRANSACTIONS));
-        setTransactions(INITIAL_TRANSACTIONS);
-      }
+      setTransactions(await tesoreriaApi.listarPagos());
+      setDataError('');
     } catch (e) {
-      console.error('Error cargando transacciones:', e);
-      setTransactions(INITIAL_TRANSACTIONS);
+      setDataError(`No se pudieron cargar los pagos: ${e.message}`);
     }
-  }, []);
+  };
 
   // Fetch de Estudiantes desde la API
   const fetchStudents = async () => {
@@ -225,7 +120,20 @@ export function FinancesDashboard() {
   };
 
   useEffect(() => {
-    fetchStudents();
+    (async () => {
+      try {
+        const resumen = await migrateLocalDataOnce();
+        if (resumen && (resumen.pagos || resumen.conceptos)) {
+          setMigrationNotice(`Se migraron a la base de datos ${resumen.pagos} recibo(s) y ${resumen.conceptos} concepto(s) que estaban guardados solo en este navegador.`);
+        }
+      } catch (e) {
+        console.error('No se pudieron migrar los datos locales de caja:', e);
+      }
+      reloadCatalog();
+      fetchTransactions();
+      fetchStudents();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- carga inicial única
   }, []);
 
   // Si el usuario escribe un DNI exacto de 8 dígitos en la barra de búsqueda, auto-seleccionar ese estudiante
@@ -239,6 +147,20 @@ export function FinancesDashboard() {
     }
   }, [searchTerm, students]);
 
+  // Estado de cuenta del alumno consultado (servidor): se recarga tras cada pago o cambio de tarifario
+  const dossierStudentId = selectedStudentForDossier?.id;
+  useEffect(() => {
+    if (!dossierStudentId) {
+      setDossierStatement(null);
+      return undefined;
+    }
+    let cancelled = false;
+    tesoreriaApi.estadoCuenta(dossierStudentId)
+      .then(statement => { if (!cancelled) setDossierStatement(statement); })
+      .catch(e => { if (!cancelled) setDataError(`No se pudo cargar el estado de cuenta: ${e.message}`); });
+    return () => { cancelled = true; };
+  }, [dossierStudentId, transactions, catalog]);
+
   // Métricas Financieras en Vivo
   const financialStats = useMemo(() => {
     const totalEstudiantes = students.length || 1;
@@ -246,7 +168,7 @@ export function FinancesDashboard() {
     const estudiantesConDeuda = totalEstudiantes - estudiantesHabilitados;
     const porcentajeHabilitados = Math.round((estudiantesHabilitados / totalEstudiantes) * 100);
 
-    // Suma total recaudada desde transacciones
+    // Suma total recaudada desde los recibos de caja
     const totalRecaudado = transactions.reduce((acc, t) => acc + (parseFloat(t.monto) || 0), 0);
 
     // Recaudación del día de hoy
@@ -266,31 +188,29 @@ export function FinancesDashboard() {
     };
   }, [students, transactions]);
 
-  // Filtro de Estudiantes
-  const filteredStudents = useMemo(() => {
+  // Estudiantes que coinciden con la búsqueda y la carrera
+  const matchingStudents = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
     return students.filter(s => {
-      const q = searchTerm.toLowerCase().trim();
-      const matchesSearch = !q || 
+      const matchesSearch = !q ||
         (s.dni && s.dni.includes(q)) ||
         (s.codigo_estudiante && s.codigo_estudiante.toLowerCase().includes(q)) ||
         (s.nombres && s.nombres.toLowerCase().includes(q)) ||
         (s.apellidos && s.apellidos.toLowerCase().includes(q));
-
       const matchesCareer = filterCareer === 'todas' || String(s.programa_id) === String(filterCareer);
-
-      const matchesStatus = 
-        filterStatus === 'todos' ||
-        (filterStatus === 'con_deuda' && !s.pago_matricula) ||
-        (filterStatus === 'habilitados' && s.pago_matricula);
-
-      return matchesSearch && matchesCareer && matchesStatus;
+      return matchesSearch && matchesCareer;
     });
-  }, [students, searchTerm, filterCareer, filterStatus]);
+  }, [students, searchTerm, filterCareer]);
+
+  // La lista de cobranza solo muestra a quienes aún no pagaron la matrícula (base de datos);
+  // los que ya pagaron se consultan con el buscador por DNI.
+  const filteredStudents = useMemo(() => matchingStudents.filter(s => !s.pago_matricula), [matchingStudents]);
+  const paidMatchingCount = matchingStudents.length - filteredStudents.length;
 
   // Reset de página al cambiar filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterCareer, filterStatus, viewMode]);
+  }, [searchTerm, filterCareer, viewMode]);
 
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage) || 1;
   const paginatedStudents = useMemo(() => {
@@ -307,7 +227,8 @@ export function FinancesDashboard() {
         (t.estudianteNombre && t.estudianteNombre.toLowerCase().includes(q)) ||
         (t.dni && t.dni.includes(q)) ||
         (t.conceptoNombre && t.conceptoNombre.toLowerCase().includes(q)) ||
-        (t.numeroOperacion && t.numeroOperacion.toLowerCase().includes(q));
+        (t.numeroOperacion && t.numeroOperacion.toLowerCase().includes(q)) ||
+        getReceiptVerificationCode(t).toLowerCase().includes(q);
 
       const matchesMethod = historyMethodFilter === 'todos' || t.metodoPagoId === historyMethodFilter;
 
@@ -315,62 +236,53 @@ export function FinancesDashboard() {
     });
   }, [transactions, historySearch, historyMethodFilter]);
 
-  // Manejador de pago completado con éxito
-  const handlePaymentSuccess = (receiptPayload) => {
-    // 1. Guardar en transactions
-    const updated = [receiptPayload, ...transactions];
-    setTransactions(updated);
+  // Abre la ventanilla de cobro con el estado de cuenta actualizado del alumno (base de datos)
+  const openPayment = async (student, conceptId = null) => {
+    setDataError('');
     try {
-      localStorage.setItem(STORAGE_KEY_TRANSACTIONS, JSON.stringify(updated));
+      const statement = await tesoreriaApi.estadoCuenta(student.id);
+      setPayingStatement(statement);
+      setPayingConceptId(conceptId);
+      setPayingStudent({ ...student, pago_matricula: statement.habilitado });
     } catch (e) {
-      console.error('Error guardando transacción en localStorage:', e);
+      setDataError(`No se pudo abrir la ventanilla de cobro: ${e.message}`);
     }
-
-    // 2. Refrescar lista de estudiantes para reflejar liberación de candado
-    fetchStudents();
-
-    // 3. Actualizar estudiante en el dossier si estaba abierto
-    if (selectedStudentForDossier && String(selectedStudentForDossier.id) === String(receiptPayload.estudianteId)) {
-      setSelectedStudentForDossier(prev => ({ ...prev, pago_matricula: true }));
-    }
-
-    // 4. Cerrar modal de pago y abrir recibo para visualización/impresión
-    setPayingStudent(null);
-    setViewingReceipt(receiptPayload);
   };
 
-  // Exportar Libro Diario a CSV
-  const handleExportCSV = () => {
-    if (transactions.length === 0) {
+  const closePayment = () => {
+    setPayingStudent(null);
+    setPayingStatement(null);
+  };
+
+  // Pago registrado en el servidor: { pago, pagoMatricula }
+  const handlePaymentSuccess = ({ pago, pagoMatricula }) => {
+    setTransactions(prev => [pago, ...prev]);
+
+    // La condición financiera viene de la base de datos (estudiantes.pago_matricula)
+    const id = String(pago.estudianteId);
+    setStudents(prev => prev.map(s => (String(s.id) === id ? { ...s, pago_matricula: pagoMatricula } : s)));
+    if (selectedStudentForDossier && String(selectedStudentForDossier.id) === id) {
+      setSelectedStudentForDossier(prev => ({ ...prev, pago_matricula: pagoMatricula }));
+    }
+
+    closePayment();
+    setViewingReceipt(pago);
+  };
+
+  // Exportar Libro Diario a Excel (.xlsx con formato, filtros y resumen)
+  const handleExportExcel = (list = transactions, filterLabel = '') => {
+    if (list.length === 0) {
       alert('No hay transacciones registradas para exportar.');
       return;
     }
+    exportLibroDiarioXlsx(list, { cashier: user?.full_name || 'Caja Central', filterLabel });
+  };
 
-    const headers = ['N° Recibo', 'Fecha y Hora', 'Estudiante', 'DNI', 'Código', 'Carrera', 'Concepto', 'Categoría', 'Método de Pago', 'N° Operación', 'Monto (S/)', 'Cajero'];
-    const rows = transactions.map(t => [
-      t.codigoRecibo,
-      `"${t.fechaHora}"`,
-      `"${t.estudianteNombre}"`,
-      t.dni,
-      t.codigoEstudiante,
-      `"${t.carreraNombre}"`,
-      `"${t.conceptoNombre}"`,
-      `"${t.conceptoCategoria}"`,
-      `"${t.metodoPagoNombre}"`,
-      `"${t.numeroOperacion || ''}"`,
-      parseFloat(t.monto).toFixed(2),
-      `"${t.cajero}"`
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Arqueo_Caja_IESTP_Suiza_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportFilteredHistory = () => {
+    const parts = [];
+    if (historySearch.trim()) parts.push(`búsqueda "${historySearch.trim()}"`);
+    if (historyMethodFilter !== 'todos') parts.push(PAYMENT_METHODS.find(m => m.id === historyMethodFilter)?.nombre || historyMethodFilter);
+    handleExportExcel(filteredTransactions, parts.join(' · '));
   };
 
   // Desglose por método de pago para Arqueo
@@ -393,11 +305,10 @@ export function FinancesDashboard() {
     return summary;
   }, [transactions]);
 
-  // Pagos calculados para el estudiante actualmente seleccionado en el Expediente
-  const selectedStudentPayments = useMemo(() => {
-    if (!selectedStudentForDossier) return [];
-    return getStudentAnnualPayments(selectedStudentForDossier, transactions);
-  }, [selectedStudentForDossier, transactions]);
+  // Movimientos del alumno consultado (estado de cuenta del servidor)
+  const statementMatchesDossier = dossierStatement && String(dossierStatement.estudiante.id) === String(dossierStudentId);
+  const selectedStudentPayments = statementMatchesDossier ? dossierStatement.movimientos : [];
+  const dossierHabilitado = statementMatchesDossier ? dossierStatement.habilitado : Boolean(selectedStudentForDossier?.pago_matricula);
 
   return (
     <div className="animate-fade-in space-y-8 pb-12">
@@ -420,7 +331,7 @@ export function FinancesDashboard() {
               </span>
               <span className="tracking-wide">IESTP SUIZA · TESORERÍA Y CAJA CENTRAL</span>
               <span className="text-white/40">|</span>
-              <span className="text-emerald-300 font-bold">BASE OFICIAL: 788 ESTUDIANTES</span>
+              <span className="text-emerald-300 font-bold">BASE OFICIAL: {students.length} ESTUDIANTES</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white flex items-center gap-3">
@@ -435,7 +346,7 @@ export function FinancesDashboard() {
           {/* Acciones Rápidas del Banner */}
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={handleExportCSV}
+              onClick={() => handleExportExcel()}
               className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-semibold text-xs border border-white/20 shadow-sm hover:shadow-lg transition cursor-pointer"
             >
               <FileSpreadsheet size={16} className="text-emerald-300" />
@@ -539,7 +450,7 @@ export function FinancesDashboard() {
       </div>
 
       {/* 2. Barra de Navegación de Pestañas */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
         <button
           onClick={() => setActiveTab('caja')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
@@ -575,7 +486,33 @@ export function FinancesDashboard() {
           <FileSpreadsheet size={16} />
           <span>Arqueo y Cierre de Caja</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('tarifario')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+            activeTab === 'tarifario'
+              ? 'bg-primary text-white shadow-md shadow-primary/25'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <Tags size={16} />
+          <span>Tarifario TUPA ({catalog.length})</span>
+        </button>
       </div>
+
+      {/* Avisos de sincronización con la base de datos */}
+      {dataError && (
+        <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2"><AlertTriangle size={16} className="flex-shrink-0" /> {dataError}</span>
+          <button onClick={() => setDataError('')} className="p-1 rounded-lg hover:bg-red-100 cursor-pointer" title="Cerrar aviso"><X size={14} /></button>
+        </div>
+      )}
+      {migrationNotice && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2"><CheckCircle2 size={16} className="flex-shrink-0" /> {migrationNotice}</span>
+          <button onClick={() => setMigrationNotice('')} className="p-1 rounded-lg hover:bg-emerald-100 cursor-pointer" title="Cerrar aviso"><X size={14} /></button>
+        </div>
+      )}
 
       {/* 3. CONTENIDO: PESTAÑA 1 - VENTANILLA DE COBRANZA & CONSULTA POR DNI */}
       {activeTab === 'caja' && (
@@ -645,11 +582,11 @@ export function FinancesDashboard() {
                         CÓDIGO: {selectedStudentForDossier.codigo_estudiante}
                       </span>
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                        selectedStudentForDossier.pago_matricula 
+                        dossierHabilitado 
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                           : 'bg-amber-50 text-amber-700 border-amber-200'
                       }`}>
-                        {selectedStudentForDossier.pago_matricula ? '✓ Habilitado Financieramente' : '⚠ Bloqueo de Matrícula Activo'}
+                        {dossierHabilitado ? '✓ Habilitado Financieramente' : '⚠ Bloqueo de Matrícula Activo'}
                       </span>
                     </div>
 
@@ -670,7 +607,7 @@ export function FinancesDashboard() {
                 {/* Acciones para el estudiante consultado */}
                 <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
                   <button
-                    onClick={() => setPayingStudent(selectedStudentForDossier)}
+                    onClick={() => openPayment(selectedStudentForDossier)}
                     className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md shadow-emerald-600/25 transition cursor-pointer"
                   >
                     <Plus size={16} />
@@ -711,7 +648,7 @@ export function FinancesDashboard() {
                     S/ {selectedStudentPayments.filter(p => p.estado === 'PENDIENTE').reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0).toFixed(2)}
                   </div>
                   <span className="text-[11px] text-amber-600">
-                    {selectedStudentForDossier.pago_matricula ? 'Sin deudas pendientes' : 'Pendiente matrícula regular'}
+                    {dossierHabilitado ? 'Sin deudas pendientes' : 'Pendiente matrícula regular'}
                   </span>
                 </div>
 
@@ -745,6 +682,14 @@ export function FinancesDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
+                      {!statementMatchesDossier && (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-slate-400">
+                            <span className="inline-block w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin align-middle mr-2" />
+                            Cargando estado de cuenta desde la base de datos...
+                          </td>
+                        </tr>
+                      )}
                       {selectedStudentPayments.map(p => {
                         const isPaid = p.estado === 'PAGADO';
                         return (
@@ -790,7 +735,7 @@ export function FinancesDashboard() {
                                 </button>
                               ) : (
                                 <button
-                                  onClick={() => setPayingStudent(selectedStudentForDossier)}
+                                  onClick={() => openPayment(selectedStudentForDossier, p.conceptoId || null)}
                                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer"
                                 >
                                   <Banknote size={13} />
@@ -809,7 +754,7 @@ export function FinancesDashboard() {
             </div>
           )}
 
-          {/* BARRA DE FILTROS SECUNDARIOS (Para navegar todos los 788 estudiantes) */}
+          {/* BARRA DE FILTROS SECUNDARIOS (Para navegar todos los estudiantes) */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
             
             {/* Filtros Dropdown */}
@@ -827,16 +772,11 @@ export function FinancesDashboard() {
                 ))}
               </select>
 
-              {/* Filtro por Estado */}
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="todos">Todos los Estados Financieros</option>
-                <option value="con_deuda">Con Deuda de Matrícula (Bloqueados)</option>
-                <option value="habilitados">Habilitados / Matrícula Pagada</option>
-              </select>
+              {/* Solo estudiantes con deuda de matrícula */}
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-800">
+                <Lock size={13} />
+                Pendientes de pago de matrícula
+              </span>
 
               {/* Vista Grid/Table */}
               <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
@@ -859,8 +799,11 @@ export function FinancesDashboard() {
             </div>
 
             {/* Contador de Resultados */}
-            <div className="text-xs text-slate-500 font-medium">
-              Mostrando <strong className="text-slate-800">{filteredStudents.length}</strong> de {students.length} estudiantes
+            <div className="text-xs text-slate-500 font-medium text-right">
+              <strong className="text-slate-800">{filteredStudents.length}</strong> estudiantes sin pagar
+              <span className="block text-[11px] text-emerald-700">
+                {financialStats.estudiantesHabilitados} ya pagaron (búscalos por DNI para ver sus pagos)
+              </span>
             </div>
 
           </div>
@@ -876,8 +819,19 @@ export function FinancesDashboard() {
               <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
                 <Search size={28} />
               </div>
-              <h4 className="font-bold text-slate-800 text-sm">No se encontraron estudiantes con ese DNI o criterio</h4>
-              <p className="text-xs text-slate-500 mt-1">Verifica el número de documento de identidad ingresado.</p>
+              {paidMatchingCount > 0 ? (
+                <>
+                  <h4 className="font-bold text-emerald-800 text-sm">
+                    {paidMatchingCount === 1 ? 'Este estudiante ya pagó su matrícula' : `Estos ${paidMatchingCount} estudiantes ya pagaron su matrícula`}
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">La lista solo muestra a quienes deben. Escribe el DNI completo (8 dígitos) para ver sus pagos del año.</p>
+                </>
+              ) : (
+                <>
+                  <h4 className="font-bold text-slate-800 text-sm">No se encontraron estudiantes con ese DNI o criterio</h4>
+                  <p className="text-xs text-slate-500 mt-1">Verifica el número de documento de identidad ingresado.</p>
+                </>
+              )}
             </div>
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -965,7 +919,7 @@ export function FinancesDashboard() {
                       </button>
 
                       <button
-                        onClick={() => setPayingStudent(student)}
+                        onClick={() => openPayment(student)}
                         className={`py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer ${
                           isPaid
                             ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
@@ -1032,7 +986,7 @@ export function FinancesDashboard() {
                             </button>
 
                             <button
-                              onClick={() => setPayingStudent(student)}
+                              onClick={() => openPayment(student)}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
                             >
                               <Banknote size={13} />
@@ -1107,11 +1061,11 @@ export function FinancesDashboard() {
               </select>
 
               <button
-                onClick={handleExportCSV}
+                onClick={exportFilteredHistory}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-bold text-xs shadow-sm transition cursor-pointer flex-shrink-0"
               >
                 <Download size={14} />
-                <span>Exportar CSV</span>
+                <span>Exportar Excel</span>
               </button>
             </div>
           </div>
@@ -1256,10 +1210,10 @@ export function FinancesDashboard() {
 
             <div className="flex items-center gap-3">
               <button
-                onClick={handleExportCSV}
+                onClick={() => handleExportExcel()}
                 className="px-5 py-3 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer"
               >
-                Descargar Reporte Detallado
+                Descargar Libro Diario (Excel)
               </button>
               <button
                 onClick={() => alert(`Arqueo conforme registrado con éxito.\nTotal recaudado: S/ ${arqueoPorMetodo.total.toFixed(2)}\nComprobantes emitidos: ${transactions.length}`)}
@@ -1273,12 +1227,32 @@ export function FinancesDashboard() {
         </div>
       )}
 
+      {/* 6. CONTENIDO: PESTAÑA 4 - TARIFARIO TUPA (conceptos y precios editables) */}
+      {activeTab === 'tarifario' && (
+        <TupaCatalogManager
+          catalog={catalog}
+          catalogError={catalogError}
+          onSaveConcept={saveConcept}
+          onDeleteConcept={deleteConcept}
+          onResetCatalog={resetCatalog}
+          cajaConfig={cajaConfig}
+          onSaveCajaConfig={saveCajaConfig}
+        />
+      )}
+
       {/* MODAL 1: REGISTRAR COBRO TUPA */}
-      {payingStudent && (
+      {payingStudent && payingStatement && (
         <PaymentModal
+          key={`${payingStudent.id}-${payingConceptId || ''}`}
           student={payingStudent}
           cashierName={user?.full_name || 'Caja Central'}
-          onClose={() => setPayingStudent(null)}
+          catalog={catalog}
+          studentPayments={payingStatement.movimientos}
+          initialConceptId={payingConceptId}
+          cajaConfig={cajaConfig}
+          onSaveConcept={saveConcept}
+          onDeleteConcept={deleteConcept}
+          onClose={closePayment}
           onSuccess={handlePaymentSuccess}
         />
       )}
@@ -1292,10 +1266,9 @@ export function FinancesDashboard() {
       )}
 
       {/* MODAL 3: VER / IMPRIMIR ESTADO DE CUENTA ANUAL CONSOLIDADO */}
-      {showAnnualModal && selectedStudentForDossier && (
+      {showAnnualModal && statementMatchesDossier && (
         <AnnualStatementModal
-          student={selectedStudentForDossier}
-          payments={selectedStudentPayments}
+          statement={dossierStatement}
           onClose={() => setShowAnnualModal(false)}
         />
       )}

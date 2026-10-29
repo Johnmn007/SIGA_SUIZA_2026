@@ -195,6 +195,8 @@ async def crear_estudiante(request: Request, data: EstudianteCreate, db: AsyncSe
     await db.refresh(db_estudiante)
     return db_estudiante
 
+METADATA_ADMISION_CAJA = {"S/. COSTO (S/. 250):", "Fecha de inscripcion:", "CODIGO", "MODALIDAD (EBR O EBA)"}
+
 @router.get("/estudiantes/")
 async def obtener_estudiantes(programa_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
     import traceback
@@ -205,7 +207,13 @@ async def obtener_estudiantes(programa_id: Optional[int] = None, db: AsyncSessio
         result = await db.execute(query)
         rows = result.scalars().all()
         print(f"[DEBUG] Estudiantes encontrados: {len(rows)}")
-        return [{"id": r.id, "codigo_estudiante": r.codigo_estudiante, "dni": r.dni, "nombres": r.nombres, "apellidos": r.apellidos, "estado_academico": r.estado_academico, "programa_id": r.programa_id} for r in rows]
+        return [{
+            "id": r.id, "codigo_estudiante": r.codigo_estudiante, "dni": r.dni, "nombres": r.nombres, "apellidos": r.apellidos,
+            "estado_academico": r.estado_academico, "programa_id": r.programa_id,
+            # Datos financieros usados por Caja y Tesorería (solo los campos de admisión necesarios para el cobro)
+            "pago_matricula": bool(r.pago_matricula), "modalidad_admision": r.modalidad_admision,
+            "metadata_admision": {k: v for k, v in (r.metadata_admision or {}).items() if k in METADATA_ADMISION_CAJA},
+        } for r in rows]
     except Exception as e:
         tb = traceback.format_exc()
         print(f"[ERROR] obtener_estudiantes: {e}\n{tb}")
