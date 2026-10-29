@@ -21,6 +21,8 @@
    * Trabajar siempre en la rama **`mejoras/docente-coordinacion`**.
    * Realizar commits pequeños, atómicos y con mensajes claros y descriptivos.
    * **PROHIBICIÓN:** Nunca realizar commit de la carpeta `backups/`, archivos `.env`, `.env.*` ni credenciales o contraseñas en texto plano.
+   * **PROHIBIDO:** Ejecutar `git push`, `git remote add`, crear pull requests o publicar la rama de cualquier forma. La rama `mejoras/docente-coordinacion` es solo local hasta que el líder revise los cambios y yo ordene explícitamente subirla.
+   * No reescribir el historial de Git (`rebase`, `amend`, `filter-branch`, `reset --hard`) sin que el usuario lo pida de forma explícita.
 
 6. **Reglas de Negocio Institucionales (MINEDU):**
    * **Nota Aprobatoria:** Calificación vigesimal mayor o igual a 13 ($\ge 13$).
