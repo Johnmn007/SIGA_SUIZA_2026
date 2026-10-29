@@ -27,7 +27,9 @@ function fnv1a(text) {
 // Firma del servidor (HMAC) en formato legible: XXXX-XXXX-XXXX
 export const formatToken = (token) => String(token || '').toUpperCase().match(/.{1,4}/g)?.join('-') || '';
 
+// Mismo código en la boleta impresa y en el formulario que abre el QR: la firma de los datos del QR
 export function getReceiptVerificationCode(receipt) {
+  if (receipt.qrBoleta?.firma) return formatToken(receipt.qrBoleta.firma);
   if (receipt.token) return formatToken(receipt.token);
   const base = [receipt.codigoRecibo, receipt.dni, (parseFloat(receipt.monto) || 0).toFixed(2), receipt.fechaHora, receipt.conceptoCodigo].join('|');
   const h = fnv1a(base);
@@ -101,9 +103,50 @@ export function amountToWords(value) {
   return `${enteroALetras(entero)} CON ${String(centimos).padStart(2, '0')}/100 SOLES`;
 }
 
-// ---------- Contenido de los códigos QR ----------
-// El servidor graba en cada recibo el texto de su QR (qrContenido) al momento del pago.
-// Este texto equivalente solo se usa si un comprobante no lo trae (mismo formato que texto_qr_recibo).
+// ---------- QR de la boleta ----------
+// El QR es un enlace a la página pública con TODO el contenido de la boleta (datos firmados por el servidor,
+// ver qr_boleta en tesoreria_routes.py). Al escanearlo se abre la boleta como formulario; no se guarda en la BD.
+const BOLETA_CAMPOS = {
+  r: 'codigoRecibo', f: 'fechaHora', a: 'estudianteNombre', d: 'dni', c: 'codigoEstudiante', p: 'carreraNombre',
+  k: 'conceptoCodigo', n: 'conceptoNombre', g: 'conceptoCategoria', t: 'tarifaNombre', m: 'monto',
+  mp: 'metodoPagoNombre', o: 'numeroOperacion', j: 'cajero', b: 'observaciones', l: 'liberaMatricula',
+};
+
+// Dirección que abre el celular: la configurada en Tesorería o, si no hay, la de esta misma página
+export const qrBaseUrl = (receipt) => String(receipt?.qrBase || window.location.origin).replace(/\/+$/, '');
+
+// localhost solo funciona en esta PC: un celular no puede abrir ese enlace
+export function isLocalOnlyUrl(url) {
+  try {
+    const host = new URL(url).hostname;
+    return host === 'localhost' || host.endsWith('.localhost') || host === '0.0.0.0' || /^127\./.test(host) || host === '[::1]';
+  } catch {
+    return true;
+  }
+}
+
+export function buildBoletaQrUrl(receipt) {
+  if (!receipt?.qrBoleta) return null;
+  const { datos, firma } = receipt.qrBoleta;
+  return `${qrBaseUrl(receipt)}/?${new URLSearchParams({ boleta: datos, f: firma })}`;
+}
+
+// Convierte los datos del enlace del QR en la boleta (mismos nombres de campo que un recibo del servidor)
+export function decodeBoletaDatos(datos, firma) {
+  const b64 = String(datos).replace(/-/g, '+').replace(/_/g, '/');
+  const bytes = Uint8Array.from(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4)), ch => ch.charCodeAt(0));
+  const raw = JSON.parse(new TextDecoder().decode(bytes));
+  const receipt = { estado: 'PAGADO', token: firma, qrBoleta: { datos, firma } };
+  Object.entries(BOLETA_CAMPOS).forEach(([key, campo]) => {
+    if (raw[key] !== undefined) receipt[campo] = raw[key];
+  });
+  if (!receipt.codigoRecibo || !receipt.dni) throw new Error('El QR no contiene una boleta válida.');
+  receipt.monto = parseFloat(receipt.monto) || 0;
+  receipt.liberaMatricula = Boolean(receipt.liberaMatricula);
+  return receipt;
+}
+
+// Texto plano equivalente: solo para un comprobante que no traiga el enlace firmado del servidor
 export function buildReceiptQrPayload(receipt) {
   const operacion = receipt.numeroOperacion && receipt.numeroOperacion !== '-' ? ` / ${receipt.numeroOperacion}` : '';
   return toQrSafeText([

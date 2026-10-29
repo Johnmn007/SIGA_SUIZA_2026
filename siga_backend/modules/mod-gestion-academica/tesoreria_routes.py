@@ -10,9 +10,11 @@ La base de datos es la fuente de verdad:
   código de verificación HMAC: cualquier celular lo lee sin conexión al sistema.
   Los endpoints ``/tesoreria/publico/*`` permiten además verificarlo en línea.
 """
+import base64
 import hashlib
 import hmac
 import ipaddress
+import json
 import re
 import secrets
 import unicodedata
@@ -197,15 +199,15 @@ def texto_ascii(texto: str) -> str:
 
 
 def es_url_publica(url: str) -> bool:
-    """Solo se agrega un enlace al QR si el sistema está publicado en internet (no localhost ni IP privada)."""
-    if not url:
+    """Dirección que un celular puede abrir: dominio en internet o IP de la red del instituto (no localhost)."""
+    if not url or urlparse(url).scheme not in ("http", "https"):
         return False
     host = urlparse(url).hostname or ""
-    if host in ("localhost",) or host.endswith(".local"):
+    if host in ("localhost", "0.0.0.0") or host.endswith(".localhost"):
         return False
     try:
         ip = ipaddress.ip_address(host)
-        return not (ip.is_private or ip.is_loopback or ip.is_link_local)
+        return not (ip.is_loopback or ip.is_link_local or ip.is_unspecified)
     except ValueError:
         return "." in host
 
@@ -217,32 +219,27 @@ async def url_publica_qr(db: AsyncSession) -> Optional[str]:
     return url if es_url_publica(url) else None
 
 
-def texto_qr_recibo(m: dict, url_publica: Optional[str] = None) -> str:
+def b64url(datos: bytes) -> str:
+    return base64.urlsafe_b64encode(datos).decode().rstrip("=")
+
+
+def qr_boleta(m: dict, secreto: bytes) -> dict:
+    """Todo el contenido de la boleta viaja dentro del enlace del QR (no se guarda en la base de datos).
+    La página pública arma la boleta con estos datos y la firma HMAC prueba que no fueron alterados."""
     operacion = m.get("numeroOperacion") or ""
-    tarifa = m.get("tarifaNombre")
-    lineas = [
-        "IESTP SUIZA - BOLETA DE PAGO",
-        f"RECIBO: {m['codigoRecibo']}",
-        f"FECHA: {m['fechaHora']}",
-        f"ALUMNO: {m['estudianteNombre']}",
-        f"DNI: {m['dni']}",
-        f"CODIGO: {m.get('codigoEstudiante') or '-'}",
-    ]
-    if m.get("carreraNombre"):
-        lineas.append(f"PROGRAMA: {m['carreraNombre']}")
-    lineas.append(f"CONCEPTO: {m['conceptoCodigo']} {m['conceptoNombre']}")
-    if tarifa and tarifa != "General":
-        lineas.append(f"TARIFA: {tarifa}")
-    lineas += [
-        f"MONTO PAGADO: S/ {a_float(m['monto']):.2f}",
-        f"PAGO: {m['metodoPagoNombre']}" + (f" / {operacion}" if operacion and operacion != "-" else ""),
-        f"CAJERO: {m.get('cajero') or 'Caja Central'}",
-        "ESTADO: PAGADO",
-        f"VERIFICACION: {formato_token(m['token'])}",
-    ]
-    if url_publica:
-        lineas.append(f"VER EN LINEA: {url_publica}/?{urlencode({'recibo': m['codigoRecibo'], 'dni': m['dni'], 't': m['token']})}")
-    return texto_ascii("\n".join(lineas))
+    tarifa = m.get("tarifaNombre") or ""
+    campos = {
+        "r": m["codigoRecibo"], "f": m.get("fechaHora") or "", "a": m["estudianteNombre"], "d": m["dni"],
+        "c": m.get("codigoEstudiante") or "", "p": m.get("carreraNombre") or "",
+        "k": m.get("conceptoCodigo") or "", "n": m.get("conceptoNombre") or "", "g": m.get("conceptoCategoria") or "",
+        "t": tarifa if tarifa not in ("", "General") else "", "m": f"{a_float(m['monto']):.2f}",
+        "mp": m.get("metodoPagoNombre") or "", "o": operacion if operacion != "-" else "",
+        "j": m.get("cajero") or "Caja Central", "b": m.get("observaciones") or "",
+        "l": 1 if m.get("liberaMatricula") else 0,
+    }
+    compacto = {k: v for k, v in campos.items() if v not in ("", 0)}
+    datos = b64url(json.dumps(compacto, ensure_ascii=False, separators=(",", ":")).encode())
+    return {"datos": datos, "firma": firmar(secreto, "BOLETA", datos)}
 
 
 def texto_qr_estado_cuenta(estado: dict, emitido: str, url_publica: Optional[str] = None) -> str:
@@ -313,8 +310,9 @@ def pago_dict(p: PagoCaja, secreto: bytes, url_publica: Optional[str] = None) ->
         "origen": "caja",
         "token": firmar(secreto, p.codigo_recibo, p.dni),
     }
-    # El QR grabado al cobrar no cambia; los recibos anteriores a esta columna se generan igual desde sus datos
-    datos["qrContenido"] = p.qr_contenido or texto_qr_recibo(datos, url_publica)
+    # El QR se arma al mostrar la boleta: el enlace lleva todos sus datos firmados (no se guarda en la base de datos)
+    datos["qrBoleta"] = qr_boleta(datos, secreto)
+    datos["qrBase"] = url_publica or ""
     return datos
 
 
@@ -423,10 +421,11 @@ async def construir_estado_cuenta(db: AsyncSession, est: Estudiante, secreto: by
             "sinConceptoMatricula": mat is None,
         })
 
-    # QR con los datos de los comprobantes de admisión y acreditación (no se emiten en caja)
+    # QR de los comprobantes de admisión y acreditación (no se emiten en caja)
     for m in movimientos:
-        if m["estado"] == "PAGADO" and "qrContenido" not in m:
-            m["qrContenido"] = texto_qr_recibo(m, url_publica)
+        if m["estado"] == "PAGADO" and "qrBoleta" not in m:
+            m["qrBoleta"] = qr_boleta(m, secreto)
+            m["qrBase"] = url_publica or ""
 
     total_pagado = sum(m["monto"] for m in movimientos if m["estado"] == "PAGADO")
     total_pendiente = sum(m["monto"] for m in movimientos if m["estado"] == "PENDIENTE")
@@ -630,8 +629,6 @@ async def registrar_pago(data: PagoIn, request: Request, db: AsyncSession = Depe
         registrado_por=request.headers.get("X-User-Email"), observaciones=(data.observaciones or "").strip(),
         libera_matricula=bool(concepto.libera_matricula), estado="PAGADO", fecha_pago=ahora_peru(),
     )
-    # Los datos del pago quedan grabados en el QR en este momento (no dependen del sistema al escanearlo)
-    pago.qr_contenido = pago_dict(pago, secreto, await url_publica_qr(db))["qrContenido"]
     db.add(pago)
     if concepto.libera_matricula:
         est.pago_matricula = True  # Libera el bloqueo de matrícula en la misma transacción
@@ -641,20 +638,7 @@ async def registrar_pago(data: PagoIn, request: Request, db: AsyncSession = Depe
     }, request)
     await db.commit()
     await db.refresh(pago)
-    return {"pago": pago_dict(pago, secreto), "pagoMatricula": bool(est.pago_matricula)}
-
-
-@router.post("/pagos/grabar-qr")
-async def grabar_qr_pendientes(db: AsyncSession = Depends(get_db)):
-    """Graba el contenido del QR en los recibos registrados antes de que existiera esta columna."""
-    secreto = await secreto_qr(db)
-    url_publica = await url_publica_qr(db)
-    result = await db.execute(select(PagoCaja).where(PagoCaja.qr_contenido.is_(None)))
-    pendientes = result.scalars().all()
-    for p in pendientes:
-        p.qr_contenido = pago_dict(p, secreto, url_publica)["qrContenido"]
-    await db.commit()
-    return {"grabados": len(pendientes)}
+    return {"pago": pago_dict(pago, secreto, await url_publica_qr(db)), "pagoMatricula": bool(est.pago_matricula)}
 
 
 @router.get("/estudiantes/{estudiante_id}/estado-cuenta")
@@ -713,7 +697,6 @@ async def importar_datos_locales(data: ImportacionIn, request: Request, db: Asyn
             libera_matricula=bool(p.get("liberaMatricula")), estado="PAGADO",
             fecha_pago=parse_fecha_recibo(p.get("fechaHora"), p.get("timestamp")),
         )
-        importado.qr_contenido = pago_dict(importado, await secreto_qr(db), await url_publica_qr(db))["qrContenido"]
         db.add(importado)
         if p.get("liberaMatricula"):
             est.pago_matricula = True
@@ -750,6 +733,24 @@ async def verificar_recibo(codigo: str, dni: str, t: str, db: AsyncSession = Dep
     if not recibo:
         raise HTTPException(404, detail=NO_VALIDO)
     return {"valido": True, "recibo": recibo, "verificadoEn": formato_fecha_hora(ahora_peru())}
+
+
+@router.get("/publico/boleta")
+async def verificar_boleta(datos: str, f: str, db: AsyncSession = Depends(get_db)):
+    """Comprueba la boleta que viene dentro del QR: firma intacta y recibo vigente en Tesorería."""
+    secreto = await secreto_qr(db)
+    if not token_valido(firmar(secreto, "BOLETA", datos), f):
+        raise HTTPException(404, detail="La boleta del QR fue alterada o no fue emitida por Tesorería.")
+    try:
+        boleta = json.loads(base64.urlsafe_b64decode(datos + "=" * (-len(datos) % 4)))
+    except (ValueError, TypeError):
+        raise HTTPException(404, detail=NO_VALIDO)
+    est = await _estudiante_por_dni(db, str(boleta.get("d") or ""))
+    vigente = False
+    if est:
+        estado = await construir_estado_cuenta(db, est, secreto)
+        vigente = any(m["codigoRecibo"] == boleta.get("r") and m["estado"] == "PAGADO" for m in estado["movimientos"])
+    return {"valido": True, "vigente": vigente, "verificadoEn": formato_fecha_hora(ahora_peru())}
 
 
 @router.get("/publico/estado-cuenta")

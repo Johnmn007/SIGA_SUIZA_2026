@@ -363,8 +363,8 @@ export function encodeQr(text, eclName = 'M') {
 }
 
 // Devuelve un SVG listo para incrustar (pantalla e impresión)
-export function qrToSvg(text, { border = 2, dark = '#0f172a', light = '#ffffff', size } = {}) {
-  const qr = encodeQr(text);
+export function qrToSvg(text, { border = 2, dark = '#0f172a', light = '#ffffff', size, ecl = 'M' } = {}) {
+  const qr = encodeQr(text, ecl);
   const dim = qr.size + border * 2;
   let path = '';
   for (let y = 0; y < qr.size; y++) {

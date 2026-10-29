@@ -9,6 +9,7 @@ import {
   getReceiptVerificationCode,
   formatToken,
   buildReceiptQrPayload,
+  buildBoletaQrUrl,
 } from './paymentUtils';
 
 const esc = (v) => String(v ?? '')
@@ -60,10 +61,13 @@ const BASE_CSS = `
 // ---------------------------------------------------------------------------
 // RECIBO DE CAJA (A5 vertical)
 // ---------------------------------------------------------------------------
-// El QR lleva los datos del pago grabados por el servidor al momento de cobrar (qrContenido)
+// El QR es un enlace con todo el contenido de la boleta: al escanearlo se abre la boleta en el celular o la PC
 export function buildReceiptHtml(receipt) {
   const verification = getReceiptVerificationCode(receipt);
-  const qr = qrToSvg(receipt.qrContenido || buildReceiptQrPayload(receipt), { border: 1 });
+  const boletaUrl = buildBoletaQrUrl(receipt);
+  const qr = boletaUrl
+    ? qrToSvg(boletaUrl, { border: 1, ecl: 'L' })
+    : qrToSvg(buildReceiptQrPayload(receipt), { border: 1 });
   const monto = parseFloat(receipt.monto) || 0;
   const hasOperation = receipt.numeroOperacion && receipt.numeroOperacion !== '-';
 
@@ -93,7 +97,7 @@ export function buildReceiptHtml(receipt) {
     .pay .val { font-size: 10px; font-weight: 700; }
     .unlock { margin-top: 7px; padding: 5px 9px; border-radius: 6px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-size: 9px; font-weight: 700; }
     .verify { margin-top: auto; padding-top: 10px; display: flex; gap: 12px; align-items: center; border-top: 1px dashed #cbd5e1; }
-    .qr { width: 40mm; height: 40mm; flex-shrink: 0; padding: 2px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
+    .qr { width: 44mm; height: 44mm; flex-shrink: 0; padding: 2px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
     .verify-data { flex: 1; display: grid; gap: 4px; }
     .verify-data .row { display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; }
     .verify-data .row b { font-size: 10.5px; }
@@ -180,7 +184,7 @@ export function buildReceiptHtml(receipt) {
       <div class="verify">
         <div class="qr">${qr}</div>
         <div class="verify-data">
-          <div class="label" style="color:#0A2552">Datos del pago grabados en el QR (escanéelo con cualquier celular)</div>
+          <div class="label" style="color:#0A2552">Escanee el QR para ver esta boleta en su celular o PC</div>
           <div class="row"><span class="muted">DNI del alumno</span><b class="mono">${esc(receipt.dni)}</b></div>
           <div class="row"><span class="muted">Monto pagado</span><span class="big mono">${esc(formatMoney(monto))}</span></div>
           <div class="row"><span class="muted">N° de recibo</span><b class="mono">${esc(receipt.codigoRecibo)}</b></div>
@@ -189,7 +193,7 @@ export function buildReceiptHtml(receipt) {
       </div>
 
       <div class="foot">
-        <div class="legal">Comprobante emitido por el Sistema Integrado de Gestión Académica (SIGA). El código QR contiene los datos de este pago (N° de recibo, DNI, monto, concepto y fecha) con su código de verificación; se lee sin conexión. Conserve este documento.</div>
+        <div class="legal">Comprobante emitido por el Sistema Integrado de Gestión Académica (SIGA). El código QR contiene todos los datos de esta boleta con su firma de verificación; al escanearlo se muestra la boleta completa. Conserve este documento.</div>
         <div class="stamp"><b>PAGADO</b><span>TESORERÍA · ${esc(INSTITUTION.sigla)}</span></div>
         <div class="sign"><div class="line"></div><div class="label" style="color:#334155">Tesorería y Caja</div></div>
       </div>

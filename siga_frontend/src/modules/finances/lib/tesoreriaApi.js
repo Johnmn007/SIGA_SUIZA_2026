@@ -97,7 +97,7 @@ export async function migrateLocalDataOnce() {
   return resumen;
 }
 
-// El servidor solo agrega el enlace "VER EN LINEA" al QR si la URL es pública (dominio en internet).
+// Dirección válida para el QR de la boleta: dominio o IP de la red que un celular pueda abrir (no localhost).
 // Mismo criterio que es_url_publica() en tesoreria_routes.py.
 export function isPublicUrl(url) {
   let host;
@@ -106,11 +106,13 @@ export function isPublicUrl(url) {
   } catch {
     return false;
   }
-  if (host === 'localhost' || host.endsWith('.local')) return false;
+  if (!/^https?:$/.test(new URL(url).protocol)) return false;
+  if (host === 'localhost' || host.endsWith('.localhost') || host === '0.0.0.0') return false;
   const ipv4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (ipv4) {
     const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
-    return !(a === 10 || a === 127 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31) || (a === 169 && b === 254));
+    // IP de la red interna: válida (el celular en la misma Wi-Fi la abre)
+    return !(a === 127 || (a === 169 && b === 254));
   }
   return host.includes('.');
 }
