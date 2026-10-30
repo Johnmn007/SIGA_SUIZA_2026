@@ -147,3 +147,19 @@ def es_docente_de_carga(i: Identity, carga_docente_id: Optional[int]) -> bool:
     if carga_docente_id is not None and i.user_id == carga_docente_id:
         return True
     return False
+
+
+async def es_coordinador_de_docente(i: Identity, docente_id: int, db: AsyncSession) -> bool:
+    """
+    Verifica si el usuario es coordinador y su programa coincide con el de al menos
+    una carga lectiva asignada al docente_id.
+    """
+    if es_superadmin(i):
+        return True
+    if "coordinador_programa" not in i.roles or i.programa_id is None:
+        return False
+    res = await db.execute(
+        text("SELECT 1 FROM carga_lectiva WHERE docente_id = :did AND programa_id = :pid LIMIT 1"),
+        {"did": docente_id, "pid": i.programa_id}
+    )
+    return res.fetchone() is not None
