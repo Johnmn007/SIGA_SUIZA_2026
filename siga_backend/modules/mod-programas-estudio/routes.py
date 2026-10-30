@@ -6,6 +6,9 @@ from datetime import datetime, date
 from pydantic import BaseModel, ConfigDict
 from database import get_db, OutboxEvent
 from models import ProgramaEstudio, ProgramaConfiguracion, ProgramaModulo, ProgramaUnidad, ProgramaRequisito, PeriodoAcademico
+from shared.identity import (
+    Identity, get_identity, es_superadmin, es_coordinador_de, es_coordinador_de_docente
+)
 
 router = APIRouter()
 
@@ -497,8 +500,69 @@ class HorarioPeriodoResponse(HorarioPeriodoBase):
 # --- Endpoints Coordinación ---
 from models import CargaLectiva, HorarioPeriodo
 
+async def _validar_acceso_docente(ident: Identity, docente_id: int, db: AsyncSession):
+    """
+    Regla de acceso a datos de un docente:
+    Permitido si user_id == docente_id, o si es superadmin,
+    o si es coordinador y su programa coincide con al menos una carga_lectiva de ese docente.
+    """
+    if es_superadmin(ident):
+        return
+    if ident.user_id == docente_id:
+        return
+    if await es_coordinador_de_docente(ident, docente_id, db):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No tiene permisos para acceder a la información de este docente"
+    )
+
 @router.post("/programas/{programa_id}/carga-lectiva", response_model=CargaLectivaResponse, status_code=status.HTTP_201_CREATED)
 async def crear_carga_lectiva(programa_id: int, carga: CargaLectivaCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or es_coordinador_de(ident, programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para gestionar la carga lectiva de este programa"
+        )
+
+    # 1. Validar que el docente exista, esté activo y tenga rol docente o coordinador_programa
+    doc_res = await db.execute(
+        text("""
+            SELECT u.is_active, r.name 
+            FROM core_users u
+            JOIN core_user_roles ur ON u.id = ur.user_id
+            JOIN core_roles r ON ur.role_id = r.id
+            WHERE u.id = :did
+        """),
+        {"did": carga.docente_id}
+    )
+    doc_rows = doc_res.fetchall()
+    if not doc_rows or not any(row[0] for row in doc_rows):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="El docente indicado no existe o no se encuentra activo en el sistema"
+        )
+    roles_doc = {row[1].lower().strip() for row in doc_rows if row[1]}
+    if not (roles_doc.intersection({"docente", "coordinador_programa"})):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="El usuario asignado debe poseer rol docente o coordinador_programa"
+        )
+
+    # 2. Validar que el periodo académico no esté cerrado
+    per_res = await db.execute(
+        text("SELECT estado FROM periodos_academicos WHERE id = :pid"),
+        {"pid": carga.periodo_id}
+    )
+    per_row = per_res.fetchone()
+    if not per_row or per_row[0] in ("cerrado", "finalizado"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede asignar carga lectiva en un periodo académico cerrado o finalizado"
+        )
+
+    # 3. Validar duplicidad
     duplicada = await db.execute(
         select(CargaLectiva).where(
             CargaLectiva.programa_id == programa_id,
@@ -531,7 +595,26 @@ class ClonarCargaRequest(BaseModel):
     to_periodo_id: int
 
 @router.post("/programas/{programa_id}/carga-lectiva/clonar")
-async def clonar_carga_lectiva(programa_id: int, req: ClonarCargaRequest, db: AsyncSession = Depends(get_db)):
+async def clonar_carga_lectiva(programa_id: int, req: ClonarCargaRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or es_coordinador_de(ident, programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para clonar la carga lectiva de este programa"
+        )
+
+    # Validar periodo destino no cerrado
+    per_res = await db.execute(
+        text("SELECT estado FROM periodos_academicos WHERE id = :pid"),
+        {"pid": req.to_periodo_id}
+    )
+    per_row = per_res.fetchone()
+    if not per_row or per_row[0] in ("cerrado", "finalizado"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede clonar carga lectiva hacia un periodo académico cerrado o finalizado"
+        )
+
     result = await db.execute(
         select(CargaLectiva)
         .where(CargaLectiva.programa_id == programa_id, CargaLectiva.periodo_id == req.from_periodo_id)
@@ -548,7 +631,8 @@ async def clonar_carga_lectiva(programa_id: int, req: ClonarCargaRequest, db: As
             .where(
                 CargaLectiva.programa_id == programa_id,
                 CargaLectiva.periodo_id == req.to_periodo_id,
-                CargaLectiva.unidad_didactica_id == carga.unidad_didactica_id
+                CargaLectiva.unidad_didactica_id == carga.unidad_didactica_id,
+                CargaLectiva.seccion == carga.seccion
             )
         )
         if not res_exist.scalar_one_or_none():
@@ -559,7 +643,11 @@ async def clonar_carga_lectiva(programa_id: int, req: ClonarCargaRequest, db: As
                 unidad_didactica_id=carga.unidad_didactica_id,
                 turno=carga.turno,
                 seccion=carga.seccion,
-                estado="borrador"
+                estado="borrador",
+                acta_cerrada=False,
+                acta_cerrada_at=None,
+                acta_cerrada_por=None,
+                fecha_limite_notas=None
             )
             db.add(nueva_carga)
             nuevas_cargas.append(nueva_carga)
@@ -568,7 +656,10 @@ async def clonar_carga_lectiva(programa_id: int, req: ClonarCargaRequest, db: As
     return {"message": f"Se clonaron {len(nuevas_cargas)} registros de carga lectiva."}
 
 @router.get("/docentes/{docente_id}/carga-lectiva", response_model=List[CargaLectivaResponse])
-async def listar_carga_docente(docente_id: int, periodo_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+async def listar_carga_docente(docente_id: int, request: Request, periodo_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    await _validar_acceso_docente(ident, docente_id, db)
+
     query = select(CargaLectiva).where(CargaLectiva.docente_id == docente_id)
     if periodo_id:
         query = query.where(CargaLectiva.periodo_id == periodo_id)
@@ -577,6 +668,12 @@ async def listar_carga_docente(docente_id: int, periodo_id: Optional[int] = None
 
 @router.post("/programas/{programa_id}/horarios", response_model=HorarioPeriodoResponse, status_code=status.HTTP_201_CREATED)
 async def crear_horario(programa_id: int, horario: HorarioPeriodoCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or es_coordinador_de(ident, programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para registrar horarios en este programa"
+        )
     db_horario = HorarioPeriodo(**horario.model_dump(), programa_id=programa_id)
     db.add(db_horario)
     await db.commit()
@@ -592,11 +689,38 @@ async def listar_horarios(programa_id: int, periodo_id: int, db: AsyncSession = 
     return result.scalars().all()
 
 @router.delete("/programas/{programa_id}/carga-lectiva/{carga_id}")
-async def eliminar_carga_lectiva(programa_id: int, carga_id: int, db: AsyncSession = Depends(get_db)):
+async def eliminar_carga_lectiva(programa_id: int, carga_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or es_coordinador_de(ident, programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para eliminar la carga lectiva de este programa"
+        )
+
     result = await db.execute(select(CargaLectiva).where(CargaLectiva.id == carga_id, CargaLectiva.programa_id == programa_id))
     db_carga = result.scalar_one_or_none()
     if not db_carga:
         raise HTTPException(status_code=404, detail="Carga lectiva no encontrada")
+
+    # Reglas de negocio para evitar saltarse el cierre de actas:
+    # 1. No se puede eliminar si el acta ya está cerrada
+    if getattr(db_carga, "acta_cerrada", False):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar la carga lectiva porque su acta se encuentra formalmente cerrada."
+        )
+
+    # 2. No se puede eliminar si ya existen registros de evaluación para esa unidad y periodo
+    ev_res = await db.execute(
+        text("SELECT 1 FROM evaluacion_registros WHERE unidad_didactica_id = :uid AND periodo_id = :pid LIMIT 1"),
+        {"uid": db_carga.unidad_didactica_id, "pid": db_carga.periodo_id}
+    )
+    if ev_res.fetchone():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar la carga lectiva porque ya existen calificaciones registradas en esta unidad y periodo."
+        )
+
     await db.delete(db_carga)
     await db.commit()
     return {"message": "Carga lectiva eliminada"}
@@ -646,7 +770,10 @@ class PlanTrabajoDocenteResponse(PlanTrabajoDocenteBase):
 from models import Silabo, PlanTrabajoDocente
 
 @router.get("/docente/{docente_id}/carga-lectiva", response_model=List[CargaLectivaResponse])
-async def obtener_carga_docente(docente_id: int, periodo_id: int, db: AsyncSession = Depends(get_db)):
+async def obtener_carga_docente(docente_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    await _validar_acceso_docente(ident, docente_id, db)
+
     result = await db.execute(
         select(CargaLectiva)
         .where(CargaLectiva.docente_id == docente_id, CargaLectiva.periodo_id == periodo_id)
@@ -654,7 +781,24 @@ async def obtener_carga_docente(docente_id: int, periodo_id: int, db: AsyncSessi
     return result.scalars().all()
 
 @router.post("/silabos", response_model=SilaboResponse, status_code=status.HTTP_201_CREATED)
-async def crear_silabo(silabo: SilaboCreate, db: AsyncSession = Depends(get_db)):
+async def crear_silabo(silabo: SilaboCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+
+    # 1. Obtener la carga lectiva para validar que exista y a qué docente pertenece
+    res_cl = await db.execute(
+        select(CargaLectiva).where(CargaLectiva.id == silabo.carga_lectiva_id)
+    )
+    db_cl = res_cl.scalar_one_or_none()
+    if not db_cl:
+        raise HTTPException(status_code=404, detail="Carga lectiva no encontrada")
+
+    # 2. El usuario debe ser el docente de la carga o superadmin
+    if not (es_superadmin(ident) or ident.user_id == db_cl.docente_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para registrar el sílabo de una carga lectiva que no le pertenece"
+        )
+
     db_silabo = Silabo(**silabo.model_dump())
     db.add(db_silabo)
     await db.commit()
@@ -662,7 +806,10 @@ async def crear_silabo(silabo: SilaboCreate, db: AsyncSession = Depends(get_db))
     return db_silabo
 
 @router.get("/docente/{docente_id}/silabos", response_model=List[SilaboResponse])
-async def listar_silabos_docente(docente_id: int, db: AsyncSession = Depends(get_db)):
+async def listar_silabos_docente(docente_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    await _validar_acceso_docente(ident, docente_id, db)
+
     # Get silabos that belong to the teacher's carga lectiva
     result = await db.execute(
         select(Silabo)
@@ -672,7 +819,27 @@ async def listar_silabos_docente(docente_id: int, db: AsyncSession = Depends(get
     return result.scalars().all()
 
 @router.post("/planes-trabajo", response_model=PlanTrabajoDocenteResponse, status_code=status.HTTP_201_CREATED)
-async def crear_plan_trabajo(plan: PlanTrabajoDocenteCreate, db: AsyncSession = Depends(get_db)):
+async def crear_plan_trabajo(plan: PlanTrabajoDocenteCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+
+    # El usuario autenticado debe ser el docente_id indicado en el plan o superadmin
+    if not (es_superadmin(ident) or ident.user_id == plan.docente_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para crear un plan de trabajo asignado a otro docente"
+        )
+
+    # Verificar que el docente posea al menos una carga lectiva en ese programa y periodo
+    res_cl = await db.execute(
+        text("SELECT 1 FROM carga_lectiva WHERE docente_id = :did AND programa_id = :pid AND periodo_id = :per LIMIT 1"),
+        {"did": plan.docente_id, "pid": plan.programa_id, "per": plan.periodo_id}
+    )
+    if not es_superadmin(ident) and not res_cl.fetchone():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El docente no tiene carga lectiva asignada en el programa y periodo seleccionados"
+        )
+
     db_plan = PlanTrabajoDocente(**plan.model_dump())
     db.add(db_plan)
     await db.commit()
@@ -680,7 +847,10 @@ async def crear_plan_trabajo(plan: PlanTrabajoDocenteCreate, db: AsyncSession = 
     return db_plan
 
 @router.get("/docente/{docente_id}/planes-trabajo", response_model=List[PlanTrabajoDocenteResponse])
-async def listar_planes_trabajo(docente_id: int, periodo_id: int, db: AsyncSession = Depends(get_db)):
+async def listar_planes_trabajo(docente_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    await _validar_acceso_docente(ident, docente_id, db)
+
     result = await db.execute(
         select(PlanTrabajoDocente)
         .where(PlanTrabajoDocente.docente_id == docente_id, PlanTrabajoDocente.periodo_id == periodo_id)
@@ -689,7 +859,14 @@ async def listar_planes_trabajo(docente_id: int, periodo_id: int, db: AsyncSessi
 
 # --- Endpoints Coordinador (Revisión) ---
 @router.get("/programas/{programa_id}/silabos", response_model=List[SilaboResponse])
-async def listar_silabos_programa(programa_id: int, periodo_id: int, db: AsyncSession = Depends(get_db)):
+async def listar_silabos_programa(programa_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or es_coordinador_de(ident, programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para revisar los sílabos de este programa"
+        )
+
     result = await db.execute(
         select(Silabo)
         .join(CargaLectiva)
@@ -698,7 +875,14 @@ async def listar_silabos_programa(programa_id: int, periodo_id: int, db: AsyncSe
     return result.scalars().all()
 
 @router.get("/programas/{programa_id}/planes-trabajo", response_model=List[PlanTrabajoDocenteResponse])
-async def listar_planes_programa(programa_id: int, periodo_id: int, db: AsyncSession = Depends(get_db)):
+async def listar_planes_programa(programa_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or es_coordinador_de(ident, programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para revisar los planes de trabajo de este programa"
+        )
+
     result = await db.execute(
         select(PlanTrabajoDocente)
         .where(PlanTrabajoDocente.programa_id == programa_id, PlanTrabajoDocente.periodo_id == periodo_id)
@@ -706,11 +890,26 @@ async def listar_planes_programa(programa_id: int, periodo_id: int, db: AsyncSes
     return result.scalars().all()
 
 @router.put("/silabos/{silabo_id}/estado", response_model=SilaboResponse)
-async def actualizar_estado_silabo(silabo_id: int, estado: str, observaciones: str = None, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Silabo).where(Silabo.id == silabo_id))
-    db_silabo = result.scalar_one_or_none()
-    if not db_silabo:
+async def actualizar_estado_silabo(silabo_id: int, estado: str, request: Request, observaciones: str = None, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+
+    # 1. Obtener el sílabo y la carga_lectiva asociada para deducir el programa_id
+    result = await db.execute(
+        select(Silabo, CargaLectiva.programa_id)
+        .join(CargaLectiva, Silabo.carga_lectiva_id == CargaLectiva.id)
+        .where(Silabo.id == silabo_id)
+    )
+    row = result.first()
+    if not row:
         raise HTTPException(status_code=404, detail="Silabo no encontrado")
+    
+    db_silabo, programa_id = row
+
+    if not (es_superadmin(ident) or es_coordinador_de(ident, programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para modificar el estado del sílabo de este programa"
+        )
     
     db_silabo.estado = estado
     if observaciones is not None:
@@ -721,12 +920,20 @@ async def actualizar_estado_silabo(silabo_id: int, estado: str, observaciones: s
     return db_silabo
 
 @router.put("/planes-trabajo/{plan_id}/estado", response_model=PlanTrabajoDocenteResponse)
-async def actualizar_estado_plan(plan_id: int, estado: str, observaciones: str = None, db: AsyncSession = Depends(get_db)):
+async def actualizar_estado_plan(plan_id: int, estado: str, request: Request, observaciones: str = None, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+
     result = await db.execute(select(PlanTrabajoDocente).where(PlanTrabajoDocente.id == plan_id))
     db_plan = result.scalar_one_or_none()
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan no encontrado")
         
+    if not (es_superadmin(ident) or es_coordinador_de(ident, db_plan.programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para modificar el estado del plan de trabajo de este programa"
+        )
+
     db_plan.estado = estado
     if observaciones is not None:
         db_plan.observaciones = observaciones
@@ -754,7 +961,14 @@ class TutoriaResponse(TutoriaBase):
 from models import Tutoria
 
 @router.post("/programas/{programa_id}/tutorias", response_model=TutoriaResponse, status_code=status.HTTP_201_CREATED)
-async def crear_tutoria(programa_id: int, tutoria: TutoriaCreate, db: AsyncSession = Depends(get_db)):
+async def crear_tutoria(programa_id: int, tutoria: TutoriaCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or es_coordinador_de(ident, programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para gestionar tutorías en este programa"
+        )
+
     result = await db.execute(
         select(Tutoria)
         .where(Tutoria.programa_id == programa_id, Tutoria.periodo_id == tutoria.periodo_id, Tutoria.ciclo == tutoria.ciclo)
