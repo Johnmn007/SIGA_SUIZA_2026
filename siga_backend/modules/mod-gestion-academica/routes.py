@@ -208,10 +208,16 @@ async def obtener_estudiantes(programa_id: Optional[int] = None, db: AsyncSessio
         rows = result.scalars().all()
         print(f"[DEBUG] Estudiantes encontrados: {len(rows)}")
         return [{
-            "id": r.id, "codigo_estudiante": r.codigo_estudiante, "dni": r.dni, "nombres": r.nombres, "apellidos": r.apellidos,
-            "estado_academico": r.estado_academico, "programa_id": r.programa_id,
-            # Datos financieros usados por Caja y Tesorería (solo los campos de admisión necesarios para el cobro)
-            "pago_matricula": bool(r.pago_matricula), "modalidad_admision": r.modalidad_admision,
+            "id": r.id,
+            "codigo_estudiante": r.codigo_estudiante,
+            "dni": r.dni,
+            "nombres": r.nombres,
+            "apellidos": r.apellidos,
+            "estado_academico": r.estado_academico,
+            "programa_id": r.programa_id,
+            "pago_matricula": bool(r.pago_matricula),
+            "modalidad_admision": r.modalidad_admision,
+            # Solo los campos de admisión que usa Caja (el listado no expone datos personales)
             "metadata_admision": {k: v for k, v in (r.metadata_admision or {}).items() if k in METADATA_ADMISION_CAJA},
         } for r in rows]
     except Exception as e:
@@ -221,11 +227,18 @@ async def obtener_estudiantes(programa_id: Optional[int] = None, db: AsyncSessio
 
 @router.put("/estudiantes/{estudiante_id}/pago_matricula", response_model=EstudianteResponse)
 async def actualizar_pago_matricula(estudiante_id: int, request: Request, pagado: bool = True, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Estudiante).where(Estudiante.id == estudiante_id))
+    result = await db.execute(
+        select(Estudiante).where(Estudiante.id == estudiante_id).with_for_update()
+    )
     estudiante = result.scalar_one_or_none()
     if not estudiante:
         raise HTTPException(status_code=404, detail="Estudiante no encontrado")
-        
+
+    if estudiante.pago_matricula == pagado:
+        # Idempotente: el estado ya es el solicitado (reintento o doble envio).
+        # No se modifica nada; el lock de fila se libera al cerrar la sesion.
+        return estudiante
+
     estudiante.pago_matricula = pagado
     await db.commit()
     await db.refresh(estudiante)

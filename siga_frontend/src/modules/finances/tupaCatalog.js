@@ -77,6 +77,17 @@ export function useCajaConfig() {
   return { config, saveConfig };
 }
 
+// Movimiento con el nombre, código y categoría vigentes de su concepto en el tarifario.
+// El monto cobrado no cambia; `original` conserva el recibo tal como se emitió (para la boleta y su QR).
+export function withCurrentConcept(movement, catalog = []) {
+  const code = String(movement.conceptoCodigo || '').toUpperCase();
+  const concept = catalog.find(c => movement.conceptoId != null && c.id === movement.conceptoId)
+    || catalog.find(c => String(c.codigo).toUpperCase() === code);
+  const original = movement.original || movement;
+  if (!concept) return { ...movement, original };
+  return { ...movement, conceptoCodigo: concept.codigo, conceptoNombre: concept.nombre, conceptoCategoria: concept.categoria, original };
+}
+
 // Conceptos que el alumno aún puede pagar.
 // - Los que habilitan la matrícula dependen SOLO de estudiantes.pago_matricula (base de datos):
 //   si el alumno tiene deuda de matrícula siempre podrá pagarla, y si está habilitado no se le vuelve a cobrar.

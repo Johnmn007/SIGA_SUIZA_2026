@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { apiClient } from '../../core/api/client';
 import { CurriculumMesh } from './CurriculumMesh';
 import { PeriodManager } from './PeriodManager';
@@ -33,6 +33,28 @@ import {
   Briefcase,
   Trash2
 } from 'lucide-react';
+
+const normalizarTexto = (texto = "") =>
+  String(texto ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+
+const coincideBusqueda = (busqueda, campos = []) => {
+  const terminos = normalizarTexto(busqueda)
+    .split(" ")
+    .filter(Boolean);
+
+  if (terminos.length === 0) return true;
+
+  const contenido = normalizarTexto(
+    campos.filter(v => v != null).join(" ")
+  );
+
+  return terminos.every(termino => contenido.includes(termino));
+};
 
 export function AcademicDashboard() {
   const [programs, setPrograms] = useState([]);
@@ -144,7 +166,7 @@ export function AcademicDashboard() {
   const getResolucion = (program) => {
     if (!program) return 'R.M. MINEDU';
     const text = (program.descripcion || '') + ' ' + (program.codigo || '');
-    const match = text.match(/(R\.?[MD]\.?\s*[\w\d\-\/]+)/i);
+    const match = text.match(/(R\.?[MD]\.?\s*[\w\d\-/]+)/i);
     if (match) return match[1];
     return `R.M. ${program.codigo}-MINEDU`;
   };
@@ -152,12 +174,13 @@ export function AcademicDashboard() {
   // Filtered Programs
   const filteredPrograms = useMemo(() => {
     return programs.filter(p => {
-      const q = searchTerm.toLowerCase().trim();
-      const matchesSearch = !q || 
-        p.nombre?.toLowerCase().includes(q) || 
-        p.codigo?.toLowerCase().includes(q) || 
-        p.descripcion?.toLowerCase().includes(q) ||
-        getAreaByProgram(p.nombre).name.toLowerCase().includes(q);
+      const matchesSearch = coincideBusqueda(searchTerm, [
+        p.nombre,
+        p.codigo,
+        p.descripcion,
+        getAreaByProgram(p.nombre).name,
+        getResolucion(p),
+      ]);
 
       const pEstado = (p.estado || 'activo').toLowerCase();
       const matchesEstado = filterEstado === 'todos' || 
@@ -179,6 +202,14 @@ export function AcademicDashboard() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filterEstado, filterModalidad, filterArea, viewMode]);
+
+  // Reset catalog scroll to top when page changes
+  const catalogRef = useRef(null);
+  useEffect(() => {
+    if (catalogRef.current) {
+      catalogRef.current.scrollTop = 0;
+    }
+  }, [currentPage, searchTerm]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredPrograms.length / itemsPerPage) || 1;
@@ -688,7 +719,7 @@ export function AcademicDashboard() {
         </div>
 
         {/* Right: Programs Explorer */}
-        <div className="lg:col-span-3 space-y-5">
+        <div className="lg:col-span-3 space-y-5 min-w-0">
           
           {/* Search, Filter Toolbar & View Toggle */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 space-y-3.5">
@@ -848,7 +879,7 @@ export function AcademicDashboard() {
             </div>
           ) : viewMode === 'grid' ? (
             /* ================= GRID VIEW ================= */
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div ref={catalogRef} className="grid grid-cols-1 md:grid-cols-2 gap-5 overflow-y-auto overscroll-contain catalog-scrollbar max-h-[70vh]">
               {paginatedPrograms.map(program => {
                 const areaInfo = getAreaByProgram(program.nombre);
                 const resolucion = getResolucion(program);
@@ -1001,8 +1032,8 @@ export function AcademicDashboard() {
           ) : (
             /* ================= LIST / TABLE VIEW ================= */
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-600">
+              <div ref={catalogRef} className="overflow-auto overscroll-contain catalog-scrollbar max-h-[70vh]">
+                <table className="w-full min-w-[900px] text-left text-xs text-slate-600">
                   <thead className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                     <tr>
                       <th className="py-3.5 px-4">Código</th>
