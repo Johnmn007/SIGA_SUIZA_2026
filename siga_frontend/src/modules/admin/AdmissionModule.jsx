@@ -24,8 +24,10 @@ export function AdmissionModule() {
 
     try {
       // via gateway, do not puncture the module directly
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE}/api/mod-admision/upload`, {
         method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         body: formData
       });
       
