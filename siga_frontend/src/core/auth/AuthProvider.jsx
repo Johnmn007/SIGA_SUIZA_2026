@@ -31,15 +31,15 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     try {
       const result = await apiClient.login(email, password);
-      if (result.access_token) {
+      if (result && result.access_token) {
         apiClient.setToken(result.access_token);
         setUser(result.user);
         setPermissions(result.user.permissions || []);
         return { success: true, user: result.user };
       }
       return { success: false, error: 'Credenciales inválidas' };
-    } catch {
-      return { success: false, error: 'Error de conexión' };
+    } catch (err) {
+      return { success: false, error: err.message || 'Error de conexión' };
     }
   };
 

@@ -1,6 +1,29 @@
 ﻿# INFORME DE ESTADO - SIGA
 
-> **Última actualización:** 13 Oct 2026 | **Sesión:** 7 (Maestro de Estudiantes: scroll infinito, filtro custom, rediseño del listado y del modal)
+> **Última actualización:** 30 Oct 2026 | **Sesión:** 9 (Maestro de Estudiantes: carrera en tabla, filtro y ordenamiento)
+
+---
+
+## 0. SESIÓN 9 — MAESTRO DE ESTUDIANTES: CARRERA, FILTRO Y ORDEN
+
+Solo frontend (`StudentMaster.jsx`, `DashboardLayout.jsx`).
+
+### 0.1 Columna Carrera y orden de la tabla
+- La columna **Código** se reemplazó por **Carrera** (`StudentMaster.jsx:1234`). La celda usa `getProgramaLabel(s.programa_id)`, fallback `Sin carrera`, badge truncado a 220px y `title` con el nombre completo.
+- El catálogo sigue hardcodeado en `PROGRAMAS` (ids 1–11) porque `programas_estudio` está vacía. Si se puebla la tabla, unificar el mapeo (hoy `mod-admision` usa otro distinto).
+- **Orden visual:** `compareStudentsByCarrera` ordena por carrera (A→Z, dejando `Sin carrera` al final), luego apellidos y nombres con `localeCompare('es')`. Reemplazó al orden anterior por `id` descendente (`StudentMaster.jsx:423`, `StudentMaster.jsx:622`).
+
+### 0.2 Filtro por carrera
+- El `ProgramaFilter` ahora se muestra también para `secretaria_academica` y `admin_admision`; `secretaria_programa` sigue auto-filtrado a su carrera y sin dropdown.
+- Comparaciones normalizadas con `String(...)` en `ProgramaFilter`/`SearchSelect`; `handleSearch` tolera campos nulos y normaliza DNI, nombres, apellidos y código.
+
+### 0.3 Fix de consola
+- `DashboardLayout.jsx`: las notificaciones WebSocket usaban `Date.now()` como `key` y generaban claves duplicadas; ahora usan `notificationSeqRef` incremental.
+
+### 0.4 Verificación
+- `npm run build` OK; `npx eslint StudentMaster.jsx` → 0 errores, 1 warning preexistente (`react-hooks/exhaustive-deps`).
+- El endpoint de lista solo devuelve 7 campos; por eso la columna Estudiante sigue mostrando `Sin correo`.
+- Nada de esta sesión está commiteado.
 
 ---
 
@@ -9,7 +32,7 @@
 Solo frontend. Archivo central: `siga_frontend/src/modules/students/StudentMaster.jsx`. No se tocó backend ni `docker-compose.yml`.
 
 ### 0.1 Listado con scroll infinito (20 recientes, uno a uno)
-- Los datos se ordenan por `id` descendente tras el fetch (`handleSearch`), es decir **más recientes primero**. El backend sigue devolviendo todo y ordena por `apellidos`; el orden y el paginado son en cliente.
+- Los datos se ordenan por **carrera y apellidos/nombres** (`compareStudentsByCarrera`) tras el fetch (`handleSearch`); antes de la Sesión 9 se ordenaba por `id` descendente. El backend sigue devolviendo todo y ordena por `apellidos`; el orden y el paginado son en cliente.
 - `visibleCount` (constante `INITIAL_VISIBLE = 20`) controla cuántos se muestran; se resetea a 20 cuando cambia la lista (`useEffect` sobre `students`).
 - `IntersectionObserver` sobre un `sentinelRef` (con `rootMargin: '0px 0px 120px 0px'`): revela **1 alumno por vez**, con un `loadLockRef` de 250 ms para evitar ráfagas. El indicador "Cargando más estudiantes…" se muestra solo si `visibleCount < students.length`.
 - Ambos listados (tabla y tarjetas) renderizan `visibleStudents = students.slice(0, visibleCount)`.
@@ -278,3 +301,25 @@ D:\SIGA\
 5. **`animation-fill-mode: both` + `transform` rompe los modales (`position: fixed`):** una animación tipo `.animate-fade-in { animation: fadeIn .25s ease-out both }` retiene el `transform: translateY(0)` del keyframe final incluso al terminar. Ese valor de `transform` (distinto de `none`) convierte al elemento en **containing block y stacking context**, así que los hijos con `position: fixed` se posicionan respecto a él y no al viewport. Si el bloque es más alto que la pantalla, el modal queda centrado fuera del área visible y el síntoma es "el botón no abre nada". **Regla: todo modal (`fixed inset-0`) se monta con `createPortal(..., document.body)`.**
 6. **Clases de animación inexistentes son silenciosas:** `animate-fade-in-up` y `animate-fade-in-right` se usaban en 6 vistas sin existir en `index.css` ni en `tailwind.config.js`. Tailwind no avisa: simplemente no aplican. Verificar siempre que la clase esté definida antes de confiar en el efecto visual.
 7. **Acción invisible en táctil:** `opacity-0 group-hover:opacity-100` en una columna de tabla esconde los botones en tablets y móviles (no hay hover). Usar `opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100`.
+
+
+---
+
+## 0.10 SESIÓN 8 — CONEXIÓN BD + DOCKER (2026-10-27)
+
+### 0.10.1 Configuración Base de Datos
+- PostgreSQL local (17.4): contraseña de postgres cambiada de 61077615 a john.007
+- Base de datos: creada siga_core con tablas del sistema
+- .env raíz: DB_HOST=host.docker.internal, DB_PORT=5432, DB_USER=postgres, DB_PASSWORD=john.007, DB_NAME=siga_core
+
+### 0.10.2 Docker Compose
+- Stack levantado con docker compose up -d (nats, redis, core, 7 módulos, frontend)
+- NATS/Redis healthy; contenedores conectan vía host.docker.internal
+
+### 0.10.3 Ajustes para arranque del Core
+- Instalado psycopg2-binary en siga-core para migraciones Alembic
+- alembic_version ajustado a 123456789abc; creada core_modules si necesario
+- Core Gateway operativo: GET http://localhost:8000/health -> healthy
+
+### 0.10.4 Verificación
+- BD, Core, microservicios y frontend conectados y operativos
