@@ -36,7 +36,7 @@ import {
   X,
   Tags
 } from 'lucide-react';
-import { PAYMENT_METHODS, CAREERS_MAP, useTupaCatalog, useCajaConfig } from './tupaCatalog';
+import { PAYMENT_METHODS, CAREERS_MAP, useTupaCatalog, useCajaConfig, withCurrentConcept } from './tupaCatalog';
 import { PaymentModal } from './PaymentModal';
 import { ReceiptModal } from './ReceiptModal';
 import { AnnualStatementModal } from './AnnualStatementModal';
@@ -72,6 +72,7 @@ export function FinancesDashboard() {
   const { catalog, catalogError, reloadCatalog, saveConcept, deleteConcept, resetCatalog } = useTupaCatalog();
   const { config: cajaConfig, saveConfig: saveCajaConfig } = useCajaConfig();
   const [dataError, setDataError] = useState('');
+  const exportingRef = useRef(false);
   const [migrationNotice, setMigrationNotice] = useState('');
 
   // Modals & Dossier State
@@ -248,22 +249,23 @@ export function FinancesDashboard() {
   }, [filteredStudents, currentPage, itemsPerPage]);
 
   // Filtro de Transacciones para el Libro Diario
-  const filteredTransactions = useMemo(() => {
+  const matchesHistoryFilters = (t) => {
     const q = normalizarTexto(historySearch);
-    return transactions.filter(t => {
-      const matchesQ = !q ||
-        (t.codigoRecibo && t.codigoRecibo.toLowerCase().includes(q)) ||
-        (t.estudianteNombre && normalizarTexto(t.estudianteNombre).includes(q)) ||
-        (t.dni && t.dni.includes(q)) ||
-        (t.conceptoNombre && normalizarTexto(t.conceptoNombre).includes(q)) ||
-        (t.numeroOperacion && t.numeroOperacion.toLowerCase().includes(q)) ||
-        getReceiptVerificationCode(t).toLowerCase().includes(q);
+    const matchesQ = !q ||
+      (t.codigoRecibo && t.codigoRecibo.toLowerCase().includes(q)) ||
+      (t.estudianteNombre && normalizarTexto(t.estudianteNombre).includes(q)) ||
+      (t.dni && t.dni.includes(q)) ||
+      (t.conceptoNombre && normalizarTexto(t.conceptoNombre).includes(q)) ||
+      (t.numeroOperacion && t.numeroOperacion.toLowerCase().includes(q)) ||
+      getReceiptVerificationCode(t).toLowerCase().includes(q);
 
-      const matchesMethod = historyMethodFilter === 'todos' || t.metodoPagoId === historyMethodFilter;
+    const matchesMethod = historyMethodFilter === 'todos' || t.metodoPagoId === historyMethodFilter;
 
-      return matchesQ && matchesMethod;
-    });
-  }, [transactions, historySearch, historyMethodFilter]);
+    return matchesQ && matchesMethod;
+  };
+
+  // Con el concepto vigente del tarifario (t.original conserva el recibo como se emitió)
+  const filteredTransactions = transactions.map(t => withCurrentConcept(t, catalog)).filter(matchesHistoryFilters);
 
   // Abre la ventanilla de cobro con el estado de cuenta actualizado del alumno (base de datos)
   const openPayment = async (student, conceptId = null) => {
@@ -305,20 +307,68 @@ export function FinancesDashboard() {
   };
 
   // Exportar Libro Diario a Excel (.xlsx con formato, filtros y resumen)
-  const handleExportExcel = (list = transactions, filterLabel = '') => {
-    if (list.length === 0) {
-      alert('No hay transacciones registradas para exportar.');
-      return;
+  // Siempre lee la base de datos en el momento: cualquier cambio (también desde otra PC) sale en el Excel
+  const handleExportExcel = async ({ filtered = false } = {}) => {
+    if (exportingRef.current) return;
+    exportingRef.current = true;
+    setDataError('');
+    try {
+      const token = localStorage.getItem('token');
+      const [pagos, conceptos, config, studentsRes] = await Promise.all([
+        tesoreriaApi.listarPagos(),
+        tesoreriaApi.listarConceptos(),
+        tesoreriaApi.leerConfig(),
+        fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      ]);
+      const freshStudents = await studentsRes.json();
+      if (!studentsRes.ok || !Array.isArray(freshStudents)) throw new Error('no se pudo leer la lista de estudiantes');
+
+      // La pantalla queda igual de actualizada que el archivo
+      setTransactions(pagos);
+      setStudents(freshStudents);
+      reloadCatalog();
+
+      const current = pagos.map(t => withCurrentConcept(t, conceptos));
+      const list = filtered ? current.filter(matchesHistoryFilters) : current;
+      if (list.length === 0) {
+        alert('No hay transacciones registradas para exportar.');
+        return;
+      }
+
+      const parts = [];
+      if (filtered && historySearch.trim()) parts.push(`búsqueda "${historySearch.trim()}"`);
+      if (filtered && historyMethodFilter !== 'todos') parts.push(PAYMENT_METHODS.find(m => m.id === historyMethodFilter)?.nombre || historyMethodFilter);
+      const filterLabel = parts.join(' · ');
+
+      // Sin filtros, el reporte incluye también a los alumnos que aún no pagan la matrícula
+      const matricula = conceptos.find(c => c.codigo === 'MAT-01' && c.liberaMatricula) || conceptos.find(c => c.liberaMatricula);
+      const pending = filterLabel ? null : {
+        amount: matricula ? matricula.monto : 0,
+        conceptName: matricula ? `${matricula.codigo} ${matricula.nombre}` : 'Matrícula (sin concepto en el tarifario)',
+        students: freshStudents
+          .filter(s => !s.pago_matricula)
+          .map(s => ({
+            dni: String(s.dni ?? ''),
+            nombre: `${s.nombres} ${s.apellidos}`,
+            codigo: s.codigo_estudiante || '',
+            programa: CAREERS_MAP[s.programa_id] || 'Programa de Estudio General',
+          }))
+          .sort((a, b) => a.programa.localeCompare(b.programa) || a.nombre.localeCompare(b.nombre)),
+      };
+      exportLibroDiarioXlsx(list, {
+        cashier: user?.full_name || 'Caja Central',
+        filterLabel,
+        pending,
+        tariff: { concepts: conceptos, config },
+      });
+    } catch (e) {
+      setDataError(`No se pudo generar el Excel: ${e.message}`);
+    } finally {
+      exportingRef.current = false;
     }
-    exportLibroDiarioXlsx(list, { cashier: user?.full_name || 'Caja Central', filterLabel });
   };
 
-  const exportFilteredHistory = () => {
-    const parts = [];
-    if (historySearch.trim()) parts.push(`búsqueda "${historySearch.trim()}"`);
-    if (historyMethodFilter !== 'todos') parts.push(PAYMENT_METHODS.find(m => m.id === historyMethodFilter)?.nombre || historyMethodFilter);
-    handleExportExcel(filteredTransactions, parts.join(' · '));
-  };
+  const exportFilteredHistory = () => handleExportExcel({ filtered: true });
 
   // Desglose por método de pago para Arqueo
   const arqueoPorMetodo = useMemo(() => {
@@ -989,7 +1039,7 @@ export function FinancesDashboard() {
                         </td>
                         <td className="py-3.5 px-4 text-center">
                           <button
-                            onClick={() => setViewingReceipt(t)}
+                            onClick={() => setViewingReceipt(t.original)}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-primary hover:text-white text-slate-700 font-semibold text-xs transition cursor-pointer"
                             title="Ver e imprimir boleta oficial"
                           >
@@ -1117,6 +1167,8 @@ export function FinancesDashboard() {
           habilitado={dossierHabilitado}
           loading={!statementMatchesDossier}
           blocked={showAnnualModal || !!payingStudent || !!viewingReceipt}
+          cashierName={user?.full_name || 'Caja Central'}
+          catalog={catalog}
           onClose={() => setSelectedStudentForDossier(null)}
           onPay={() => openPayment(selectedStudentForDossier)}
           onCharge={(conceptId) => openPayment(selectedStudentForDossier, conceptId)}
