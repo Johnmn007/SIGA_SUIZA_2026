@@ -35,6 +35,7 @@ class EstadoActaUnidadResponse(BaseModel):
     fecha_limite_notas: Optional[date] = None
     editable: bool
     motivo_bloqueo: Optional[str] = None
+    acta_cerrada_at: Optional[datetime] = None
 
 class CargaActaItem(BaseModel):
     carga_id: int

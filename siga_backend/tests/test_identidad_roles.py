@@ -516,3 +516,36 @@ async def test_coordinador_cierra_reabre_y_cambia_fecha_exito(client_eval, fix_e
     )
     assert r_reabrir.status_code == 200
     assert r_reabrir.json()["acta_cerrada"] is False
+
+
+@pytest.mark.asyncio
+async def test_resumen_periodo_coordinador_sin_programa_recibe_403(client_eval, fix_entorno_evaluacion):
+    """
+    PASO 4: GET /resumen/periodo/{id} requiere superadmin o coordinador con programa_id asignado.
+    Un coordinador con rol pero sin programa (coord_sin_prog_id) o un docente deben recibir 403.
+    """
+    coord_sin_prog = fix_entorno_evaluacion["coord_sin_prog_id"]
+    docente = fix_entorno_evaluacion["docente_asig_id"]
+    coord_a = fix_entorno_evaluacion["coord_a_id"]
+    superadmin = fix_entorno_evaluacion["superadmin_id"]
+    periodo_id = fix_entorno_evaluacion["periodo_id"]
+
+    # 1. Coordinador sin programa recibe 403 Forbidden
+    r_sin_prog = await client_eval.get(f"/resumen/periodo/{periodo_id}", headers=auth_headers(coord_sin_prog))
+    assert r_sin_prog.status_code == 403
+    assert r_sin_prog.json()["detail"] == "No tiene permisos para esta operación"
+
+    # 2. Docente recibe 403 Forbidden
+    r_doc = await client_eval.get(f"/resumen/periodo/{periodo_id}", headers=auth_headers(docente))
+    assert r_doc.status_code == 403
+
+    # 3. Coordinador con programa_id asignado recibe 200 OK
+    r_coord = await client_eval.get(f"/resumen/periodo/{periodo_id}", headers=auth_headers(coord_a))
+    assert r_coord.status_code == 200
+    assert isinstance(r_coord.json(), list)
+
+    # 4. Superadmin recibe 200 OK
+    r_admin = await client_eval.get(f"/resumen/periodo/{periodo_id}", headers=auth_headers(superadmin))
+    assert r_admin.status_code == 200
+    assert isinstance(r_admin.json(), list)
+

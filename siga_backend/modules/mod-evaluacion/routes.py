@@ -295,7 +295,8 @@ async def listar_registros_por_unidad(unidad_id: int, periodo_id: int, request: 
 async def resumen_avance_notas(periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     """Avance real de registro de notas por unidad didáctica (para supervisión del coordinador o superadmin)."""
     ident = await get_identity(request, db)
-    if not (es_superadmin(ident) or "coordinador_programa" in ident.roles):
+    # Coordinador sin programa_id asignado no tiene alcance para supervisar resumen
+    if not (es_superadmin(ident) or ("coordinador_programa" in ident.roles and ident.programa_id is not None)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tiene permisos para esta operación"
@@ -447,7 +448,7 @@ async def consultar_estado_acta_unidad(unidad_id: int, periodo_id: int, request:
 
     # 2. Consultar carga_lectiva
     cargas_res = await db.execute(
-        text("SELECT id, acta_cerrada, fecha_limite_notas FROM carga_lectiva WHERE unidad_didactica_id = :u_id AND periodo_id = :p_id"),
+        text("SELECT id, acta_cerrada, fecha_limite_notas, acta_cerrada_at FROM carga_lectiva WHERE unidad_didactica_id = :u_id AND periodo_id = :p_id"),
         {"u_id": unidad_id, "p_id": periodo_id}
     )
     cargas = cargas_res.fetchall()
@@ -459,14 +460,16 @@ async def consultar_estado_acta_unidad(unidad_id: int, periodo_id: int, request:
                 acta_cerrada=False,
                 fecha_limite_notas=None,
                 editable=False,
-                motivo_bloqueo=f"El periodo académico {codigo_periodo} se encuentra en estado '{estado_periodo}'. Calificaciones bloqueadas."
+                motivo_bloqueo=f"El periodo académico {codigo_periodo} se encuentra en estado '{estado_periodo}'. Calificaciones bloqueadas.",
+                acta_cerrada_at=None
             )
         return EstadoActaUnidadResponse(
             tiene_carga=False,
             acta_cerrada=False,
             fecha_limite_notas=None,
             editable=True,
-            motivo_bloqueo=None
+            motivo_bloqueo=None,
+            acta_cerrada_at=None
         )
 
     # Con filas en carga_lectiva
@@ -479,6 +482,11 @@ async def consultar_estado_acta_unidad(unidad_id: int, periodo_id: int, request:
     else:
         fechas_todas = [c[2] for c in cargas if c[2] is not None]
         fecha_limite_efectiva = max(fechas_todas) if fechas_todas else None
+
+    acta_cerrada_at_max = None
+    if acta_cerrada:
+        fechas_cierre = [c[3] for c in cargas if c[3] is not None]
+        acta_cerrada_at_max = max(fechas_cierre) if fechas_cierre else None
 
     if periodo_bloqueado:
         editable = False
@@ -498,7 +506,8 @@ async def consultar_estado_acta_unidad(unidad_id: int, periodo_id: int, request:
         acta_cerrada=acta_cerrada,
         fecha_limite_notas=fecha_limite_efectiva,
         editable=editable,
-        motivo_bloqueo=motivo_bloqueo
+        motivo_bloqueo=motivo_bloqueo,
+        acta_cerrada_at=acta_cerrada_at_max
     )
 
 @router.get("/actas/periodo/{periodo_id}/programa/{programa_id}", response_model=ResumenActasProgramaResponse)
