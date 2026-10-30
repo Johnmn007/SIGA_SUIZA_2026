@@ -1,5 +1,5 @@
 # Arranque local de SIGA: Core + 7 modulos + frontend Vite
-# Requisito: PostgreSQL local corriendo con la base siga_suiza_2026
+# Requisito: PostgreSQL local corriendo con la base siga_core
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -18,8 +18,8 @@ if (-not (Test-Path $python)) {
 $env:DB_HOST     = "localhost"
 $env:DB_PORT     = "5432"
 $env:DB_USER     = "postgres"
-$env:DB_PASSWORD = "dariana"
-$env:DB_NAME     = "siga_suiza_2026"
+$env:DB_PASSWORD = "john.007"
+$env:DB_NAME     = "siga_core"
 $env:SKIP_MIGRATIONS = "true"
 
 # Al ejecutar nativo no hay DNS de Docker: los manifests apuntan al nombre del
