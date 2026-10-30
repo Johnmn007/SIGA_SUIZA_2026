@@ -1,316 +1,286 @@
-import { useState, useEffect } from 'react';
-import { QrCode, ScanLine } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import { apiClient, API_BASE } from '../../core/api/client';
+﻿import { useState, useEffect, useRef } from 'react';
+import { QrCode, ScanLine, Camera, StopCircle, Search, FileText, X } from 'lucide-react';
 import { SectionInfoBlock } from './SectionInfoBlock';
+import { getPaymentByQr, getAvailablePayments } from '../../services/paymentService';
+import { Html5Qrcode } from 'html5-qrcode/esm/index.js';
 
-/** Sección 3 del diagrama — Boleta con QR. */
 export function BoletaQRPanel() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [soloEmitidas, setSoloEmitidas] = useState(false);
+  const [status, setStatus] = useState('QR NO LEÍDO / BOLETA NO SELECCIONADA');
+  const [scannedCode, setScannedCode] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [paymentData, setPaymentData] = useState(null);
+  const [consultaMsg, setConsultaMsg] = useState('');
+  const [consultando, setConsultando] = useState(false);
+  const [showFinanceModal, setShowFinanceModal] = useState(false);
+  const [financeBoletas, setFinanceBoletas] = useState([]);
+  const [financeLoading, setFinanceLoading] = useState(false);
+  const [financeError, setFinanceError] = useState('');
+  const [financeSearch, setFinanceSearch] = useState('');
+  const scannerRef = useRef(null);
+  const readerId = 'qr-reader';
 
-  const [qrBoleta, setQrBoleta] = useState(null); // { codigo, item, payload }
-  const [emitiendo, setEmitiendo] = useState(null);
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try { await scannerRef.current.stop(); } catch(e) {}
+      scannerRef.current = null;
+    }
+    setScanning(false);
+  };
 
-  const [codigoValidar, setCodigoValidar] = useState('');
-  const [validacion, setValidacion] = useState(null);
-  const [validacionError, setValidacionError] = useState('');
-  const [validando, setValidando] = useState(false);
+  useEffect(() => { return () => { stopScanner(); }; }, []);
 
-  const cargar = async () => {
-    setLoading(true);
-    setError('');
+  const consultarFinanzas = async (code) => {
+    setConsultando(true);
+    setConsultaMsg('');
     try {
-      const params = new URLSearchParams();
-      if (soloEmitidas) params.set('solo_emitidas', 'true');
-      if (search.trim()) params.set('q', search.trim());
-      const json = await apiClient.request(
-        `/api/mod-gestion-academica/matriculas/boletas?${params.toString()}`
-      );
-      setData(json);
-    } catch (e) {
+      const data = await getPaymentByQr(code);
+      setPaymentData(data);
+      setConsultaMsg('Datos recibidos del módulo Finanzas y Pagos.');
+      setStatus('PENDIENTE DE VALIDACIÓN');
+    } catch(e) {
+      setConsultaMsg('Código QR leído, pero el módulo Finanzas y Pagos aún no está disponible para validar este pago.');
+      setStatus('PENDIENTE DE VALIDACIÓN');
+      setPaymentData(null);
+    } finally {
+      setConsultando(false);
+    }
+  };
+
+  const onScanSuccess = async (decodedText) => {
+    const code = (decodedText || '').trim();
+    if (!code) return;
+    setScannedCode(code);
+    setStatus('Código QR leído correctamente');
+    setCameraError('');
+    setPaymentData(null);
+    setConsultaMsg('');
+    await stopScanner();
+    await consultarFinanzas(code);
+  };
+
+  const startCamera = async () => {
+    setCameraError(''); 
+    setStatus('QR NO LEÍDO / BOLETA NO SELECCIONADA'); 
+    setScannedCode(''); 
+    setPaymentData(null); 
+    setConsultaMsg('');
+    try {
+      if (scannerRef.current) await stopScanner();
+      const html5QrCode = new Html5Qrcode(readerId);
+      scannerRef.current = html5QrCode;
+      setScanning(true);
+      await html5QrCode.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {});
+    } catch(e) {
       console.error(e);
-      setError(e.message);
-    } finally {
-      setLoading(false);
+      setCameraError('No se pudo acceder a la cámara. Verifique permisos.');
+      setScanning(false);
+      scannerRef.current = null;
     }
   };
 
-  useEffect(() => {
-    cargar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [soloEmitidas]);
+  const openFinanceModal = async () => {
+    setShowFinanceModal(true);
+    setFinanceError('');
+    setFinanceSearch('');
+    await fetchFinanceBoletas();
+  };
 
-  const emitir = async (item) => {
-    setEmitiendo(item.matricula_id);
-    setError('');
+  const fetchFinanceBoletas = async (searchTerm = '') => {
+    setFinanceLoading(true);
+    setFinanceError('');
     try {
-      const payload = await apiClient.callModule(
-        'mod-gestion-academica',
-        `matriculas/${item.matricula_id}/boleta`,
-        'POST'
-      );
-      setQrBoleta({ codigo: payload.codigo, item, payload });
-      await cargar();
+      const filters = {
+        status: 'PAGADO',
+        concepto: 'MATRICULA',
+        used: false
+      };
+      if (searchTerm && searchTerm.trim()) {
+        filters.q = searchTerm.trim();
+      }
+      const boletas = await getAvailablePayments(filters);
+      setFinanceBoletas(Array.isArray(boletas) ? boletas : []);
     } catch (e) {
-      console.error(e);
-      setError(e.message);
+      setFinanceBoletas([]);
+      setFinanceError('Finanzas y Pagos aún no dispone de un servicio para consultar boletas.');
     } finally {
-      setEmitiendo(null);
+      setFinanceLoading(false);
     }
   };
 
-  const verQr = (item) =>
-    setQrBoleta({ codigo: item.boleta_codigo, item, payload: null });
+  const handleFinanceSearch = async (e) => {
+    e.preventDefault();
+    await fetchFinanceBoletas(financeSearch);
+  };
 
-  const validar = async (codigoArg) => {
-    const codigo = (codigoArg ?? codigoValidar).trim();
-    if (!codigo) return;
-    setValidando(true);
-    setValidacion(null);
-    setValidacionError('');
+  const selectFinanceBoleta = async (boleta) => {
+    const identifier = boleta.qr_code || boleta.payment_id || boleta.codigo || boleta.boleta_codigo || boleta.receipt_number || boleta.numero_boleta || '';
+    setShowFinanceModal(false);
+    setScannedCode(identifier);
+    setStatus('Boleta seleccionada desde Finanzas');
+    setPaymentData(boleta);
+    setCameraError('');
+    setConsultaMsg('');
+    setConsultando(true);
     try {
-      const res = await apiClient.request(
-        `/api/mod-gestion-academica/boletas/validar/${encodeURIComponent(codigo)}`
-      );
-      setValidacion(res);
+      if (identifier) {
+        const data = await getPaymentByQr(identifier);
+        setPaymentData(data);
+        setConsultaMsg('Datos recibidos del módulo Finanzas y Pagos.');
+        setStatus('PENDIENTE DE VALIDACIÓN');
+      } else {
+        setConsultaMsg('Datos recibidos del módulo Finanzas y Pagos.');
+        setStatus('PENDIENTE DE VALIDACIÓN');
+      }
     } catch (e) {
-      setValidacionError(e.message);
+      setConsultaMsg('Código QR leído, pero el módulo Finanzas y Pagos aún no está disponible para validar este pago.');
+      setStatus('PENDIENTE DE VALIDACIÓN');
     } finally {
-      setValidando(false);
+      setConsultando(false);
     }
   };
 
-  const boletas = data?.boletas || [];
-  const resumen = data?.resumen || {};
+  const getBoletaField = (b, keys, fallback = '-') => {
+    for (let k of keys) {
+      if (b[k] !== undefined && b[k] !== null && b[k] !== '') return b[k];
+    }
+    return fallback;
+  };
 
-  const urlDeQr = (codigo) =>
-    `${API_BASE}/api/mod-gestion-academica/boletas/validar/${codigo}`;
+  const getEstudianteNombre = (b) => {
+    if (b.estudiante && typeof b.estudiante === 'object') {
+      const n = ((b.estudiante.nombres || b.estudiante.nombre || '') + ' ' + (b.estudiante.apellidos || b.estudiante.apellido || '')).trim();
+      if (n) return n;
+    }
+    const n2 = ((b.nombres || b.nombre_estudiante || '') + ' ' + (b.apellidos || b.apellido_estudiante || '')).trim();
+    if (n2) return n2;
+    return getBoletaField(b, ['estudiante_nombre', 'alumno'], '-');
+  };
 
   return (
-    <div className="animate-fade-in space-y-6">
-      {/* Encabezado */}
-      <SectionInfoBlock
-        icon={QrCode}
-        ghostIcon={ScanLine}
-        title="3. Boleta con QR"
-        description={
-          <>
-            Permite registrar y validar la boleta de pago mediante <b>código QR</b> para continuar con
-            el proceso de matrícula. El alumno o la secretaría escanean el código para validarlo en
-            tiempo real.
-          </>
-        }
-        chips={['Emisión', 'Validación QR', 'Tiempo real']}
-      />
-
-      {/* Validación por código */}
-      <div className="glass-card p-6">
-        <h5 className="font-bold text-slate-800 mb-3">🔎 Validar una boleta por código</h5>
-        <div className="flex flex-wrap gap-3">
-          <input
-            type="text"
-            className="input-field flex-1 min-w-[240px] py-2.5 text-sm font-mono"
-            placeholder="Ej: BOL-15-XXXXXXXXXX"
-            value={codigoValidar}
-            onChange={(e) => setCodigoValidar(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && validar()}
-          />
-          <button
-            onClick={() => validar()}
-            disabled={validando || !codigoValidar.trim()}
-            className="btn-primary px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {validando ? 'Validando...' : 'Validar'}
+    <div className='animate-fade-in space-y-6'>
+      <SectionInfoBlock icon={QrCode} ghostIcon={ScanLine} title='3. Validación de Boleta QR' description={<>
+        La boleta y el código QR son emitidos por el módulo Finanzas y Pagos. Gestión Académica únicamente lee y valida el pago para continuar con el proceso de matrícula.
+      </>} chips={['Validación','Escaneo QR','Consulta a Finanzas']} />
+      <div className='glass-card p-6'>
+        <h5 className='font-bold text-slate-800 mb-3'>Validación de Boleta QR</h5>
+        <p className='text-sm text-slate-600 mb-4'>La boleta y el QR son emitidos por Finanzas y Pagos.</p>
+        <div className='flex flex-wrap gap-3 mb-4'>
+          {!scanning ? (
+            <button onClick={startCamera} className='btn-primary px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2'>
+              <Camera size={18}/> Escanear con cámara
+            </button>
+          ) : (
+            <button onClick={stopScanner} className='px-5 py-2.5 rounded-xl text-sm font-bold bg-red-50 text-red-700 border border-red-200 flex items-center gap-2'>
+              <StopCircle size={18}/> Detener cámara
+            </button>
+          )}
+          <button onClick={openFinanceModal} className='px-5 py-2.5 rounded-xl text-sm font-bold bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-2'>
+            <FileText size={18}/> Consultar boleta en Finanzas
           </button>
         </div>
-
-        {validacionError && (
-          <div className="mt-3 p-3 rounded-xl bg-red-50 text-red-700 border border-red-100 text-sm font-medium">
-            ❌ {validacionError}
+        <div className='mb-4'><div id={readerId} className='w-full max-w-md'></div></div>
+        {cameraError && (<div className='mt-3 p-3 rounded-xl bg-red-50 text-red-700 border border-red-100 text-sm font-medium'>{cameraError}</div>)}
+        <div className='mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50'>
+          <div className='text-xs font-bold uppercase tracking-wider text-slate-400 mb-1'>Estado</div>
+          <div className='font-bold text-slate-800'>{status}</div>
+          {scannedCode && (<div className='mt-2'><div className='text-xs font-bold uppercase tracking-wider text-slate-400 mb-1'>Identificador</div><div className='font-mono font-bold text-slate-800'>{scannedCode}</div></div>)}
+          {consultando && (<div className='mt-2 text-sm text-slate-600'>Consultando Finanzas y Pagos...</div>)}
+          {consultaMsg && (<div className='mt-2 text-sm text-slate-700'>{consultaMsg}</div>)}
+        </div>
+        {paymentData && (<div className='mt-4 p-4 rounded-xl border border-green-200 bg-green-50'>
+          <div className='font-extrabold text-green-700 mb-2'>BOLETA LISTA PARA MATRÍCULA / BOLETA ENCONTRADA</div>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-700'>
+            {(paymentData.payment_id || paymentData.receipt_number || paymentData.boleta_codigo || paymentData.numero_boleta) && <div><span className='font-bold'>Boleta:</span> {paymentData.payment_id || paymentData.receipt_number || paymentData.boleta_codigo || paymentData.numero_boleta}</div>}
+            <div><span className='font-bold'>Estudiante:</span> {getEstudianteNombre(paymentData)}</div>
+            {(paymentData.dni || paymentData.estudiante?.dni) && <div><span className='font-bold'>DNI:</span> {paymentData.dni || paymentData.estudiante?.dni}</div>}
+            {(paymentData.amount !== undefined || paymentData.monto !== undefined) && <div><span className='font-bold'>Monto:</span> {paymentData.amount !== undefined ? paymentData.amount : paymentData.monto}</div>}
+            {(paymentData.fecha || paymentData.fecha_emision || paymentData.fecha_pago) && <div><span className='font-bold'>Fecha:</span> {paymentData.fecha || paymentData.fecha_emision || paymentData.fecha_pago}</div>}
+            {(paymentData.status || paymentData.estado) && <div><span className='font-bold'>Estado:</span> {paymentData.status || paymentData.estado}</div>}
+            {(paymentData.concept || paymentData.concepto) && <div><span className='font-bold'>Concepto:</span> {paymentData.concept || paymentData.concepto}</div>}
           </div>
-        )}
-        {validacion && (
-          <div className={`mt-3 p-4 rounded-xl border text-sm ${validacion.valida ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-            <p className={`font-extrabold ${validacion.valida ? 'text-green-700' : 'text-red-700'}`}>
-              {validacion.valida ? '✅ Boleta VÁLIDA' : '⛔ Boleta ANULADA / no vigente'}
-            </p>
-            <div className="mt-2 text-slate-700 grid grid-cols-2 md:grid-cols-4 gap-2">
-              <div><span className="block text-[10px] uppercase font-bold text-slate-400">Código</span>{validacion.boleta.codigo}</div>
-              <div><span className="block text-[10px] uppercase font-bold text-slate-400">Estudiante</span>{validacion.estudiante ? `${validacion.estudiante.nombres} ${validacion.estudiante.apellidos}` : '-'}</div>
-              <div><span className="block text-[10px] uppercase font-bold text-slate-400">Periodo</span>{validacion.boleta.periodo_id}</div>
-              <div><span className="block text-[10px] uppercase font-bold text-slate-400">Unidades</span>{validacion.unidades?.length || 0}</div>
-            </div>
-          </div>
-        )}
+        </div>)}
       </div>
 
-      {/* Resumen */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass-card p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Matrículas</p>
-          <p className="text-2xl font-extrabold text-slate-800">{resumen.total || 0}</p>
-        </div>
-        <div className="glass-card p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Emitidas</p>
-          <p className="text-2xl font-extrabold text-green-600">{resumen.emitidas || 0}</p>
-        </div>
-        <div className="glass-card p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Pendientes</p>
-          <p className="text-2xl font-extrabold text-amber-600">{resumen.pendientes || 0}</p>
-        </div>
-      </div>
-
-      {/* Filtros */}
-      <div className="glass-card p-3 flex flex-wrap items-center gap-3">
-        <span className="px-2 text-slate-400 text-xl">🔍</span>
-        <input
-          type="text"
-          className="flex-1 min-w-[200px] bg-transparent border-none focus:ring-0 py-2 text-slate-700 placeholder-slate-400 outline-none"
-          placeholder="Buscar por DNI, Nombre, Código o código de boleta..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && cargar()}
-        />
-        <label className="flex items-center gap-2 text-sm text-slate-600 font-medium cursor-pointer">
-          <input
-            type="checkbox"
-            checked={soloEmitidas}
-            onChange={(e) => setSoloEmitidas(e.target.checked)}
-            className="w-4 h-4 rounded"
-          />
-          Solo emitidas
-        </label>
-        <button
-          onClick={cargar}
-          className="px-3 py-2 rounded-lg text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20"
-        >
-          ⟳ Recargar
-        </button>
-      </div>
-
-      {error && (
-        <div className="p-3 rounded-xl bg-red-50 text-red-700 border border-red-100 text-sm font-medium">❌ {error}</div>
-      )}
-
-      {/* Tabla */}
-      <div className="glass-card p-6">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200">
-                <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Estudiante</th>
-                <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">DNI</th>
-                <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Periodo</th>
-                <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Ciclo</th>
-                <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Estado</th>
-                <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Código de boleta</th>
-                <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr>
-                  <td colSpan="7" className="py-12 text-center">
-                    <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
-                    <p className="text-slate-500 font-medium">Cargando boletas...</p>
-                  </td>
-                </tr>
-              ) : boletas.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="py-12 text-center">
-                    <div className="text-4xl mb-3 opacity-50">🧾</div>
-                    <p className="text-slate-500 font-medium">No hay matrículas para este filtro.</p>
-                  </td>
-                </tr>
-              ) : (
-                boletas.map((b) => (
-                  <tr key={b.matricula_id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 text-slate-800 font-medium">{b.nombres} {b.apellidos}</td>
-                    <td className="py-3 px-4 text-slate-600">{b.dni}</td>
-                    <td className="py-3 px-4 text-slate-600">{b.periodo_id}</td>
-                    <td className="py-3 px-4 text-slate-600">{b.ciclo ?? '—'}</td>
-                    <td className="py-3 px-4">
-                      <span className="inline-block px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase rounded border border-slate-200">
-                        {b.estado_matricula}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      {b.tiene_boleta ? (
-                        <span className="font-mono text-xs font-bold text-slate-700">{b.boleta_codigo}</span>
-                      ) : (
-                        <span className="text-amber-600 text-xs font-bold">Sin emitir</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      {b.tiene_boleta ? (
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => verQr(b)}
-                            className="px-3 py-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg"
-                          >
-                            Ver QR
-                          </button>
-                          <button
-                            onClick={() => { setCodigoValidar(b.boleta_codigo); validar(b.boleta_codigo); }}
-                            className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg"
-                          >
-                            Validar
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => emitir(b)}
-                          disabled={emitiendo === b.matricula_id}
-                          className="px-3 py-1.5 text-xs font-bold text-white bg-primary hover:bg-primary-dark rounded-lg disabled:opacity-50"
-                        >
-                          {emitiendo === b.matricula_id ? 'Emitiendo...' : 'Emitir boleta'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal QR */}
-      {qrBoleta && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
-          onClick={() => setQrBoleta(null)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-sm"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h5 className="font-bold text-slate-800">🧾 Boleta de Matrícula</h5>
-              <button onClick={() => setQrBoleta(null)} className="text-slate-400 hover:text-slate-700 text-xl leading-none">×</button>
-            </div>
-            <div className="p-6 flex flex-col items-center">
-              <div className="p-3 bg-white border-2 border-slate-100 rounded-xl">
-                <QRCodeSVG value={urlDeQr(qrBoleta.codigo)} size={180} />
-              </div>
-              <p className="mt-3 text-xs text-slate-400">Código único</p>
-              <p className="font-mono font-bold text-slate-800">{qrBoleta.codigo}</p>
-              <p className="mt-3 text-sm text-slate-600 text-center">
-                {qrBoleta.item?.nombres} {qrBoleta.item?.apellidos}
-              </p>
-              <button
-                onClick={() => { setCodigoValidar(qrBoleta.codigo); validar(qrBoleta.codigo); setQrBoleta(null); }}
-                className="mt-4 px-4 py-2 rounded-xl text-sm font-bold text-primary bg-primary/10 hover:bg-primary/20"
-              >
-                Validar esta boleta
+      {showFinanceModal && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50'>
+          <div className='bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl'>
+            <div className='flex items-center justify-between p-6 border-b border-slate-200'>
+              <h3 className='text-xl font-bold text-slate-800'>Boletas disponibles en Finanzas y Pagos</h3>
+              <button onClick={() => setShowFinanceModal(false)} className='p-2 hover:bg-slate-100 rounded-lg'>
+                <X size={20} />
               </button>
-              <p className="mt-2 text-[10px] text-slate-400 text-center break-all">
-                Escanea para abrir: {urlDeQr(qrBoleta.codigo)}
-              </p>
+            </div>
+            <div className='p-6 border-b border-slate-200'>
+              <form onSubmit={handleFinanceSearch} className='flex gap-3'>
+                <div className='flex-1 relative'>
+                  <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400' size={18} />
+                  <input
+                    type='text'
+                    value={financeSearch}
+                    onChange={(e) => setFinanceSearch(e.target.value)}
+                    placeholder='Buscar por DNI, código, estudiante o número de boleta'
+                    className='w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500'
+                  />
+                </div>
+                <button type='submit' className='px-6 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700'>
+                  Buscar
+                </button>
+              </form>
+            </div>
+            <div className='flex-1 overflow-auto p-6'>
+              {financeLoading && <div className='text-center py-8 text-slate-600'>Cargando boletas...</div>}
+              {financeError && <div className='text-center py-8 text-amber-700 bg-amber-50 rounded-xl p-4'>{financeError}</div>}
+              {!financeLoading && !financeError && financeBoletas.length === 0 && (
+                <div className='text-center py-8 text-slate-600'>No hay boletas disponibles</div>
+              )}
+              {!financeLoading && !financeError && financeBoletas.length > 0 && (
+                <div className='overflow-x-auto'>
+                  <table className='w-full'>
+                    <thead>
+                      <tr className='border-b border-slate-200'>
+                        <th className='text-left py-3 px-4 font-bold text-slate-700 text-sm'>N° Boleta</th>
+                        <th className='text-left py-3 px-4 font-bold text-slate-700 text-sm'>Estudiante</th>
+                        <th className='text-left py-3 px-4 font-bold text-slate-700 text-sm'>DNI</th>
+                        <th className='text-left py-3 px-4 font-bold text-slate-700 text-sm'>Programa</th>
+                        <th className='text-left py-3 px-4 font-bold text-slate-700 text-sm'>Monto</th>
+                        <th className='text-left py-3 px-4 font-bold text-slate-700 text-sm'>Concepto</th>
+                        <th className='text-left py-3 px-4 font-bold text-slate-700 text-sm'>Estado</th>
+                        <th className='text-left py-3 px-4 font-bold text-slate-700 text-sm'>Fecha</th>
+                        <th className='text-left py-3 px-4 font-bold text-slate-700 text-sm'>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {financeBoletas.map((boleta, idx) => (
+                        <tr key={idx} className='border-b border-slate-100 hover:bg-slate-50'>
+                          <td className='py-3 px-4 text-sm font-mono text-slate-800'>
+                            {getBoletaField(boleta, ['numero_boleta', 'receipt_number', 'boleta_codigo', 'payment_id', 'codigo'])}
+                          </td>
+                          <td className='py-3 px-4 text-sm text-slate-800'>{getEstudianteNombre(boleta)}</td>
+                          <td className='py-3 px-4 text-sm text-slate-600'>{getBoletaField(boleta, ['dni', 'estudiante.dni'], '-')}</td>
+                          <td className='py-3 px-4 text-sm text-slate-600'>{getBoletaField(boleta, ['programa', 'carrera', 'programa_nombre'], '-')}</td>
+                          <td className='py-3 px-4 text-sm font-medium text-slate-800'>{getBoletaField(boleta, ['monto', 'amount'], '-')}</td>
+                          <td className='py-3 px-4 text-sm text-slate-600'>{getBoletaField(boleta, ['concepto', 'concept'], '-')}</td>
+                          <td className='py-3 px-4 text-sm'>
+                            <span className='px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700'>
+                              {getBoletaField(boleta, ['estado', 'status'], '-')}
+                            </span>
+                          </td>
+                          <td className='py-3 px-4 text-sm text-slate-600'>{getBoletaField(boleta, ['fecha', 'fecha_emision', 'fecha_pago'], '-')}</td>
+                          <td className='py-3 px-4'>
+                            <button
+                              onClick={() => selectFinanceBoleta(boleta)}
+                              className='px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700'
+                            >
+                              Seleccionar
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>

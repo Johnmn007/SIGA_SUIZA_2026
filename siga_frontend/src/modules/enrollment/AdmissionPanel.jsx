@@ -32,7 +32,7 @@ export function AdmissionPanel() {
       try {
         const [p, pe] = await Promise.all([
           apiClient.request('/api/mod-programas-estudio/programas').catch(() => []),
-          apiClient.request('/api/mod-programas-estudio/periodos').catch(() => []),
+          apiClient.callModule('mod-programas-estudio', 'periodos').catch(() => []),
         ]);
         const prog = Array.isArray(p) ? p : [];
         const per = Array.isArray(pe) ? pe : [];
@@ -40,7 +40,10 @@ export function AdmissionPanel() {
         setPeriods(per);
         if (prog.length > 0) setProgramaId(String(prog[0].id));
         if (per.length > 0) {
-          const activo = per.find((x) => x.estado === 'ACTIVO') || per[per.length - 1];
+          const activo = per.find((x) => {
+            const est = (x.estado || '').toString().toLowerCase();
+            return est === 'matricula_abierta' || est === 'abierto' || est === 'activo' || est === 'en_curso';
+          }) || per[0];
           setPeriodoId(String(activo.id));
         }
       } catch (e) {
@@ -56,6 +59,12 @@ export function AdmissionPanel() {
     }
     if (!periodoId) {
       setError('Selecciona un periodo de matrícula');
+      return;
+    }
+    const selPeriodo = periods.find(p => String(p.id) === String(periodoId));
+    const estSel = (selPeriodo?.estado || '').toString().toLowerCase();
+    if (estSel === 'historico' || estSel === 'cerrado') {
+      setError('Este periodo es histórico y ya no permite nuevas matrículas.');
       return;
     }
     setLoading(true);
@@ -161,14 +170,30 @@ export function AdmissionPanel() {
           <select
             className="input-field w-full py-2.5 text-sm"
             value={periodoId}
-            onChange={(e) => setPeriodoId(e.target.value)}
+            onChange={(e) => {
+              const pid = e.target.value;
+              const sel = periods.find(p => String(p.id) === String(pid));
+              const est = (sel?.estado || '').toString().toLowerCase();
+              if (est === 'historico' || est === 'cerrado') {
+                setError('Este periodo es histórico y ya no permite nuevas matrículas.');
+                return;
+              }
+              setError('');
+              setPeriodoId(pid);
+            }}
           >
             <option value="">Selecciona un periodo</option>
-            {periods.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre ? `${p.nombre} — ` : ''}#{p.id} {p.estado ? `(${p.estado})` : ''}
-              </option>
-            ))}
+            {periods.map((p) => {
+              const est = (p.estado || '').toString().toLowerCase();
+              const isHistorico = est === 'historico' || est === 'cerrado';
+              const label = p.nombre || p.codigo || p.descripcion || `Periodo ${p.id}`;
+              const estadoLabel = est === 'matricula_abierta' || est === 'abierto' ? 'Matrícula abierta' : (est === 'historico' ? 'Histórico' : (p.estado || ''));
+              return (
+                <option key={p.id} value={p.id} disabled={isHistorico}>
+                  {label}{estadoLabel ? ` — ${estadoLabel}` : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
         <div className="md:col-span-1">
