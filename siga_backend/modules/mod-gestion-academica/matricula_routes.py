@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -979,6 +979,9 @@ async def resultado_final(
 
     filas = (await db.execute(stmt)).all()
 
+    res_pa = await db.execute(text("SELECT id, codigo FROM periodos_academicos"))
+    periodos_map = {row[0]: row[1] for row in res_pa.all()}
+
     items = []
     for matricula, est in filas:
         items.append({
@@ -990,6 +993,7 @@ async def resultado_final(
             "apellidos": est.apellidos,
             "programa_id": matricula.programa_id,
             "periodo_id": matricula.periodo_id,
+            "periodo_codigo": periodos_map.get(matricula.periodo_id, f"Periodo {matricula.periodo_id}"),
             "ciclo": matricula.ciclo,
             "casuistica": matricula.casuistica,
             "estado_matricula": matricula.estado_matricula,

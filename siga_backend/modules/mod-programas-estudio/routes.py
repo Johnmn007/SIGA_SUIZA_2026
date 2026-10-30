@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete, text
 from typing import List, Optional
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 from database import get_db, OutboxEvent
 from models import ProgramaEstudio, ProgramaConfiguracion, ProgramaModulo, ProgramaUnidad, ProgramaRequisito, PeriodoAcademico
 
@@ -44,7 +44,14 @@ class PeriodoCreate(PeriodoBase):
 class PeriodoResponse(PeriodoBase):
     id: int
     created_at: datetime
+    nombre: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def populate_nombre(self):
+        if not self.nombre:
+            self.nombre = self.codigo
+        return self
 
 # Health Check
 @router.get("/health")

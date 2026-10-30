@@ -186,7 +186,7 @@ export function AdmissionPanel() {
             {periods.map((p) => {
               const est = (p.estado || '').toString().toLowerCase();
               const isHistorico = est === 'historico' || est === 'cerrado';
-              const label = p.nombre || p.codigo || p.descripcion || `Periodo ${p.id}`;
+              const label = p.codigo || p.nombre || p.descripcion || `Periodo ${p.id}`;
               const estadoLabel = est === 'matricula_abierta' || est === 'abierto' ? 'Matrícula abierta' : (est === 'historico' ? 'Histórico' : (p.estado || ''));
               return (
                 <option key={p.id} value={p.id} disabled={isHistorico}>
@@ -381,15 +381,19 @@ export function AdmissionPanel() {
                   <p className="text-sm text-slate-400">Sin matrículas registradas.</p>
                 ) : (
                   <ul className="space-y-2">
-                    {ficha.matriculas.map((m) => (
-                      <li key={m.id} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="font-semibold text-slate-700">Periodo {m.periodo_id} · Ciclo {m.ciclo}</span>
-                          <Badge tone={m.estado_matricula === 'confirmada' ? 'green' : 'slate'}>{m.estado_matricula}</Badge>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">{m.unidades} unidades · {m.creditos} créditos · {m.casuistica}</p>
-                      </li>
-                    ))}
+                    {ficha.matriculas.map((m) => {
+                      const perObj = periods.find(p => String(p.id) === String(m.periodo_id));
+                      const perLabel = perObj ? (perObj.codigo || perObj.nombre) : `Periodo ${m.periodo_id}`;
+                      return (
+                        <li key={m.id} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="font-semibold text-slate-700">{perLabel} · Ciclo {m.ciclo}</span>
+                            <Badge tone={m.estado_matricula === 'confirmada' ? 'green' : 'slate'}>{m.estado_matricula}</Badge>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">{m.unidades} unidades · {m.creditos} créditos · {m.casuistica}</p>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>

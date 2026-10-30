@@ -3,6 +3,15 @@ import { ClipboardCheck, Scale } from 'lucide-react';
 import { apiClient } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
 
+const formatEstadoPeriodo = (estado) => {
+  const est = (estado || '').toString().toLowerCase();
+  if (est === 'matricula_abierta' || est === 'abierto') return 'Matrícula abierta';
+  if (est === 'en_curso' || est === 'activo') return 'En curso';
+  if (est === 'planificacion') return 'Planificación';
+  if (est === 'historico' || est === 'cerrado') return 'Histórico';
+  return estado || '';
+};
+
 /** Sección 4 del diagrama — Determinación del ciclo y cursos. */
 export function DeterminacionPanel() {
   const [students, setStudents] = useState([]);
@@ -33,7 +42,10 @@ export function DeterminacionPanel() {
         setPeriods(pers);
         if (progs.length > 0) setProgramaId(String(progs[0].id));
         if (pers.length > 0) {
-          const activo = pers.find((x) => x.estado === 'ACTIVO') || pers[pers.length - 1];
+          const activo = pers.find((x) => {
+            const est = (x.estado || '').toString().toLowerCase();
+            return est === 'matricula_abierta' || est === 'abierto' || est === 'activo' || est === 'en_curso';
+          }) || pers[0];
           setPeriodoId(String(activo.id));
         }
       } catch (e) {
@@ -45,6 +57,7 @@ export function DeterminacionPanel() {
 
   const seleccionar = (s) => {
     setSelectedStudent(s);
+    if (s?.programa_id) setProgramaId(String(s.programa_id));
     setSearch('');
     setPropuesta(null);
     setError('');
@@ -171,12 +184,18 @@ export function DeterminacionPanel() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Periodo</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Periodo / Semestre</label>
             <select className="input-field w-full py-2.5 text-sm" value={periodoId} onChange={(e) => setPeriodoId(e.target.value)}>
               <option value="">Selecciona</option>
-              {periods.map((p) => (
-                <option key={p.id} value={p.id}>{p.nombre || `Periodo ${p.id}`} ({p.estado || '—'})</option>
-              ))}
+              {periods.map((p) => {
+                const label = p.codigo || p.nombre || `Periodo ${p.id}`;
+                const estLabel = formatEstadoPeriodo(p.estado);
+                return (
+                  <option key={p.id} value={p.id}>
+                    {label}{estLabel ? ` (${estLabel})` : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
