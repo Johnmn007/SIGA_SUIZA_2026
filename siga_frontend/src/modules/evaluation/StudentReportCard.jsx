@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
-import mockEvaluacion from './mockEvaluacion.json';
 import { BoletinImpresion } from './BoletinImpresion';
-import { obtenerNotasPorCiclo, resumenDesdeJson, construirListaCiclos, estudiantesBoletin, generarBoletinDesdeJson } from './notasPorCiclo';
 import {
   ArrowUpDown, BadgeCheck, BookOpen, ChevronDown,
   ClipboardList, GraduationCap, Hash, IdCard, Mail,
@@ -354,40 +352,10 @@ export function StudentReportCard() {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         const dbData = res.ok ? await res.json() : [];
-        const dbList = Array.isArray(dbData) ? dbData : [];
-
-        // Combinar estudiantes de la BD con los de boletin.json para que aparezcan siempre todos
-        const mapByDni = new Map();
-        const mapById = new Map();
-        dbList.forEach(s => {
-          if (s.dni) mapByDni.set(String(s.dni).trim(), s);
-          if (s.id) mapById.set(Number(s.id), s);
-        });
-
-        const jsonList = (estudiantesBoletin || []).map(e => ({
-          id: e.id,
-          codigo_estudiante: e.codigo_estudiante,
-          dni: e.dni,
-          nombres: e.nombres,
-          apellidos: e.apellidos,
-          estado_academico: e.estado_academico,
-          programa_id: e.programa_id,
-          programa_nombre: e.programa?.nombre,
-        }));
-
-        const combinados = [...dbList];
-        jsonList.forEach(j => {
-          const dniKey = String(j.dni).trim();
-          const idKey = Number(j.id);
-          if (!mapByDni.has(dniKey) && !mapById.has(idKey)) {
-            combinados.push(j);
-          }
-        });
-
-        setAllStudents(combinados);
+        setAllStudents(Array.isArray(dbData) ? dbData : []);
       } catch (e) {
         console.error('Error fetching students', e);
-        setAllStudents(estudiantesBoletin || []);
+        setAllStudents([]);
       }
       setSearchLoading(false);
     };
@@ -477,48 +445,20 @@ export function StudentReportCard() {
       setLoading(true);
       setError(null);
       try {
-        let real = null;
-        try {
-          const res = await fetch(
-            `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin`,
-            { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
-          );
-          if (res.ok) {
-            real = await res.json();
-          }
-        } catch (err) {
-          console.warn('API /boletin no disponible o error:', err);
-        }
-
-        const notasJson = obtenerNotasPorCiclo(effectiveStudentId, selectedStudent);
-        if (notasJson) {
-          const periodoActual = resumenDesdeJson(notasJson);
-          if (real) {
-            setData({
-              ...real,
-              estudiante: { ...real.estudiante, periodo_codigo: notasJson.periodoActual },
-              cursos_periodo: periodoActual.cursos_periodo,
-              resumen: { ...real.resumen, ...periodoActual.resumen },
-              _notasJson: notasJson,
-            });
-          } else {
-            const boletinJson = generarBoletinDesdeJson(effectiveStudentId, selectedStudent);
-            if (boletinJson) {
-              setData(boletinJson);
-            } else {
-              throw new Error('No se pudo generar la información del boletín.');
-            }
-          }
-        } else if (real) {
-          const evaluacion = mockEvaluacion.evaluaciones.find(
-            e => e.codigo_estudiante === real.estudiante.codigo_estudiante
-              && e.periodo === real.estudiante.periodo_codigo
-          );
-          setData(evaluacion ? { ...real, ...evaluacion } : real);
+        const res = await fetch(
+          `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin`,
+          { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
+        );
+        if (res.ok) {
+          const real = await res.json();
+          setData(real);
         } else {
-          throw new Error('No se encontró información del boletín para este estudiante.');
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'No se encontró información del boletín para este estudiante.');
         }
-      } catch (e) { setError(e.message); }
+      } catch (e) {
+        setError(e.message);
+      }
       setLoading(false);
     };
     fetchBoletin();
@@ -699,18 +639,27 @@ export function StudentReportCard() {
     );
   }
 
-  const { estudiante, matricula_estado, estado_academico, progreso_creditos, cursos_periodo, resumen, observaciones, ciclos, _notasJson } = data;
+  const {
+    estudiante = {},
+    matricula_estado = {},
+    estado_academico,
+    progreso_creditos = {},
+    cursos_periodo = [],
+    resumen = {},
+    observaciones,
+    ciclos = []
+  } = (data || {});
 
   const iniciales = `${(estudiante.nombres || '').trim().charAt(0)}${(estudiante.apellidos || '').trim().charAt(0)}`.toUpperCase() || 'ES';
   const creditosRestantes = Math.max(0, (progreso_creditos.creditos_totales || 0) - (progreso_creditos.creditos_aprobados || 0));
   const condicion = condicionTone(estado_academico);
 
-  const cursosConNota = cursos_periodo.filter(c => c.nota_final != null && c.creditos > 0);
+  const cursosConNota = (cursos_periodo || []).filter(c => c.nota_final != null && c.creditos > 0);
   const sumaCreditosEval = cursosConNota.reduce((s, c) => s + c.creditos, 0);
   const promedioPonderado = sumaCreditosEval > 0
     ? Math.round((cursosConNota.reduce((s, c) => s + c.nota_final * c.creditos, 0) / sumaCreditosEval) * 10) / 10
     : null;
-  const promedioAritmetico = resumen.promedio_general ?? null;
+  const promedioAritmetico = resumen?.promedio_general ?? null;
   const promediosListos = promedioPonderado != null || promedioAritmetico != null;
   const promedioRef = promedioPonderado ?? promedioAritmetico;
   const valoracion = valorarPromedio(promedioRef);
@@ -724,17 +673,15 @@ export function StudentReportCard() {
   const matriculaVigente = matricula_estado?.pago_matricula === true;
 
   /* ===== DOCUMENTO HISTÓRICO POR CICLOS ===== */
-  const listaCiclos = construirListaCiclos(ciclos, _notasJson, cursos_periodo);
+  const listaCiclos = Array.isArray(ciclos) ? ciclos : [];
   const unidadesPlan = listaCiclos.flatMap(c => Array.isArray(c.unidades) ? c.unidades : []);
 
   const notasHistoricas = unidadesPlan.filter(u => u.nota != null).map(u => u.nota);
   const promedioGeneralHistorico = notasHistoricas.length > 0
     ? Math.round((notasHistoricas.reduce((s, n) => s + n, 0) / notasHistoricas.length) * 100) / 100
     : null;
-  const ciclosCompletados = _notasJson
-    ? listaCiclos.filter(c => c.completado).length
-    : (resumen?.ciclos_completados ?? listaCiclos.filter(c => c.completado).length);
-  const ciclosTotales = _notasJson ? listaCiclos.length : (resumen?.ciclos_totales ?? listaCiclos.length);
+  const ciclosCompletados = resumen?.ciclos_completados ?? listaCiclos.filter(c => c.completado).length;
+  const ciclosTotales = resumen?.ciclos_totales ?? listaCiclos.length;
 
   const conteoEstado = {
     todos: unidadesPlan.length,
