@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { apiClient, API_BASE } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
+import { getDefaultPeriod, getPeriodLabel, getPeriodLabelById, isHistoricalPeriod } from './periodUtils';
 import './enrollmentPremium.css';
 
 /**
@@ -39,13 +40,8 @@ export function AdmissionPanel() {
         setPrograms(prog);
         setPeriods(per);
         if (prog.length > 0) setProgramaId(String(prog[0].id));
-        if (per.length > 0) {
-          const activo = per.find((x) => {
-            const est = (x.estado || '').toString().toLowerCase();
-            return est === 'matricula_abierta' || est === 'abierto' || est === 'activo' || est === 'en_curso';
-          }) || per[0];
-          setPeriodoId(String(activo.id));
-        }
+        const activo = getDefaultPeriod(per);
+        if (activo) setPeriodoId(String(activo.id));
       } catch (e) {
         console.error('No se pudieron cargar programas/periodos:', e);
       }
@@ -183,6 +179,7 @@ export function AdmissionPanel() {
             }}
           >
             <option value="">Selecciona un periodo</option>
+<<<<<<< HEAD
             {periods.map((p) => {
               const est = (p.estado || '').toString().toLowerCase();
               const isHistorico = est === 'historico' || est === 'cerrado';
@@ -194,6 +191,13 @@ export function AdmissionPanel() {
                 </option>
               );
             })}
+=======
+            {periods.map((p) => (
+              <option key={p.id} value={p.id} disabled={isHistoricalPeriod(p)}>
+                {getPeriodLabel(p)}
+              </option>
+            ))}
+>>>>>>> 7414644fa55a85f68c43f864e0ba67c520c28a47
           </select>
         </div>
         <div className="md:col-span-1">
@@ -381,6 +385,7 @@ export function AdmissionPanel() {
                   <p className="text-sm text-slate-400">Sin matrículas registradas.</p>
                 ) : (
                   <ul className="space-y-2">
+<<<<<<< HEAD
                     {ficha.matriculas.map((m) => {
                       const perObj = periods.find(p => String(p.id) === String(m.periodo_id));
                       const perLabel = perObj ? (perObj.codigo || perObj.nombre) : `Periodo ${m.periodo_id}`;
@@ -394,6 +399,17 @@ export function AdmissionPanel() {
                         </li>
                       );
                     })}
+=======
+                    {ficha.matriculas.map((m) => (
+                      <li key={m.id} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="font-semibold text-slate-700">Periodo {getPeriodLabelById(periods, m.periodo_id)} · Ciclo {m.ciclo}</span>
+                          <Badge tone={m.estado_matricula === 'confirmada' ? 'green' : 'slate'}>{m.estado_matricula}</Badge>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">{m.unidades} unidades · {m.creditos} créditos · {m.casuistica}</p>
+                      </li>
+                    ))}
+>>>>>>> 7414644fa55a85f68c43f864e0ba67c520c28a47
                   </ul>
                 )}
               </div>
