@@ -30,6 +30,11 @@ class SecurityMiddleware:
         
         if path in public_paths:
             return None
+
+        # Verificación pública de recibos y estados de cuenta por QR (solo lectura,
+        # protegida con firma HMAC en el propio módulo)
+        if request.method == "GET" and path.startswith("/api/mod-gestion-academica/tesoreria/publico/"):
+            return None
         
         # Verificar header de autorización
         if not authorization:

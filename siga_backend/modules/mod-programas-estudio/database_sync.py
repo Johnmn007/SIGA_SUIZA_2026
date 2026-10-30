@@ -8,7 +8,7 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_NAME = os.getenv("DB_NAME", "railway")
+DB_NAME = os.getenv("DB_NAME", "siga_suiza_2026")
 
 DATABASE_URL = os.getenv("DATABASE_URL_SYNC") or os.getenv("DATABASE_URL")
 if not DATABASE_URL:

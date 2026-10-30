@@ -54,6 +54,16 @@
 ::-webkit-scrollbar-thumb { background: #002D7A; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #0044B2; }
 
+/* === Scrollbar del catálogo de carreras (Programas de Estudio) === */
+.catalog-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+.catalog-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.catalog-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.catalog-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 9999px; }
+.catalog-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
 /* === Estilos Novedosos SaaS (Bento Grid, Spatial UI & Micro-interactions) === */
 .bento-card {
   @apply bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-6 shadow-sm

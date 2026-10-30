@@ -15,8 +15,8 @@ class CoreSettings(BaseSettings):
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
     DB_USER: str = "postgres"
-    DB_PASSWORD: str = "postgres"
-    DB_NAME: str = "siga_core"
+    DB_PASSWORD: str = "dariana"
+    DB_NAME: str = "siga_suiza_2026"
     DATABASE_URL: Optional[str] = None
     
     # Module Registry
