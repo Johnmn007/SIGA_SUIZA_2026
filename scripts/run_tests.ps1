@@ -25,12 +25,20 @@ Write-Host "============================================================" -Foreg
 Write-Host "          SIGA SUIZA 2026 - SUITE DE PRUEBAS INTEGRAL       " -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
-# 1. Validacion de Credencial Mandatoria
+# 1. Validacion de Credenciales Mandatorias
 if (-not $env:PGPASSWORD) {
     Write-Host "[ERROR DE SEGURIDAD] La variable de entorno `$env:PGPASSWORD no esta definida." -ForegroundColor Red
     Write-Host "Por politica institucional, no se almacenan contrasenas en scripts ni repositorios." -ForegroundColor Yellow
     Write-Host "Asigne la variable antes de ejecutar las pruebas:" -ForegroundColor Yellow
     Write-Host "   `$env:PGPASSWORD = 'tu_password_local'" -ForegroundColor Gray
+    exit 1
+}
+
+if (-not $env:SECRET_KEY) {
+    Write-Host "[ERROR DE SEGURIDAD] La variable de entorno `$env:SECRET_KEY no esta definida." -ForegroundColor Red
+    Write-Host "Se requiere definir SECRET_KEY para ejecutar las pruebas de verificacion de identidad y tokens JWT." -ForegroundColor Yellow
+    Write-Host "Asigne la variable antes de ejecutar las pruebas:" -ForegroundColor Yellow
+    Write-Host "   `$env:SECRET_KEY = 'tu_secret_key_de_prueba'" -ForegroundColor Gray
     exit 1
 }
 
@@ -133,9 +141,6 @@ Write-Host "[3/5] Ejecutando pruebas de Backend (pytest con motor aislado siga_t
 $env:DB_NAME = "siga_test"
 $env:DATABASE_URL = "postgresql+asyncpg://postgres:$($env:PGPASSWORD)@127.0.0.1:5432/siga_test"
 $env:SKIP_MIGRATIONS = "true"
-if (-not $env:SECRET_KEY) {
-    $env:SECRET_KEY = "test_ephemeral_secret_key_for_runner"
-}
 
 Push-Location $WorkspaceRoot
 try {

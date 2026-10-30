@@ -10,7 +10,10 @@ from models import RegistroEvaluacion
 from schemas import (
     RegistroEvaluacionCreate, RegistroEvaluacionResponse, RegistroEvaluacionUpdate,
     EstadoActaUnidadResponse, ResumenActasProgramaResponse, CargaActaItem, UnidadSinCargaItem,
-    FechaLimiteRequest, ReabrirActaRequest, CerrarActaResponse
+    UnidadSoloPendientesItem, FechaLimiteRequest, ReabrirActaRequest, CerrarActaResponse
+)
+from shared.identity import (
+    Identity, get_identity, es_superadmin, es_coordinador_de, es_docente_de_carga
 )
 
 router = APIRouter()
@@ -30,15 +33,9 @@ def _condicion_matricula_calificable_sql(alias_m="m", alias_md="md") -> str:
     """
     return f"({alias_m}.estado_matricula = 'confirmada' AND ({alias_md}.estado_curso IS NULL OR {alias_md}.estado_curso != 'retirado'))"
 
-def _exigir_user_id_numerico(request: Request) -> int:
-    """Valida la presencia y formato numérico de la cabecera X-User-ID."""
-    user_id_str = request.headers.get("X-User-ID")
-    if not user_id_str or not user_id_str.strip().isdigit():
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Cabecera X-User-ID faltante o inválida. Se requiere un identificador numérico de usuario."
-        )
-    return int(user_id_str.strip())
+def _es_matricula_calificable(estado_matricula: str, estado_curso: Optional[str]) -> bool:
+    """Evalúa en memoria si una matrícula y detalle cumplen la condición calificable canónica."""
+    return estado_matricula == "confirmada" and (estado_curso is None or estado_curso != "retirado")
 
 def _calcular_promedio(c1, c2, c3):
     notas = [n for n in (c1, c2, c3) if n is not None]
@@ -64,6 +61,73 @@ def _determinar_estado(promedio):
 
 ESTADOS_PERIODO_CALIFICABLES = {"en_curso", "matricula_abierta"}
 
+async def _obtener_programa_unidad_catalogo(db: AsyncSession, unidad_id: int) -> Optional[int]:
+    """Obtiene el programa_id que el catálogo académico asocia a una unidad didáctica."""
+    # 1. Buscar en programa_unidades
+    pu_res = await db.execute(
+        text("""
+            SELECT pm.programa_id
+            FROM programa_unidades pu
+            JOIN programa_modulos pm ON pm.id = pu.programa_modulo_id
+            WHERE pu.id = :u_id
+        """),
+        {"u_id": unidad_id}
+    )
+    row = pu_res.fetchone()
+    if row and row[0] is not None:
+        return row[0]
+
+    # 2. Buscar en unidades_plan
+    up_res = await db.execute(
+        text("""
+            SELECT prog.id
+            FROM unidades_plan up
+            JOIN modulos_plan mp ON mp.id = up.modulo_id
+            JOIN planes_estudio pe ON pe.id = mp.plan_id
+            JOIN programas_estudio prog ON prog.plan_estudio_id = pe.id
+            WHERE up.id = :u_id
+        """),
+        {"u_id": unidad_id}
+    )
+    row = up_res.fetchone()
+    if row and row[0] is not None:
+        return row[0]
+
+    return None
+
+async def _validar_acceso_unidad(ident: Identity, unidad_id: int, periodo_id: int, db: AsyncSession):
+    """Valida permisos para ver registros o actas de una unidad:
+    - Superadmin: acceso completo.
+    - Docente asignado a la carga lectiva: acceso a su unidad.
+    - Coordinador del programa de la carga (o del catálogo si no hay carga): acceso.
+    - De lo contrario: 403 No tiene permisos para esta operación.
+    """
+    if es_superadmin(ident):
+        return
+
+    carga_res = await db.execute(
+        text("SELECT docente_id, programa_id FROM carga_lectiva WHERE unidad_didactica_id = :u AND periodo_id = :p"),
+        {"u": unidad_id, "p": periodo_id}
+    )
+    cargas = carga_res.fetchall()
+    if cargas:
+        # Docente asignado a la unidad en este periodo
+        if any(c[0] == ident.user_id for c in cargas):
+            return
+        # Coordinador del programa asignado a la carga
+        if any(c[1] is not None and es_coordinador_de(ident, c[1]) for c in cargas):
+            return
+
+    # Si no hay carga o no tiene programa_id asociado, consultar catálogo académico
+    prog_id = await _obtener_programa_unidad_catalogo(db, unidad_id)
+    if prog_id is not None and es_coordinador_de(ident, prog_id):
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No tiene permisos para esta operación"
+    )
+
 async def _validar_cierre_y_fecha_limite(db: AsyncSession, unidad_didactica_id: int, periodo_id: int, codigo_periodo: str):
     """
     Busca la fila de carga_lectiva por (unidad_didactica_id, periodo_id) con bloqueo compartido (FOR SHARE):
@@ -71,9 +135,8 @@ async def _validar_cierre_y_fecha_limite(db: AsyncSession, unidad_didactica_id: 
     - Si hay filas:
       * El acta está cerrada solo si TODAS están cerradas.
       * La fecha límite efectiva es la más tardía (NULL significa sin límite).
-      * Si hay más de una fila por par (unidad, periodo), documenta la limitación de secciones.
-      * Acta cerrada: 409 con mensaje en español ("El acta de la unidad X del periodo Y está cerrada. Solicite su reapertura al coordinador.").
-      * Fecha vencida: 409 ("El plazo para ingresar notas venció el DD/MM/AAAA. Solicite una ampliación al coordinador.").
+      * Acta cerrada: 409 con mensaje institucional.
+      * Fecha vencida: 409 con mensaje institucional.
     """
     carga_res = await db.execute(
         text("SELECT acta_cerrada, fecha_limite_notas FROM carga_lectiva WHERE unidad_didactica_id = :u_id AND periodo_id = :p_id FOR SHARE"),
@@ -83,7 +146,6 @@ async def _validar_cierre_y_fecha_limite(db: AsyncSession, unidad_didactica_id: 
     if not cargas:
         return
 
-    # Si hay filas: el acta está cerrada solo si TODAS están cerradas
     todas_cerradas = all(bool(c[0]) for c in cargas)
     if todas_cerradas:
         raise HTTPException(
@@ -91,7 +153,6 @@ async def _validar_cierre_y_fecha_limite(db: AsyncSession, unidad_didactica_id: 
             detail=f"El acta de la unidad {unidad_didactica_id} del periodo {codigo_periodo} está cerrada. Solicite su reapertura al coordinador."
         )
 
-    # Fecha límite: la fecha más tardía entre las cargas abiertas; si alguna tiene NULL, no hay límite
     cargas_abiertas = [c for c in cargas if not c[0]]
     if any(c[1] is None for c in cargas_abiertas):
         return
@@ -109,6 +170,25 @@ async def _validar_cierre_y_fecha_limite(db: AsyncSession, unidad_didactica_id: 
 
 @router.post("/registros", response_model=RegistroEvaluacionResponse, status_code=status.HTTP_201_CREATED)
 async def crear_registro(data: RegistroEvaluacionCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    # 0. Verificación de Identidad y Autorización por Roles (BUG-D02 / PASO 2)
+    ident = await get_identity(request, db)
+    if not es_superadmin(ident):
+        carga_res = await db.execute(
+            text("SELECT id, docente_id FROM carga_lectiva WHERE unidad_didactica_id = :u AND periodo_id = :p"),
+            {"u": data.unidad_didactica_id, "p": data.periodo_id}
+        )
+        cargas = carga_res.fetchall()
+        if not cargas:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="La unidad no tiene docente asignado. Solicite la asignación de carga lectiva al coordinador."
+            )
+        if not any(c[1] == ident.user_id for c in cargas):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tiene permisos para esta operación"
+            )
+
     # 1. Validar que el periodo académico permita calificación (BUG-D05)
     per_res = await db.execute(
         text("SELECT codigo, estado FROM periodos_academicos WHERE id = :p_id"),
@@ -154,73 +234,127 @@ async def crear_registro(data: RegistroEvaluacionCreate, request: Request, db: A
 
     estado_mat = mat_row[1]
     estado_cur = mat_row[2]
-    if estado_mat == "pendiente":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="La matrícula del estudiante se encuentra en estado 'pendiente'. Solo se permite calificar matrículas en estado 'confirmada'."
-        )
-    if estado_mat != "confirmada":
+    if not _es_matricula_calificable(estado_mat, estado_cur):
+        if estado_mat == "pendiente":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La matrícula del estudiante se encuentra en estado 'pendiente'. Solo se permite calificar matrículas en estado 'confirmada'."
+            )
+        if estado_cur == "retirado":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="El estudiante se encuentra en estado 'retirado' en esta unidad didáctica."
+            )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"La matrícula se encuentra en estado '{estado_mat}'. No se permite calificar."
-        )
-    if estado_cur == "retirado":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="El estudiante se encuentra en estado 'retirado' en esta unidad didáctica."
         )
 
     # 3. Validar no duplicidad
     result = await db.execute(select(RegistroEvaluacion).where(RegistroEvaluacion.matricula_detalle_id == data.matricula_detalle_id))
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="El registro de evaluación ya existe para esta matrícula")
-    
+        raise HTTPException(status_code=400, detail="Ya existe un registro de evaluación para este detalle de matrícula")
+
     db_obj = RegistroEvaluacion(**data.model_dump())
     _aplicar_notas(db_obj, nota_final_solicitada=data.nota_final)
-    
+
     db.add(db_obj)
+    await db.flush()
+
+    event = OutboxEvent(
+        event_type="evaluacion.nota.creada",
+        payload={
+            "registro_id": db_obj.id,
+            "matricula_detalle_id": db_obj.matricula_detalle_id,
+            "estudiante_id": db_obj.estudiante_id,
+            "nota_final": db_obj.nota_final,
+            "estado": db_obj.estado,
+            "metadata": {"request_id": request.headers.get("X-Request-ID", "unknown")}
+        }
+    )
+    db.add(event)
     await db.commit()
     await db.refresh(db_obj)
     return db_obj
 
 @router.get("/registros/unidad/{unidad_id}/periodo/{periodo_id}", response_model=List[RegistroEvaluacionResponse])
-async def listar_registros_por_unidad(unidad_id: int, periodo_id: int, db: AsyncSession = Depends(get_db)):
+async def listar_registros_por_unidad(unidad_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    await _validar_acceso_unidad(ident, unidad_id, periodo_id, db)
+
     result = await db.execute(
         select(RegistroEvaluacion)
-        .where(RegistroEvaluacion.unidad_didactica_id == unidad_id)
-        .where(RegistroEvaluacion.periodo_id == periodo_id)
+        .where(
+            RegistroEvaluacion.unidad_didactica_id == unidad_id,
+            RegistroEvaluacion.periodo_id == periodo_id
+        )
     )
     return result.scalars().all()
 
 @router.get("/resumen/periodo/{periodo_id}")
-async def resumen_avance_notas(periodo_id: int, db: AsyncSession = Depends(get_db)):
-    """Avance real de registro de notas por unidad didáctica (para supervisión del coordinador)."""
-    result = await db.execute(
-        select(
-            RegistroEvaluacion.unidad_didactica_id,
-            func.count(RegistroEvaluacion.id),
-            func.count(RegistroEvaluacion.nota_final),
+async def resumen_avance_notas(periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Avance real de registro de notas por unidad didáctica (para supervisión del coordinador o superadmin)."""
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or "coordinador_programa" in ident.roles):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para esta operación"
         )
-        .where(RegistroEvaluacion.periodo_id == periodo_id)
-        .group_by(RegistroEvaluacion.unidad_didactica_id)
+
+    calificables_cond = _condicion_matricula_calificable_sql("m", "md")
+    result = await db.execute(
+        text(f"""
+            SELECT 
+                er.unidad_didactica_id,
+                count(er.id) AS total,
+                count(er.nota_final) AS calificados
+            FROM evaluacion_registros er
+            JOIN matricula_detalles md ON er.matricula_detalle_id = md.id
+            JOIN matriculas m ON md.matricula_id = m.id
+            WHERE er.periodo_id = :p_id
+              AND {calificables_cond}
+            GROUP BY er.unidad_didactica_id
+        """),
+        {"p_id": periodo_id}
     )
     return [
         {
-            "unidad_didactica_id": unidad_id,
-            "total": total,
-            "calificados": calificados,
-            "porcentaje": round(calificados * 100 / total) if total else 0,
+            "unidad_didactica_id": row[0],
+            "total": row[1],
+            "calificados": row[2],
+            "porcentaje": round(row[2] * 100 / row[1]) if row[1] else 0,
         }
-        for unidad_id, total, calificados in result.all()
+        for row in result.fetchall()
     ]
 
 @router.put("/registros/{registro_id}", response_model=RegistroEvaluacionResponse)
 async def actualizar_notas(registro_id: int, data: RegistroEvaluacionUpdate, request: Request, db: AsyncSession = Depends(get_db)):
+    # 0. Verificación de Identidad (BUG-D02 / PASO 2)
+    ident = await get_identity(request, db)
+
     result = await db.execute(select(RegistroEvaluacion).where(RegistroEvaluacion.id == registro_id))
     db_obj = result.scalar_one_or_none()
     if not db_obj:
         raise HTTPException(status_code=404, detail="Registro de evaluación no encontrado")
-    
+
+    # Autorización por asignación de carga lectiva (403 antes que 409)
+    if not es_superadmin(ident):
+        carga_res = await db.execute(
+            text("SELECT id, docente_id FROM carga_lectiva WHERE unidad_didactica_id = :u AND periodo_id = :p"),
+            {"u": db_obj.unidad_didactica_id, "p": db_obj.periodo_id}
+        )
+        cargas = carga_res.fetchall()
+        if not cargas:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="La unidad no tiene docente asignado. Solicite la asignación de carga lectiva al coordinador."
+            )
+        if not any(c[1] == ident.user_id for c in cargas):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tiene permisos para esta operación"
+            )
+
     # 1. Validar que el periodo académico permita calificación (BUG-D05)
     per_res = await db.execute(
         text("SELECT codigo, estado FROM periodos_academicos WHERE id = :p_id"),
@@ -245,13 +379,13 @@ async def actualizar_notas(registro_id: int, data: RegistroEvaluacionUpdate, req
 
     # 1.c Validar reglas de cierre de acta y fecha límite en carga_lectiva (PASO 2)
     await _validar_cierre_y_fecha_limite(db, db_obj.unidad_didactica_id, db_obj.periodo_id, codigo_periodo)
-    
+
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_obj, key, value)
-        
+
     _aplicar_notas(db_obj, nota_final_solicitada=update_data.get("nota_final", db_obj.nota_final))
-    
+
     event = OutboxEvent(
         event_type="evaluacion.nota.actualizada",
         payload={
@@ -270,11 +404,12 @@ async def actualizar_notas(registro_id: int, data: RegistroEvaluacionUpdate, req
 
 @router.post("/registros/sync-matricula")
 async def sincronizar_matriculas(payload: dict, request: Request, db: AsyncSession = Depends(get_db)):
+    """Ruta del Grupo 2 (Sincronización inter-módulos). Conservada intacta para evitar regresiones."""
     matricula_id = payload.get("matricula_id")
     estudiante_id = payload.get("estudiante_id")
     detalles = payload.get("detalles", [])
     periodo_id = payload.get("periodo_id")
-    
+
     for det in detalles:
         result = await db.execute(select(RegistroEvaluacion).where(RegistroEvaluacion.matricula_detalle_id == det["id"]))
         if not result.scalar_one_or_none():
@@ -285,17 +420,20 @@ async def sincronizar_matriculas(payload: dict, request: Request, db: AsyncSessi
                 periodo_id=periodo_id
             )
             db.add(db_obj)
-            
+
     await db.commit()
     return {"message": "Sincronización completada"}
 
 # ==============================================================================
-# ENDPOINTS DE GESTIÓN Y CIERRE DE ACTAS DE EVALUACIÓN (PASO 3)
+# ENDPOINTS DE GESTIÓN Y CIERRE DE ACTAS DE EVALUACIÓN
 # ==============================================================================
 
 @router.get("/actas/unidad/{unidad_id}/periodo/{periodo_id}", response_model=EstadoActaUnidadResponse)
-async def consultar_estado_acta_unidad(unidad_id: int, periodo_id: int, db: AsyncSession = Depends(get_db)):
-    """Consulta el estado del acta y fecha límite de una unidad en un periodo (para el panel docente)."""
+async def consultar_estado_acta_unidad(unidad_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Consulta el estado del acta y fecha límite de una unidad en un periodo (para el panel docente y coordinación)."""
+    ident = await get_identity(request, db)
+    await _validar_acceso_unidad(ident, unidad_id, periodo_id, db)
+
     # 1. Obtener estado del periodo
     per_res = await db.execute(
         text("SELECT codigo, estado FROM periodos_academicos WHERE id = :p_id"),
@@ -315,7 +453,6 @@ async def consultar_estado_acta_unidad(unidad_id: int, periodo_id: int, db: Asyn
     cargas = cargas_res.fetchall()
 
     if not cargas:
-        # Sin fila en carga_lectiva: solo rige la regla del periodo
         if periodo_bloqueado:
             return EstadoActaUnidadResponse(
                 tiene_carga=False,
@@ -365,8 +502,15 @@ async def consultar_estado_acta_unidad(unidad_id: int, periodo_id: int, db: Asyn
     )
 
 @router.get("/actas/periodo/{periodo_id}/programa/{programa_id}", response_model=ResumenActasProgramaResponse)
-async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db: AsyncSession = Depends(get_db)):
-    """Resumen de actas para el coordinador: lista cargas lectivas, unidades sin carga del programa y unidades sin programa."""
+async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Resumen de actas para el coordinador: lista cargas lectivas, unidades sin carga y unidades solo pendientes."""
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or es_coordinador_de(ident, programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para esta operación"
+        )
+
     calificables_cond = _condicion_matricula_calificable_sql("m", "md")
 
     # 1. Cargas lectivas asignadas a este programa y periodo
@@ -378,7 +522,7 @@ async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db
             LEFT JOIN programa_unidades pu ON pu.id = cl.unidad_didactica_id
             LEFT JOIN unidades_plan up ON up.id = cl.unidad_didactica_id
             WHERE cl.periodo_id = :p_id AND cl.programa_id = :prog_id
-            ORDER BY cl.id;
+            ORDER BY cl.unidad_didactica_id;
         """),
         {"p_id": periodo_id, "prog_id": programa_id}
     )
@@ -388,11 +532,10 @@ async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db
     cargas_u_ids = set()
     total_gral_pendientes = 0
 
-    for row in cargas_rows:
-        carga_id, u_id, docente_id, f_limite, a_cerrada, u_nombre = row
-        cargas_u_ids.add(u_id)
+    for c in cargas_rows:
+        cid, uid, doc_id, f_lim, cerr, u_nom = c
+        cargas_u_ids.add(uid)
 
-        # Calcular estadísticas por (unidad, periodo) sin filtrar por el programa de la matrícula
         stats_res = await db.execute(
             text(f"""
                 SELECT 
@@ -405,7 +548,7 @@ async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db
                 WHERE md.unidad_didactica_id = :u_id 
                   AND m.periodo_id = :p_id;
             """),
-            {"u_id": u_id, "p_id": periodo_id}
+            {"u_id": uid, "p_id": periodo_id}
         )
         s_row = stats_res.fetchone()
         tot = s_row[0] if s_row else 0
@@ -414,20 +557,22 @@ async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db
         falt = max(0, tot - con_n)
         total_gral_pendientes += pend
 
-        cargas_items.append(CargaActaItem(
-            carga_id=carga_id,
-            unidad_didactica_id=u_id,
-            unidad=u_nombre,
-            docente_id=docente_id,
-            fecha_limite_notas=f_limite,
-            acta_cerrada=bool(a_cerrada),
-            total_matriculas=tot,
-            con_nota_final=con_n,
-            faltantes=falt,
-            matriculas_pendientes=pend
-        ))
+        cargas_items.append(
+            CargaActaItem(
+                carga_id=cid,
+                unidad_didactica_id=uid,
+                unidad=u_nom,
+                docente_id=doc_id,
+                fecha_limite_notas=f_lim,
+                acta_cerrada=bool(cerr),
+                total_matriculas=tot,
+                con_nota_final=con_n,
+                faltantes=falt,
+                matriculas_pendientes=pend
+            )
+        )
 
-    # 2. Identificar otras unidades con actividad académica en este periodo que no tienen carga en este programa
+    # 2. Unidades con actividad en el periodo pero sin carga lectiva asignada
     actividad_res = await db.execute(
         text("""
             SELECT DISTINCT unidad_id FROM (
@@ -449,9 +594,9 @@ async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db
 
     unidades_sin_carga = []
     unidades_sin_programa = []
+    unidades_solo_pendientes = []
 
     for u_id in otras_u_ids:
-        # Verificar si la unidad pertenece formalmente al programa solicitado
         pu_check = await db.execute(
             text("""
                 SELECT pu.nombre 
@@ -489,7 +634,6 @@ async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db
 
         nombre_unidad = pu_nombre or up_nombre or f"Unidad {u_id}"
 
-        # Estadísticas en este periodo
         stats_res = await db.execute(
             text(f"""
                 SELECT 
@@ -520,28 +664,30 @@ async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db
             matriculas_pendientes=pend
         )
 
-        if pu_row or up_row:
-            unidades_sin_carga.append(item)
-        else:
-            unidades_sin_programa.append(item)
+        pertenece_a_programa = bool(pu_row or up_row)
+        if tot > 0:
+            if pertenece_a_programa:
+                unidades_sin_carga.append(item)
+            else:
+                unidades_sin_programa.append(item)
+        elif pend > 0 and pertenece_a_programa:
+            unidades_solo_pendientes.append(
+                UnidadSoloPendientesItem(id=u_id, nombre=nombre_unidad, pendientes=pend)
+            )
 
     return ResumenActasProgramaResponse(
         cargas=cargas_items,
         unidades_sin_carga=unidades_sin_carga,
         unidades_sin_programa=unidades_sin_programa,
+        unidades_solo_pendientes=unidades_solo_pendientes,
         total_matriculas_pendientes=total_gral_pendientes
     )
 
 @router.put("/actas/carga/{carga_id}/fecha-limite")
 async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Fija la fecha límite de ingreso de notas para una carga lectiva."""
-    user_id = _exigir_user_id_numerico(request)
-    hoy = get_hoy_lima()
-    if data.fecha_limite_notas < hoy:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="La fecha límite debe ser igual o posterior a la fecha actual."
-        )
+    # 0. Verificación de Identidad y Autorización (403 antes que 409/422)
+    ident = await get_identity(request, db)
 
     carga_res = await db.execute(
         text("SELECT id, periodo_id, programa_id, unidad_didactica_id, acta_cerrada, fecha_limite_notas FROM carga_lectiva WHERE id = :id FOR UPDATE"),
@@ -550,6 +696,23 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
     carga = carga_res.fetchone()
     if not carga:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carga lectiva no encontrada.")
+
+    carga_prog_id = carga[2]
+    if carga_prog_id is None:
+        carga_prog_id = await _obtener_programa_unidad_catalogo(db, carga[3])
+
+    if not (es_superadmin(ident) or (carga_prog_id is not None and es_coordinador_de(ident, carga_prog_id))):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para esta operación"
+        )
+
+    hoy = get_hoy_lima()
+    if data.fecha_limite_notas < hoy:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="La fecha límite debe ser igual o posterior a la fecha actual."
+        )
 
     if carga[4]:  # acta_cerrada
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No se puede modificar la fecha límite de un acta cerrada.")
@@ -585,9 +748,9 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
             "valores_anteriores": {"fecha_limite_notas": str(valor_ant) if valor_ant else None},
             "valores_nuevos": {"fecha_limite_notas": str(data.fecha_limite_notas)},
             "motivo": "Actualización de fecha límite de acta",
-            "user_id": user_id,
+            "user_id": ident.user_id,
             "timestamp": now_utc.isoformat(),
-            "metadata": {"request_id": req_id, "user_id": user_id}
+            "metadata": {"request_id": req_id, "user_id": ident.user_id}
         }
     )
     db.add(event)
@@ -602,7 +765,14 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
 @router.post("/actas/programa/{programa_id}/periodo/{periodo_id}/fecha-limite")
 async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data: FechaLimiteRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Fija la misma fecha límite a todas las cargas lectivas abiertas de un programa y periodo."""
-    user_id = _exigir_user_id_numerico(request)
+    # 0. Verificación de Identidad y Autorización (403 antes que 409/422)
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or es_coordinador_de(ident, programa_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para esta operación"
+        )
+
     hoy = get_hoy_lima()
     if data.fecha_limite_notas < hoy:
         raise HTTPException(
@@ -620,7 +790,7 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
     if est_per == "cerrado":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"No se pueden modificar fechas límite porque el periodo académico {cod_per} está cerrado."
+            detail=f"No se puede modificar la fecha límite porque el periodo académico {cod_per} está cerrado."
         )
 
     cargas_res = await db.execute(
@@ -643,21 +813,18 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
         payload={
             "programa_id": programa_id,
             "periodo_id": periodo_id,
-            "total_actualizadas": len(cargas_ids),
-            "cargas_actualizadas": cargas_ids,
-            "valores_anteriores": {},
-            "valores_nuevos": {"fecha_limite_notas": str(data.fecha_limite_notas)},
-            "motivo": "Actualización masiva de fechas límite por coordinación",
-            "user_id": user_id,
+            "cargas_afectadas": cargas_ids,
+            "nueva_fecha_limite": str(data.fecha_limite_notas),
+            "user_id": ident.user_id,
             "timestamp": now_utc.isoformat(),
-            "metadata": {"request_id": req_id, "user_id": user_id}
+            "metadata": {"request_id": req_id, "user_id": ident.user_id}
         }
     )
     db.add(event)
     await db.commit()
 
     return {
-        "message": f"Se actualizaron {len(cargas_ids)} cargas lectivas.",
+        "message": f"Se actualizó la fecha límite para {len(cargas_ids)} carga(s) lectiva(s) abiertas.",
         "actualizadas": len(cargas_ids),
         "fecha_limite_notas": data.fecha_limite_notas
     }
@@ -665,7 +832,8 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
 @router.post("/actas/carga/{carga_id}/cerrar", response_model=CerrarActaResponse)
 async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     """Cierra el acta de una carga lectiva verificando que todas las matrículas calificables tengan calificación final."""
-    user_id = _exigir_user_id_numerico(request)
+    # 0. Verificación de Identidad y Autorización (403 antes que 409)
+    ident = await get_identity(request, db)
 
     carga_res = await db.execute(
         text("SELECT id, periodo_id, programa_id, unidad_didactica_id, acta_cerrada FROM carga_lectiva WHERE id = :id FOR UPDATE"),
@@ -674,6 +842,16 @@ async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = 
     carga = carga_res.fetchone()
     if not carga:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carga lectiva no encontrada.")
+
+    carga_prog_id = carga[2]
+    if carga_prog_id is None:
+        carga_prog_id = await _obtener_programa_unidad_catalogo(db, carga[3])
+
+    if not (es_superadmin(ident) or (carga_prog_id is not None and es_coordinador_de(ident, carga_prog_id))):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para esta operación"
+        )
 
     if carga[4]:  # acta_cerrada
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="El acta ya se encuentra cerrada.")
@@ -757,7 +935,7 @@ async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = 
     now_ts = get_now_utc()
     now_db = now_ts.replace(tzinfo=None) if getattr(now_ts, "tzinfo", None) else now_ts
 
-    # 4. Guardar acta cerrada en carga_lectiva
+    # 4. Guardar acta cerrada en carga_lectiva con ident.user_id
     await db.execute(
         text("""
             UPDATE carga_lectiva 
@@ -767,10 +945,8 @@ async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = 
                 updated_at = NOW() 
             WHERE id = :id
         """),
-        {"now": now_db, "u_id": user_id, "id": carga_id}
+        {"now": now_db, "u_id": ident.user_id, "id": carga_id}
     )
-
-    # PASO 3: evaluacion_registros.estado NO se sobreescribe a 'cerrado' para preservar la condición académica ('aprobado'/'desaprobado')
 
     req_id = request.headers.get("X-Request-ID", "unknown")
     event = OutboxEvent(
@@ -783,12 +959,12 @@ async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = 
             "valores_nuevos": {
                 "acta_cerrada": True,
                 "acta_cerrada_at": now_ts.isoformat(),
-                "acta_cerrada_por": user_id
+                "acta_cerrada_por": ident.user_id
             },
             "motivo": "Cierre regular de acta de evaluación",
-            "user_id": user_id,
+            "user_id": ident.user_id,
             "timestamp": now_ts.isoformat(),
-            "metadata": {"request_id": req_id, "user_id": user_id}
+            "metadata": {"request_id": req_id, "user_id": ident.user_id}
         }
     )
     db.add(event)
@@ -799,7 +975,7 @@ async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = 
         carga_id=carga_id,
         acta_cerrada=True,
         acta_cerrada_at=now_ts,
-        acta_cerrada_por=user_id,
+        acta_cerrada_por=ident.user_id,
         total_calificados=total_calificables,
         advertencia=advertencia
     )
@@ -807,7 +983,29 @@ async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = 
 @router.post("/actas/carga/{carga_id}/reabrir")
 async def reabrir_acta_carga(carga_id: int, data: ReabrirActaRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Reabre un acta cerrada exigiendo motivo justificatorio y nueva fecha límite."""
-    user_id = _exigir_user_id_numerico(request)
+    # 0. Verificación de Identidad y Autorización (403 antes que 409/422)
+    ident = await get_identity(request, db)
+
+    carga_res = await db.execute(
+        text("SELECT id, periodo_id, programa_id, unidad_didactica_id, acta_cerrada, fecha_limite_notas, acta_cerrada_por FROM carga_lectiva WHERE id = :id FOR UPDATE"),
+        {"id": carga_id}
+    )
+    carga = carga_res.fetchone()
+    if not carga:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carga lectiva no encontrada.")
+
+    carga_prog_id = carga[2]
+    if carga_prog_id is None:
+        carga_prog_id = await _obtener_programa_unidad_catalogo(db, carga[3])
+
+    if not (es_superadmin(ident) or (carga_prog_id is not None and es_coordinador_de(ident, carga_prog_id))):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para esta operación"
+        )
+
+    if not carga[4]:  # no estaba cerrada
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="El acta no se encuentra cerrada.")
 
     if not data.motivo or len(data.motivo.strip()) < 10:
         raise HTTPException(
@@ -821,17 +1019,6 @@ async def reabrir_acta_carga(carga_id: int, data: ReabrirActaRequest, request: R
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="La nueva fecha límite debe ser igual o posterior a la fecha actual."
         )
-
-    carga_res = await db.execute(
-        text("SELECT id, periodo_id, programa_id, unidad_didactica_id, acta_cerrada, fecha_limite_notas, acta_cerrada_por FROM carga_lectiva WHERE id = :id FOR UPDATE"),
-        {"id": carga_id}
-    )
-    carga = carga_res.fetchone()
-    if not carga:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carga lectiva no encontrada.")
-
-    if not carga[4]:  # no estaba cerrada
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="El acta no se encuentra cerrada.")
 
     per_res = await db.execute(
         text("SELECT codigo, estado FROM periodos_academicos WHERE id = :p_id"),
@@ -860,8 +1047,6 @@ async def reabrir_acta_carga(carga_id: int, data: ReabrirActaRequest, request: R
         {"f": data.nueva_fecha_limite, "id": carga_id}
     )
 
-    # PASO 3: evaluacion_registros.estado NO se altera al reabrir, se mantiene intacta la calificación
-
     req_id = request.headers.get("X-Request-ID", "unknown")
     now_ts = get_now_utc()
 
@@ -882,9 +1067,9 @@ async def reabrir_acta_carga(carga_id: int, data: ReabrirActaRequest, request: R
                 "acta_cerrada_por": None
             },
             "motivo": data.motivo.strip(),
-            "user_id": user_id,
+            "user_id": ident.user_id,
             "timestamp": now_ts.isoformat(),
-            "metadata": {"request_id": req_id, "user_id": user_id}
+            "metadata": {"request_id": req_id, "user_id": ident.user_id}
         }
     )
     db.add(event)

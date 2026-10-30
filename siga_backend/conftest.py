@@ -209,6 +209,81 @@ async def fixture_programa_y_unidad(db_session: AsyncSession):
     return {"programa_id": 1, "plan_id": 1, "modulo_id": 1, "unidad_id": 101}
 
 
+@pytest.fixture(autouse=True)
+async def fixture_catalogo_identidades(db_session: AsyncSession):
+    """
+    Inicializa el catálogo de roles, usuarios base y perfiles para verificación
+    de identidad y autorización en siga_test (esquema aislado).
+    """
+    # 1. Catálogo base de roles en core_roles
+    await db_session.execute(text("""
+        INSERT INTO core_roles (id, name, description, created_at) VALUES
+            (1, 'superadmin', 'Super Administrador del Sistema', NOW()),
+            (2, 'coordinador_programa', 'Coordinador de Programa de Estudios', NOW()),
+            (3, 'docente', 'Docente de Unidades Didácticas', NOW()),
+            (4, 'estudiante', 'Estudiante de la Institución', NOW()),
+            (5, 'secretaria_academica', 'Secretaría Académica', NOW())
+        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+    """))
+
+    # 2. Personas canónicas en core_users
+    await db_session.execute(text("""
+        INSERT INTO core_users (id, email, full_name, hashed_password, is_active, is_superuser, created_at) VALUES
+            (1, 'superadmin.test@siga.edu', 'Super Admin Test', 'hash_test_123', true, true, NOW()),
+            (2, 'coordinador.a@siga.edu', 'Coord Programa A', 'hash_test_123', true, false, NOW()),
+            (3, 'coordinador.b@siga.edu', 'Coord Programa B', 'hash_test_123', true, false, NOW()),
+            (4, 'coordinador.sin.prog@siga.edu', 'Coord Sin Prog', 'hash_test_123', true, false, NOW()),
+            (10, 'docente.test@siga.edu', 'Prof. Docente Asignado', 'hash_test_123', true, false, NOW()),
+            (11, 'docente.noasig@siga.edu', 'Prof. Docente No Asignado', 'hash_test_123', true, false, NOW()),
+            (12, 'coord.docente@siga.edu', 'Prof. Coord y Docente', 'hash_test_123', true, false, NOW()),
+            (20, 'estudiante.test@siga.edu', 'Estudiante Test', 'hash_test_123', true, false, NOW()),
+            (30, 'usuario.inactivo@siga.edu', 'Usuario Inactivo', 'hash_test_123', false, false, NOW()),
+            (55, 'coord.compat55@siga.edu', 'Coord Compat 55', 'hash_test_123', true, false, NOW()),
+            (99, 'superadmin.99@siga.edu', 'Super Admin 99', 'hash_test_123', true, true, NOW()),
+            (100, 'superadmin.100@siga.edu', 'Super Admin 100', 'hash_test_123', true, true, NOW())
+        ON CONFLICT (id) DO UPDATE SET 
+            is_active = EXCLUDED.is_active, 
+            is_superuser = EXCLUDED.is_superuser,
+            email = EXCLUDED.email;
+    """))
+
+    # 3. Asignaciones de roles
+    await db_session.execute(text("""
+        INSERT INTO core_user_roles (user_id, role_id) VALUES
+            (1, 1),
+            (2, 2),
+            (3, 2),
+            (4, 2),
+            (10, 3),
+            (11, 3),
+            (12, 2),
+            (12, 3),
+            (20, 4),
+            (30, 3),
+            (55, 2),
+            (99, 1),
+            (100, 1)
+        ON CONFLICT DO NOTHING;
+    """))
+
+    # 4. Perfiles de personal
+    await db_session.execute(text("""
+        INSERT INTO perfiles_personal (id, user_id, condicion_laboral, cargo_funcional, programa_estudio_id) VALUES
+            (2, 2, 'NOMBRADO', 'Coordinador Programa 1', 1),
+            (3, 3, 'NOMBRADO', 'Coordinador Programa 2', 2),
+            (4, 4, 'NOMBRADO', 'Coordinador Sin Programa', NULL),
+            (10, 10, 'CONTRATADO', 'Docente Asignado', 1),
+            (11, 11, 'CONTRATADO', 'Docente No Asignado', 1),
+            (12, 12, 'NOMBRADO', 'Coordinador y Docente', 1),
+            (55, 55, 'NOMBRADO', 'Coordinador Compat', 1),
+            (100, 100, 'NOMBRADO', 'Superadmin Compat', 1)
+        ON CONFLICT (id) DO UPDATE SET 
+            programa_estudio_id = EXCLUDED.programa_estudio_id,
+            user_id = EXCLUDED.user_id;
+    """))
+    await db_session.commit()
+
+
 @pytest.fixture
 async def fixture_periodo(db_session: AsyncSession):
     """Crea un periodo académico activo (en_curso)."""
@@ -288,6 +363,11 @@ async def fixture_matricula(db_session: AsyncSession, fixture_estudiante, fixtur
 @pytest.fixture
 async def fixture_evaluacion(db_session: AsyncSession, fixture_matricula):
     """Crea un registro de evaluación para el estudiante matriculado."""
+    await db_session.execute(text("""
+        INSERT INTO carga_lectiva (id, periodo_id, programa_id, docente_id, unidad_didactica_id, turno, seccion, estado, created_at, updated_at)
+        VALUES (1, 1, 1, 10, 101, 'MAÑANA', 'A', 'activo', NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET docente_id = 10, unidad_didactica_id = 101, periodo_id = 1;
+    """))
     await db_session.execute(text("""
         INSERT INTO evaluacion_registros (id, matricula_detalle_id, estudiante_id, unidad_didactica_id, periodo_id, nota_final, estado, created_at, updated_at)
         VALUES (200, 80, 100, 101, 1, 16, 'aprobado', NOW(), NOW())

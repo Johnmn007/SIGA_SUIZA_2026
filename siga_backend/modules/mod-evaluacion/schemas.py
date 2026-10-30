@@ -56,10 +56,16 @@ class UnidadSinCargaItem(BaseModel):
     faltantes: int
     matriculas_pendientes: int = 0
 
+class UnidadSoloPendientesItem(BaseModel):
+    id: int
+    nombre: Optional[str] = None
+    pendientes: int = 0
+
 class ResumenActasProgramaResponse(BaseModel):
     cargas: List[CargaActaItem]
     unidades_sin_carga: List[UnidadSinCargaItem]
     unidades_sin_programa: List[UnidadSinCargaItem] = []
+    unidades_solo_pendientes: List[UnidadSoloPendientesItem] = []
     total_matriculas_pendientes: int = 0
 
 class CerrarActaResponse(BaseModel):

@@ -35,8 +35,8 @@ Al cargar dinámicamente cada microservicio con el cargador de módulos aislado 
 | ID | Severidad | Estado | Componente / Archivo y Línea | Causa Raíz | Prueba Demostrativa | Corrección Aplicada / Detalle |
 |---|---|---|---|---|---|---|
 | **BUG-D01** | **Alta** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py`<br>`siga_backend/modules/mod-programas-estudio/models.py` | Carga lectiva no soportaba cierre formal ni fechas límite de ingreso de notas. | `test_cierre_actas.py` (17 pruebas PASSED) | Se migró el esquema agregando 4 columnas a `carga_lectiva`: `fecha_limite_notas`, `acta_cerrada`, `acta_cerrada_at`, `acta_cerrada_por`. Se implementó el control de actas y endpoints en `mod-evaluacion`. |
-| **BUG-D02** | **Alta** | **Pendiente**<br>*(Diferido a tarea RBAC)* | `siga_backend/modules/mod-evaluacion/routes.py` | No valida si el docente autenticado tiene asignada la carga lectiva (BOLA). | `test_docente_no_puede_calificar_unidad_no_asignada` (xfail) | Requiere asociar `docente_id` de `carga_lectiva` con `X-User-ID`. |
-| **BUG-D03** | **Alta** | **Pendiente**<br>*(Diferido a tarea RBAC)* | `siga_backend/modules/mod-programas-estudio/routes.py` | Rutas `/docente/{docente_id}/*` confían ciegamente en el ID de la URL (IDOR). | `test_docente_no_puede_ver_datos_de_otro_docente_idor` (xfail) | Comparar `docente_id` con `X-User-ID`. |
+| **BUG-D02** | **Alta** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py`<br>`siga_backend/shared/identity.py` | No validaba si el docente autenticado tiene asignada la carga lectiva (BOLA/Broken Object Level Authorization). | `test_docente_no_puede_calificar_unidad_no_asignada`<br>`test_identidad_roles.py` (11 pruebas PASSED) | Se implementó el helper compartido `shared.identity.get_identity()` que valida `X-Internal-Token` y resuelve usuario, roles y programa en DB. En endpoints docentes y de coordinación, se valida pertenencia estricta antes de reglas de negocio (403 antes de 409). |
+| **BUG-D03** | **Alta** | **Pendiente**<br>*(Diferido a tarea RBAC en mod-programas-estudio)* | `siga_backend/modules/mod-programas-estudio/routes.py` | Rutas `/docente/{docente_id}/*` confían ciegamente en el ID de la URL (IDOR). | `test_docente_no_puede_ver_datos_de_otro_docente_idor` (xfail) | Comparar `docente_id` con `X-User-ID`. |
 | **BUG-D04** | **Alta** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py` | Permitía registrar notas a estudiantes con matrícula pendiente o no inscritos. | `test_matricula_pendiente_rechazada_en_post_registros` (PASSED) | En `POST /registros`, se valida estado de matrícula: solo se permite `confirmada` y curso no `retirado`. Matrículas pendientes se rechazan con **409 Conflict**. |
 | **BUG-D05** | **Media** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py` | Exigía estrictamente estado `en_curso`, bloqueando periodos vigentes en `matricula_abierta` como 2026-II. | `test_periodos_calificables_...` (PASSED) | Se amplió a `ESTADOS_PERIODO_CALIFICABLES = {"en_curso", "matricula_abierta"}`. Periodos cerrados o desconocidos devuelven **409 Conflict**. |
 | **BUG-D06** | **Baja** | **Corregido** | `siga_backend/modules/mod-evaluacion/schemas.py` | Respuestas crasheaban con 500 ante notas o estados nulos de la BD real. | `test_listado_evaluacion_con_notas_null...` (PASSED) | Tipado `Optional[float] = None` y `estado: Optional[str] = "cursando"`. |
@@ -105,6 +105,57 @@ Al cargar dinámicamente cada microservicio con el cargador de módulos aislado 
    - Rechaza con 409 si la unidad tiene 0 matrículas calificables.
    - Rechaza con 409 si faltan notas en matrículas calificables (detalla total de faltantes e IDs de matrícula).
    - Emite advertencia si hay matrículas pendientes. Guarda `acta_cerrada = true`, fecha UTC y usuario.
-6. **`POST /actas/carga/{carga_id}/reabrir`:**
-   - Exige `X-User-ID` numérica, motivo de al menos 10 caracteres (422) y nueva fecha válida (422).
-   - Bloquea con `FOR UPDATE`. Restablece el acta a abierta y devuelve la edición al docente.
+## 5. Verificación de Identidad y Roles (BUG-D02)
+
+### a) Arquitectura de Seguridad Intermódulo (`shared/identity.py`)
+Para evitar falsificación de cabeceras (`header spoofing`) si un cliente malicioso enviara directamente cabeceras `X-User-ID`, la autenticación en `mod-evaluacion` opera bajo un esquema de defensa en profundidad de dos capas:
+1. **Validación Criptográfica de Cabeceras (`X-Internal-Token`):**
+   - El Core Gateway firma un JWT interno de tipo `module_access` (`sub: "module::core-gateway"`) mediante HMAC-SHA256 utilizando `SECRET_KEY`.
+   - `shared.identity.get_identity(request, db)` exige dicho token; si falta o es inválido/expirado, rechaza inmediatamente con **401 Unauthorized**.
+   - Se valida además que la cabecera `X-User-ID` esté presente y sea un entero válido mayor a cero.
+2. **Resolución Auténtica contra Base de Datos (`core_users`, `core_roles`, `perfiles_personal`):**
+   - El sistema no confía en roles enviados por el cliente o cabeceras externas. Con el `user_id` verificado, se consulta en la base de datos:
+     - Estado de usuario: `is_active` (si es inactivo, se rechaza con **401**).
+     - Privilegio de superusuario: `is_superuser`.
+     - Roles del usuario: consulta `core_user_roles` con `core_roles`.
+     - Perfil institucional: consulta `perfiles_personal` para obtener el `programa_estudio_id` asignado al usuario.
+   - Si el usuario no existe en `core_users`, se rechaza con **401 Unauthorized**.
+
+### b) Matriz de Autorización en Endpoints de Evaluación (Grupo 1)
+| Endpoint | Roles Permitidos | Criterio de Pertenencia Estricta |
+|---|---|---|
+| `POST /registros`, `PUT /registros/{id}` | Docente asignado, Superadmin | Docente autenticado debe ser el titular de la `carga_lectiva` asignada a la unidad y periodo. Si no hay carga lectiva, 403 con mensaje de coordinación. |
+| `GET /registros/unidad/{u}/periodo/{p}` | Docente asignado, Coordinador del programa, Superadmin | Permitido al docente asignado en `carga_lectiva`, o al coordinador cuyo `programa_estudio_id` coincide con el de la carga o del catálogo institucional de unidades. |
+| `GET /actas/unidad/{u}/periodo/{p}` | Docente asignado, Coordinador del programa, Superadmin | Idem a la consulta de registros. |
+| `GET /actas/periodo/{p}/programa/{prog}` | Coordinador del programa, Superadmin | El coordinador debe pertenecer exactamente al `programa_id` solicitado. Coordinadores sin programa asignado (`None`) reciben **403 Forbidden**. |
+| `PUT /actas/carga/{id}/fecha-limite`<br>`POST /actas/carga/{id}/cerrar`<br>`POST /actas/carga/{id}/reabrir` | Coordinador del programa, Superadmin | El coordinador debe estar asignado al programa de la `carga_lectiva`. |
+| `POST /actas/programa/{prog}/periodo/{p}/fecha-limite` | Coordinador del programa, Superadmin | El coordinador debe pertenecer al programa indicado en la ruta. |
+| `GET /resumen/periodo/{p}` | Coordinador de programa, Superadmin | Requiere rol institucional de coordinación o superadministrador. |
+
+> [!NOTE]
+> **Rutas de Integración Intermódulo (Grupo 2):**
+> La ruta `POST /registros/sync-matricula` está reservada para sincronización intermódulos desde `mod-gestion-academica`. Al no contar aún con emisión de `X-Internal-Token` desde dicho módulo externo, permanece en Grupo 2 con su autenticación original para no romper el flujo existente entre contenedores.
+
+---
+
+## 6. Reporte de Riesgos Técnicos y Arquitectónicos para el Líder de Proyecto
+
+1. **Exposición de Puertos de Microservicios en `docker-compose.yml` (Puertos 8001 a 8009):**
+   - *Hallazgo:* Los microservicios (`mod-usuarios`:8001, `mod-gestion-academica`:8002, ..., `mod-evaluacion`:8008) tienen mapeados sus puertos directamente al host `0.0.0.0`.
+   - *Riesgo:* Cualquier atacante en la red local puede omitir el API Gateway (`:8000`) y llamar directamente a los microservicios. Gracias a `shared.identity`, `mod-evaluacion` rechaza con 401 si no lleva el token interno; sin embargo, los módulos sin verificación de token interno quedan expuestos a suplantación de cabeceras `X-User-ID`.
+   - *Recomendación:* En producción, eliminar los mapeos `ports:` de los microservicios individuales en `docker-compose.yml` y dejar únicamente expuesto el puerto `8000` (`siga-core` / API Gateway), manteniendo los microservicios dentro de la red interna de Docker (`siga-network`).
+
+2. **Clave Criptográfica por Defecto (`SECRET_KEY`) en Código:**
+   - *Hallazgo:* En `siga_backend/app/core/config.py`, existe una clave por defecto codificada en duro (`SECRET_KEY = "..."`) cuando la variable de entorno no está definida.
+   - *Riesgo:* Si un contenedor arranca sin `.env` o sin la variable inyectada, el sistema queda firmado con una clave conocida públicamente en el repositorio.
+   - *Recomendación:* Forzar que en entornos productivos la aplicación no arranque si `SECRET_KEY` no está provista vía variable de entorno con suficiente entropía.
+
+3. **Validez Prolongada y Falta de Vinculación en `X-Internal-Token`:**
+   - *Hallazgo:* Los tokens internos de módulo tienen una vigencia de 24 horas (`module_token_expire_hours = 24`) y no están atados criptográficamente al `X-User-ID` ni a la URL de destino (`audience`).
+   - *Riesgo:* Un token interno interceptado podría reutilizarse durante 24 horas para autenticar peticiones con cualquier `X-User-ID` falsificado.
+   - *Recomendación:* Reducir la expiración del token interno a 1-5 minutos, incluir en el payload el `user_id` original del cliente y definir un claim `aud` específico para el microservicio de destino.
+
+4. **Ausencia de Restricción Única contra Matrículas Duplicadas en Base de Datos:**
+   - *Hallazgo:* Ni `matriculas` ni `matricula_detalles` cuentan con restricción de unicidad (`UNIQUE`) a nivel de base de datos para `(estudiante_id, periodo_id)` o `(matricula_id, unidad_didactica_id)`.
+   - *Riesgo:* Si fallara la validación lógica en la capa de aplicación o existiera concurrencia rápida, un estudiante podría quedar matriculado dos veces en la misma unidad o periodo, generando registros duplicados en evaluaciones y distorsionando actas.
+   - *Recomendación:* Añadir una restricción `UNIQUE` o índice único condicional en `matricula_detalles` para `(matricula_id, unidad_didactica_id)` con estado no anulado.

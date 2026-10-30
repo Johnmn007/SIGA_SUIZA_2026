@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.helpers.module_loader import load_module_component
+from tests.helpers.jwt_helper import auth_headers
 
 
 @pytest_asyncio.fixture
@@ -13,7 +14,11 @@ async def client_evaluacion():
     routes_mod = load_module_component("mod-evaluacion", "routes")
     app = FastAPI()
     app.include_router(routes_mod.router)
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test-eval") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test-eval",
+        headers=auth_headers(user_id=10)
+    ) as client:
         yield client
 
 
@@ -125,10 +130,9 @@ async def test_editar_notas_unidad_acta_cerrada_se_rechaza(client_evaluacion, db
 
 
 # ==============================================================================
-# CASO 4: UN DOCENTE NO PUEDE CALIFICAR UNA UNIDAD NO ASIGNADA
+# CASO 4: UN DOCENTE NO PUEDE CALIFICAR UNA UNIDAD NO ASIGNADA (BUG-D02 RESUELTO)
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="BUG-D02: mod-evaluacion no valida asignacion de carga lectiva al calificar (BOLA/IDOR)")
 async def test_docente_no_puede_calificar_unidad_no_asignada(client_evaluacion, fixture_evaluacion):
     """
     Regla: El endpoint PUT /registros/{id} debe validar que el docente que invoca la petición
@@ -136,10 +140,15 @@ async def test_docente_no_puede_calificar_unidad_no_asignada(client_evaluacion, 
     """
     registro_id = fixture_evaluacion["evaluacion_id"]
 
-    # Enviamos cabecera simulando a un docente no asignado (Docente ID: 999)
-    headers = {"X-User-ID": "999", "X-User-Role": "Docente"}
+    # Enviamos cabecera simulando a un docente no asignado (Docente ID: 11)
+    headers = auth_headers(user_id=11)
     resp = await client_evaluacion.put(f"/registros/{registro_id}", json={"nota_final": 15}, headers=headers)
-    assert resp.status_code in [400, 403], f"Un docente no asignado pudo calificar la unidad! Código: {resp.status_code}"
+    assert resp.status_code == 403, f"Un docente no asignado pudo calificar la unidad! Código: {resp.status_code}"
+
+    # Docente asignado (Docente ID: 10) sí puede calificar
+    headers_ok = auth_headers(user_id=10)
+    resp_ok = await client_evaluacion.put(f"/registros/{registro_id}", json={"nota_final": 15}, headers=headers_ok)
+    assert resp_ok.status_code == 200, f"Docente asignado no pudo calificar: {resp_ok.status_code}"
 
 
 # ==============================================================================
@@ -172,7 +181,7 @@ async def test_docente_no_puede_ver_datos_de_otro_docente_idor(client_programas,
 # CASO 6: NO SE PUEDE CALIFICAR A UN ESTUDIANTE NO MATRICULADO (BUG-D04 CORREGIDO)
 # ==============================================================================
 @pytest.mark.asyncio
-async def test_no_se_puede_calificar_estudiante_no_matriculado(client_evaluacion, fixture_periodo, fixture_programa_y_unidad):
+async def test_no_se_puede_calificar_estudiante_no_matriculado(client_evaluacion, fixture_periodo, fixture_programa_y_unidad, fixture_carga_lectiva_y_plan):
     """
     Regla: POST /registros no debe permitir crear registros de evaluación para
     matrículas inexistentes o donde el estudiante no esté matriculado en la unidad.

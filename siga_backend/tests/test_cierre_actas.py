@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date, datetime, timezone, timedelta
 
 from tests.helpers.module_loader import load_module_component
+from tests.helpers.jwt_helper import auth_headers, create_internal_token
 
 @pytest_asyncio.fixture
 async def app_evaluacion():
@@ -18,7 +19,11 @@ async def app_evaluacion():
 @pytest_asyncio.fixture
 async def client_evaluacion(app_evaluacion):
     app, _ = app_evaluacion
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test-eval") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test-eval",
+        headers=auth_headers(user_id=1)
+    ) as client:
         yield client
 
 @pytest_asyncio.fixture
@@ -486,7 +491,8 @@ async def test_unidad_cero_matriculas_calificables_rechaza_con_409(client_evalua
 # 14. CABECERA X-User-ID FALTANTE O NO NUMÉRICA DEVUELVE 401 EN LAS 4 RUTAS
 # ==============================================================================
 @pytest.mark.asyncio
-async def test_cabecera_x_user_id_requerida_en_cuatro_rutas(client_evaluacion, fix_carga_acta):
+async def test_cabecera_x_user_id_requerida_en_cuatro_rutas(app_evaluacion, fix_carga_acta):
+    app, _ = app_evaluacion
     carga_id = fix_carga_acta["carga_id"]
     p_id = fix_carga_acta["periodo_id"]
     prog_id = fix_carga_acta["programa_id"]
@@ -498,22 +504,25 @@ async def test_cabecera_x_user_id_requerida_en_cuatro_rutas(client_evaluacion, f
         ("POST", f"/actas/carga/{carga_id}/reabrir", {"motivo": "Reapertura de auditoría por reclamo", "nueva_fecha_limite": "2026-11-20"}),
     ]
 
-    for metodo, url, payload in rutas:
-        # A) Sin cabecera
-        if metodo == "PUT":
-            r_sin = await client_evaluacion.put(url, json=payload)
-        else:
-            r_sin = await client_evaluacion.post(url, json=payload) if payload else await client_evaluacion.post(url)
-        assert r_sin.status_code == 401, f"Fallo sin cabecera en {metodo} {url}"
-        assert "x-user-id" in r_sin.json()["detail"].lower()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test-eval") as clean_client:
+        internal_tok = create_internal_token()
+        for metodo, url, payload in rutas:
+            # A) Sin cabecera alguna -> 401
+            if metodo == "PUT":
+                r_sin = await clean_client.put(url, json=payload)
+            else:
+                r_sin = await clean_client.post(url, json=payload) if payload else await clean_client.post(url)
+            assert r_sin.status_code == 401, f"Fallo sin cabecera en {metodo} {url}"
+            assert r_sin.json()["detail"] == "No autenticado"
 
-        # B) Con cabecera no numérica
-        hdr_invalid = {"X-User-ID": "usuario_invalido"}
-        if metodo == "PUT":
-            r_inv = await client_evaluacion.put(url, json=payload, headers=hdr_invalid)
-        else:
-            r_inv = await client_evaluacion.post(url, json=payload, headers=hdr_invalid) if payload else await client_evaluacion.post(url, headers=hdr_invalid)
-        assert r_inv.status_code == 401, f"Fallo con cabecera no numérica en {metodo} {url}"
+            # B) Con cabecera X-User-ID no numérica -> 401
+            hdr_invalid = {"X-Internal-Token": internal_tok, "X-User-ID": "usuario_invalido"}
+            if metodo == "PUT":
+                r_inv = await clean_client.put(url, json=payload, headers=hdr_invalid)
+            else:
+                r_inv = await clean_client.post(url, json=payload, headers=hdr_invalid) if payload else await clean_client.post(url, headers=hdr_invalid)
+            assert r_inv.status_code == 401, f"Fallo con cabecera no numérica en {metodo} {url}"
+            assert r_inv.json()["detail"] == "No autenticado"
 
 # ==============================================================================
 # 15. evaluacion_registros.estado NO CAMBIA A 'cerrado' TRAS /cerrar

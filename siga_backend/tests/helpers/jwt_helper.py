@@ -24,7 +24,7 @@ def create_test_token(
 ) -> str:
     """
     Genera un token JWT de prueba firmado con el algoritmo HS256.
-    Replica exactamente el esquema de payload de Core Gateway.
+    Replica exactamente el esquema de payload de Core Gateway para usuarios.
     """
     secret_key = get_jwt_secret()
     payload = {
@@ -36,3 +36,38 @@ def create_test_token(
         "exp": datetime.utcnow() + timedelta(hours=2)
     }
     return jwt.encode(payload, secret_key, algorithm="HS256")
+
+
+def create_internal_token(
+    module_name: str = "core-gateway",
+    scopes: Optional[List[str]] = None,
+    expires_delta: Optional[timedelta] = None,
+    token_type: str = "module_access",
+    secret_key: Optional[str] = None
+) -> str:
+    """
+    Genera un token JWT interno (X-Internal-Token) emitido por el Gateway
+    para comunicación segura entre servicios internos.
+    """
+    key = secret_key or get_jwt_secret()
+    exp_time = datetime.utcnow() + (expires_delta if expires_delta is not None else timedelta(hours=24))
+    payload = {
+        "sub": f"module::{module_name}",
+        "scopes": scopes or ["gateway:forward"],
+        "type": token_type,
+        "exp": exp_time
+    }
+    return jwt.encode(payload, key, algorithm="HS256")
+
+
+def auth_headers(user_id: int | str, token: Optional[str] = None) -> dict:
+    """
+    Construye las cabeceras canónicas de autenticación interna hacia los microservicios:
+    - X-Internal-Token: token de servicio firmado por el gateway.
+    - X-User-ID: identificador numérico del usuario autenticado.
+    """
+    t = token if token is not None else create_internal_token()
+    return {
+        "X-Internal-Token": t,
+        "X-User-ID": str(user_id)
+    }

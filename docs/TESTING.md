@@ -96,8 +96,20 @@ from tests.helpers.module_loader import import_siga_module
 mod_eval = import_siga_module("mod-evaluacion", "routes")
 ```
 
-### Helper JWT Seguro
-El helper `siga_backend/tests/helpers/jwt_helper.py` no almacena contraseñas por defecto. Si `$env:SECRET_KEY` no está presente, las pruebas dependientes de tokens saltan automáticamente (`pytest.skip`) de manera limpia.
+### Helper JWT Seguro y Variable $env:SECRET_KEY Obligatoria
+A partir de la implementación de verificación de identidad y roles (BUG-D02), el helper `siga_backend/tests/helpers/jwt_helper.py` genera tokens de usuario (`user_access`) y tokens internos de módulo (`module_access`) firmados con HMAC-SHA256.
+
+> [!IMPORTANT]
+> **Variable de entorno `$env:SECRET_KEY` obligatoria:**
+> Para garantizar la reproducibilidad y seguridad estricta, los ejecutores de pruebas (`scripts/run_tests.ps1` o ejecuciones manuales de `pytest`) **exigen obligatoriamente** la presencia de la variable de entorno `$env:SECRET_KEY`.
+> Si dicha variable no está definida, `run_tests.ps1` aborta de inmediato sin ejecutar pruebas y sin usar valores de contingencia ("fallbacks").
+>
+> Ejemplo de ejecución manual:
+> ```powershell
+> $env:PGPASSWORD = "tu_password_local"
+> $env:SECRET_KEY = "clave_de_prueba_temporal_en_memoria"
+> .\scripts\run_tests.ps1
+> ```
 
 ---
 
