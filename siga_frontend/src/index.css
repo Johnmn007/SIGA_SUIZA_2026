@@ -1,8 +1,34 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0044B2;
+  --color-primary-dark: #003388;
+  --color-primary-light: #A0C1F7;
+  --color-primary-soft: #E5EEFE;
+  --color-secondary: #002D7A;
+  --color-secondary-dark: #001F58;
+  --color-background: #F3F4F6;
+  --color-surface: #FFFFFF;
+  --color-slate-text: #1E293B;
+  --color-slate-light: #F8FAFC;
+  --color-navy: #3A4B74;
+  --color-darkaccent: #0F172A;
+
+  --font-sans: 'Outfit', system-ui, -apple-system, sans-serif;
+
+  --shadow-glass: 0 8px 32px rgba(75, 122, 244, 0.08);
+  --shadow-glass-lg: 0 12px 36px rgba(0, 45, 122, 0.12);
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-card-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-focus-ring: 0 0 0 4px rgba(0, 68, 178, 0.15);
+
+  --blur-glass: 16px;
+
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+}
 
 @layer base {
   body {

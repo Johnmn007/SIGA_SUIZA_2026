@@ -5,11 +5,13 @@ from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from passlib.context import CryptContext
+import bcrypt
 from database import get_db, OutboxEvent
 from models import Usuario, Rol, Permiso, PerfilPersonal
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 router = APIRouter()
 
@@ -133,7 +135,7 @@ async def crear_usuario(usuario: UsuarioCreate, request: Request, db: AsyncSessi
         raise HTTPException(status_code=400, detail="El email ya está registrado")
 
     user_data = usuario.model_dump(exclude={"password", "role_ids"})
-    hashed_password = pwd_context.hash(usuario.password)
+    hashed_password = _hash_password(usuario.password)
     
     db_user = Usuario(**user_data, hashed_password=hashed_password)
     
@@ -246,7 +248,7 @@ async def registrar_personal(personal: PersonalCreate, request: Request, db: Asy
         raise HTTPException(status_code=400, detail="El email ya está registrado")
 
     # 1. Crear Usuario
-    hashed_password = pwd_context.hash(personal.password)
+    hashed_password = _hash_password(personal.password)
     db_user = Usuario(
         email=personal.email,
         full_name=personal.full_name,
@@ -330,7 +332,7 @@ async def actualizar_personal(perfil_id: int, personal: PersonalUpdate, request:
         db_user.full_name = update_data["full_name"]
     
     if "password" in update_data and update_data["password"]:
-        db_user.hashed_password = pwd_context.hash(update_data["password"])
+        db_user.hashed_password = _hash_password(update_data["password"])
 
     # Si cambió el cargo, actualizar los roles
     if "cargo_funcional" in update_data and update_data["cargo_funcional"] != db_perfil.cargo_funcional:
