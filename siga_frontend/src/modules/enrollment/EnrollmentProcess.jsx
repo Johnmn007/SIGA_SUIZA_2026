@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient, API_BASE } from '../../core/api/client';
 import { QRCodeSVG } from 'qrcode.react';
+import { getDefaultPeriod, getPeriodLabel, isHistoricalPeriod } from './periodUtils';
 
 export function EnrollmentProcess({ initialStudent, onCancel }) {
   const [step, setStep] = useState(initialStudent ? 2 : 1);
@@ -69,33 +70,21 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       
       console.log("Academic Data Loaded:", {fetchedPrograms, fetchedPeriods, initialStudent});
       
+      const activePeriod = getDefaultPeriod(fetchedPeriods);
+
       // Auto-select based on student and active period (usar mismos periodos que Periodos Lectivos)
       if (initialStudent) {
         const studentProgram = fetchedPrograms.find(p => p.id === initialStudent.programa_id || String(p.id) === String(initialStudent.programa_id));
-        const activePeriod = fetchedPeriods.find(p => {
-          const est = (p.estado || '').toString().toLowerCase();
-          return est === 'matricula_abierta' || est === 'abierto' || est === 'activo' || est === 'en_curso';
-        }) || fetchedPeriods[0] || null;
-        
-        console.log("Auto-selecting:", {studentProgram, activePeriod});
-        
         setSelection(prev => ({
           ...prev,
           program: studentProgram || fetchedPrograms[0] || null,
-          period: activePeriod || fetchedPeriods[0] || null
+          period: activePeriod
         }));
-      } else {
-        // También auto-seleccionar periodo abierto si no hay estudiante inicial
-        const activePeriod = fetchedPeriods.find(p => {
-          const est = (p.estado || '').toString().toLowerCase();
-          return est === 'matricula_abierta' || est === 'abierto' || est === 'activo' || est === 'en_curso';
-        }) || fetchedPeriods[0] || null;
-        if (activePeriod) {
-          setSelection(prev => ({
-            ...prev,
-            period: prev.period || activePeriod
-          }));
-        }
+      } else if (activePeriod) {
+        setSelection(prev => ({
+          ...prev,
+          period: prev.period || activePeriod
+        }));
       }
       } catch (e) { 
         console.error('Error fetching academic data:', e); 
@@ -140,6 +129,11 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       } else if (finRegular && today > finRegular) {
         alert("ADVERTENCIA: Fase de Matrícula Extemporánea. Se aplicarán las reglas correspondientes.");
       }
+    }
+
+    if (isHistoricalPeriod(selection.period)) {
+      alert("MATRÍCULA BLOQUEADA: El periodo seleccionado es histórico y ya no permite nuevas matrículas.");
+      return;
     }
 
     setLoading(true);
@@ -378,7 +372,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
                 
                 <div className="glass-card p-4 border-l-4 border-l-blue-500 bg-gradient-to-r from-white to-slate-50 flex flex-col justify-center">
                   <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
-                  <p className="font-bold text-slate-800">{selection.period ? selection.period.codigo : 'Buscando...'}</p>
+                  <p className="font-bold text-slate-800">{selection.period ? getPeriodLabel(selection.period) : 'Buscando...'}</p>
                 </div>
 
                 <div className="glass-card p-4 border-l-4 border-l-amber-500 bg-gradient-to-r from-white to-slate-50">
