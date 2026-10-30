@@ -1,13 +1,13 @@
-# Auditoría Integral de Seguridad y Calidad: Rol Docente - SIGA Suiza 2026
+# Auditoría Integral de Seguridad y Calidad: Rol Docente y Coordinación de Programa - SIGA Suiza 2026
 
-**Fecha:** 28 de Octubre de 2026  
+**Fecha:** 29 de Octubre de 2026  
 **Rama:** `mejoras/docente-coordinacion`  
 **Entorno de Pruebas:** `siga_test` (PostgreSQL 18.4 en host local `127.0.0.1:5432`)  
-**Base de Datos Institucional:** `siga_local` (**Aislamiento verificado: 784 estudiantes inalterados**)
+**Base de Datos Institucional:** `siga_local` (**Aislamiento estricto verificado: 784 estudiantes inalterados**)
 
 ---
 
-## 1. Verificaciones Previas (PASO 0)
+## 1. Verificaciones Previas y Aislamiento de Base de Datos
 
 ### a) Verificación de Motores de Base de Datos en Módulos
 Al cargar dinámicamente cada microservicio con el cargador de módulos aislado (`tests/helpers/module_loader.py`), se auditó la cadena de conexión configurada en sus respectivos motores SQLAlchemy (`database.py`):
@@ -19,144 +19,92 @@ Al cargar dinámicamente cada microservicio con el cargador de módulos aislado 
 | `mod-gestion-academica` | `postgresql+asyncpg://postgres:****@127.0.0.1:5432/siga_test` | `siga_test` | Seguro (Aislado) |
 | `mod-usuarios` | `postgresql+asyncpg://postgres:****@127.0.0.1:5432/siga_test` | `siga_test` | Seguro (Aislado) |
 
-*Resultado:* Ningún módulo apunta a `siga_local`. Todas las operaciones del runner y pruebas de integración se ejecutan de manera estrictamente confinada en `siga_test`.
+*Resultado:* Ningún módulo apunta a `siga_local`. Todas las pruebas unitarias y de integración se ejecutan de manera estrictamente confinada en `siga_test`.
 
-### b) Arquitectura de Autenticación y Autorización
-Se analizó el flujo de peticiones desde el cliente hasta los microservicios:
-1. **Core Gateway (`siga_backend/app/core/gateway/security_middleware.py`):**
-   - El Gateway actúa como proxy inverso en el puerto `:8000`.
-   - Intercepta todas las rutas `/api/{module_name}/*` y valida el token JWT (`Authorization: Bearer <token>`) consultando `AuthService`.
-   - Realiza una validación genérica de permisos a nivel de módulo (ej. `mod-evaluacion:read`, `mod-evaluacion:write`).
-   - Inyecta cabeceras de contexto al reenviar la petición interna mediante `HTTPGateway`:
-     - `X-User-ID`: Identificador numérico del usuario en `core_users`.
-     - `X-User-Email`: Correo institucional del usuario.
-     - `X-User-Permissions`: Lista de permisos asignados.
-     - `X-Internal-Token`: Token HMAC de comunicación interna entre servicios.
-2. **Microservicios (`mod-evaluacion`, `mod-programas-estudio`, `mod-gestion-academica`):**
-   - **Hallazgo Crítico:** Los microservicios **NO validan el JWT ni inspeccionan `X-User-ID`**.
-   - Asumen ciegamente que cualquier petición recibida es legítima y confían en el `{docente_id}` o `{registro_id}` provisto en el path de la URL.
-   - No validan si el docente que ejecuta la petición es dueño del registro ni si tiene asignada la unidad didáctica en su carga lectiva.
-
-### c) Auditoría de Valores `NULL` en Base Institucional Real (`siga_local`)
-Se ejecutó una consulta de solo lectura (SELECT) en `siga_local` para verificar la existencia de campos `NULL` en tablas del rol docente:
-
-| Tabla Institucional | Total Registros | Registros con `estado IS NULL` | Otras Columnas con Valores `NULL` Reales |
-|---|---|---|---|
-| `silabos` | 0 | 0 | Estructura DDL permite `archivo_url`, `observaciones`, `estado` NULL. |
-| `planes_trabajo_docente` | 0 | 0 | Estructura DDL permite `archivo_url`, `observaciones`, `estado` NULL. |
-| `carga_lectiva` | 11 | 0 | `seccion`, `turno`, `estado` son nulos permitidos en DDL. |
-| `evaluacion_registros` | 192 | 0 | **`nota_c1`: 138 filas NULL**<br>**`nota_c2`: 163 filas NULL**<br>**`nota_c3`: 187 filas NULL**<br>**`nota_final`: 9 filas NULL**<br>`estado`: Nulable en PostgreSQL DDL. |
-
-*Conclusión:* El riesgo de ruptura de esquemas Pydantic por campos `NULL` procedentes de la base de datos es **completamente real e inminente**, ya que en producción existen calificaciones parciales y finales pendientes (`NULL`). Si un schema Pydantic no tiene tipado `Optional[T] = None`, el endpoint crashea con Error 500. Se confirmó además que en `siga_local` ninguna fila tiene `estado IS NULL` o `estado_academico IS NULL`, por lo que las correcciones en dichos campos constituyen un **endurecimiento preventivo**.
+### b) Arquitectura de Autenticación y Cabeceras en Gateway
+1. **Core Gateway (`siga-core` :8000):**
+   - Valida el token JWT en `/api/{module_name}/*` e inyecta las cabeceras de contexto: `X-User-ID`, `X-User-Email`, `X-User-Permissions`, `X-Request-ID`.
+2. **Microservicios (`mod-evaluacion` :8008, `mod-programas-estudio` :8005):**
+   - Reciben las peticiones directamente o proxificadas vía Core Gateway.
+   - En las operaciones de control de actas (`/actas/...`), se implementó la validación obligatoria de `X-User-ID`: si la cabecera falta o no es numérica, se rechaza de inmediato con **401 Unauthorized**.
 
 ---
 
 ## 2. Matriz de Hallazgos y Estado de Corrección (BUG-D01 a BUG-D10)
 
-| ID | Severidad | Estado | Componente / Archivo y Línea | Causa Raíz | Prueba Demostrativa | Corrección Aplicada / Propuesta |
+| ID | Severidad | Estado | Componente / Archivo y Línea | Causa Raíz | Prueba Demostrativa | Corrección Aplicada / Detalle |
 |---|---|---|---|---|---|---|
-| **BUG-D01** | **Alta** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py`<br>Líneas 65–105, 178–220 | `actualizar_notas` no verificaba el estado del acta ni si el registro estaba consolidado/cerrado. Permitía alterar calificaciones de periodos o actas ya oficializadas. | `test_editar_notas_unidad_acta_cerrada_se_rechaza` (PASSED)<br>`test_cierre_actas.py` (10 pruebas PASSED) | Se implementó la verificación de `carga_lectiva` (`acta_cerrada`, `fecha_limite_notas`) y de `evaluacion_registros.estado` ('cerrado'/'consolidado') tanto en `POST /registros` como en `PUT /registros/{registro_id}`. Si el acta está cerrada o el plazo venció (zona horaria America/Lima), responde **409 Conflict**. Además se agregaron los endpoints de gestión de actas en `mod-evaluacion`. |
-| **BUG-D02** | **Alta** | **Pendiente**<br>*(Diferido a tarea de autorizaciones)* | `siga_backend/modules/mod-evaluacion/routes.py`<br>Líneas 80–135 | No valida la relación entre el docente autenticado (`X-User-ID`) y la `carga_lectiva` asignada a la unidad didáctica. Cualquier docente puede calificar unidades ajenas (BOLA). | `test_docente_no_puede_calificar_unidad_no_asignada` (xfail) | Requiere inspección de cabeceras de identidad (`X-User-ID`) o JWT en los microservicios. Diferido por alcance de la tarea. |
-| **BUG-D03** | **Alta** | **Pendiente**<br>*(Diferido a tarea de autorizaciones)* | `siga_backend/modules/mod-programas-estudio/routes.py`<br>Líneas 566, 644, 660, 678 | Endpoints `/docente/{docente_id}/*` confían ciegamente en el ID de la URL. Un docente puede visualizar y alterar carga, sílabos y planes de cualquier otro docente (IDOR). | `test_docente_no_puede_ver_datos_de_otro_docente_idor` (xfail) | Comparar el `docente_id` de la ruta con el `X-User-ID` de la cabecera, o restringir la consulta a rol Coordinador/Admin si difiere. Diferido por alcance. |
-| **BUG-D04** | **Alta** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py`<br>Líneas 48–66 | `crear_registro` permitía registrar notas a estudiantes sin matrícula activa en la unidad didáctica. | `test_no_se_puede_calificar_estudiante_no_matriculado` (PASSED) | En `mod-evaluacion/routes.py` (`POST /registros`), se valida contra `matricula_detalles` y `matriculas` que el estudiante posea matrícula activa (`estado != 'retirado'`). Si no existe, retorna **404 Not Found**. |
-| **BUG-D05** | **Media** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py`<br>Líneas 34–52, 125–144 | La regla anterior requería estrictamente `en_curso`, bloqueando periodos reales vigentes como `2026-II` que operan bajo `matricula_abierta`. | `test_periodos_calificables_en_curso_y_matricula_abierta_permiten_calificar` (PASSED)<br>`test_periodos_no_calificables_cerrado_null_inventado_devuelven_409` (PASSED) | Se definió la constante `ESTADOS_PERIODO_CALIFICABLES = {"en_curso", "matricula_abierta"}`. En `POST /registros` y `PUT /registros/{registro_id}`, si el estado del periodo no pertenece al conjunto (`cerrado`, `NULL`, inventado), responde **409 Conflict** con mensaje en español detallando el código del periodo y su estado actual. |
-| **BUG-D06** | **Baja**<br>*(Reclasificada: endurecimiento preventivo)* | **Corregido** | `siga_backend/modules/mod-evaluacion/schemas.py`<br>Líneas 24–36 | En `RegistroEvaluacionResponse`, el campo `estado: str` no era opcional. Si en la BD `estado` es NULL, Pydantic v2 arroja ValidationError 500. | `test_listado_evaluacion_con_estado_null_responde_200` (PASSED)<br>`test_listado_evaluacion_con_notas_null_responde_200` (PASSED) | Se modificó `estado: Optional[str] = "cursando"`. Además se verificó que `nota_c1`, `nota_c2`, `nota_c3` y `nota_final` admiten `None` (`Optional[float] = None`). |
-| **BUG-D07** | **Baja**<br>*(Reclasificada: endurecimiento preventivo)* | **Corregido** | `siga_backend/modules/mod-programas-estudio/routes.py`<br>Líneas 611–624 | `SilaboResponse` definía `created_at: datetime` y `estado: str` no opcionales. En `silabos`, ambas columnas admiten NULL en BD. | `test_listado_silabos_con_campos_null_responde_200` (PASSED) | Se tipó en `SilaboResponse` y `SilaboBase`: `created_at: Optional[datetime] = None`, `estado: Optional[str] = "borrador"`. |
-| **BUG-D08** | **Baja**<br>*(Reclasificada: endurecimiento preventivo)* | **Corregido** | `siga_backend/modules/mod-programas-estudio/routes.py`<br>Líneas 625–640 | `PlanTrabajoDocenteResponse` definía `created_at: datetime` y `estado: str` no opcionales. | `test_listado_planes_con_campos_null_responde_200` (PASSED) | Se tipó en `PlanTrabajoDocenteResponse` y `PlanTrabajoDocenteBase`: `created_at: Optional[datetime] = None` y `estado: Optional[str] = "borrador"`. |
-| **BUG-D09** | **Baja**<br>*(Reclasificada: endurecimiento preventivo)* | **Corregido** | `siga_backend/modules/mod-gestion-academica/schemas.py`<br>Líneas 46–56 | `EstudianteResponse` definía `estado_academico: str` obligatorio. | `test_listado_matriculas_unidad_con_estado_academico_null_responde_200` (PASSED) | Se modificó `estado_academico: Optional[str] = "regular"`, `pago_matricula: Optional[bool] = False`, `documentos_completos: Optional[bool] = True`. |
-| **BUG-D10** | **Baja** | **Corregido** | `siga_frontend/src/modules/evaluation/EvaluationDashboard.jsx`<br>Líneas 106–125 | `handleGradeChange` bloqueaba silenciosamente notas fuera del rango [0, 20] sin informar al usuario visualmente. | `4. [BUG-D10] Debe mostrar un mensaje de error visual cuando se ingresa una nota fuera de rango (0-20)` (PASSED) | Se agregó el estado React `gradeError` y una alerta renderizada con `data-testid="grade-error-alert"` ("La calificación debe ser un valor entre 0 y 20"). |
+| **BUG-D01** | **Alta** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py`<br>`siga_backend/modules/mod-programas-estudio/models.py` | Carga lectiva no soportaba cierre formal ni fechas límite de ingreso de notas. | `test_cierre_actas.py` (17 pruebas PASSED) | Se migró el esquema agregando 4 columnas a `carga_lectiva`: `fecha_limite_notas`, `acta_cerrada`, `acta_cerrada_at`, `acta_cerrada_por`. Se implementó el control de actas y endpoints en `mod-evaluacion`. |
+| **BUG-D02** | **Alta** | **Pendiente**<br>*(Diferido a tarea RBAC)* | `siga_backend/modules/mod-evaluacion/routes.py` | No valida si el docente autenticado tiene asignada la carga lectiva (BOLA). | `test_docente_no_puede_calificar_unidad_no_asignada` (xfail) | Requiere asociar `docente_id` de `carga_lectiva` con `X-User-ID`. |
+| **BUG-D03** | **Alta** | **Pendiente**<br>*(Diferido a tarea RBAC)* | `siga_backend/modules/mod-programas-estudio/routes.py` | Rutas `/docente/{docente_id}/*` confían ciegamente en el ID de la URL (IDOR). | `test_docente_no_puede_ver_datos_de_otro_docente_idor` (xfail) | Comparar `docente_id` con `X-User-ID`. |
+| **BUG-D04** | **Alta** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py` | Permitía registrar notas a estudiantes con matrícula pendiente o no inscritos. | `test_matricula_pendiente_rechazada_en_post_registros` (PASSED) | En `POST /registros`, se valida estado de matrícula: solo se permite `confirmada` y curso no `retirado`. Matrículas pendientes se rechazan con **409 Conflict**. |
+| **BUG-D05** | **Media** | **Corregido** | `siga_backend/modules/mod-evaluacion/routes.py` | Exigía estrictamente estado `en_curso`, bloqueando periodos vigentes en `matricula_abierta` como 2026-II. | `test_periodos_calificables_...` (PASSED) | Se amplió a `ESTADOS_PERIODO_CALIFICABLES = {"en_curso", "matricula_abierta"}`. Periodos cerrados o desconocidos devuelven **409 Conflict**. |
+| **BUG-D06** | **Baja** | **Corregido** | `siga_backend/modules/mod-evaluacion/schemas.py` | Respuestas crasheaban con 500 ante notas o estados nulos de la BD real. | `test_listado_evaluacion_con_notas_null...` (PASSED) | Tipado `Optional[float] = None` y `estado: Optional[str] = "cursando"`. |
+| **BUG-D07** | **Baja** | **Corregido** | `siga_backend/modules/mod-programas-estudio/routes.py` | `SilaboResponse` no admitía fechas o estados NULL en base de datos. | `test_listado_silabos_con_campos_null...` (PASSED) | Tipado preventivo con valores por defecto. |
+| **BUG-D08** | **Baja** | **Corregido** | `siga_backend/modules/mod-programas-estudio/routes.py` | `PlanTrabajoDocenteResponse` no admitía campos nulos. | `test_listado_planes_con_campos_null...` (PASSED) | Tipado preventivo con valores por defecto. |
+| **BUG-D09** | **Baja** | **Corregido** | `siga_backend/modules/mod-gestion-academica/schemas.py` | `EstudianteResponse` exigía `estado_academico` no nulo. | `test_listado_matriculas_unidad...` (PASSED) | Tipado `Optional[str] = "regular"`. |
+| **BUG-D10** | **Baja** | **Corregido** | `siga_frontend/src/modules/evaluation/EvaluationDashboard.jsx` | Bloqueaba notas fuera de rango [0, 20] silenciosamente sin feedback visual. | Vitest: `[BUG-D10] Debe mostrar un mensaje...` (PASSED) | Alerta React visual con `data-testid="grade-error-alert"`. |
 
 ---
 
-## 3. Implementación del Cierre de Actas y Gestión de Plazos (BUG-D01)
+## 3. Arquitectura del Cierre de Actas y Decisiones Técnicas Fundamentales
 
-### Arquitectura de Actas sobre `carga_lectiva`
-El acta de evaluación corresponde a la relación entre una unidad didáctica y un periodo lectivo en `carga_lectiva`:
-- Columnas de soporte: `fecha_limite_notas` (`DATE`), `acta_cerrada` (`BOOLEAN DEFAULT FALSE`), `acta_cerrada_at` (`TIMESTAMP`), `acta_cerrada_por` (`INTEGER`).
-- Modelado en `mod-programas-estudio`: agregadas las 4 columnas a `CargaLectiva` y a `CargaLectivaResponse` (como opcionales).
+### a) Regla Única de Matrícula Calificable (Alcance por Unidad y Periodo)
+* **Diagnóstico de los Datos Institucionales (`siga_local`):**
+  Se detectó que en el periodo 15 (`2026-II`), todas las 56 matrículas confirmadas poseen cabecera con `matriculas.programa_id = 1` (identificador histórico del plan origen), mientras que la tabla institucional `programas_estudio` contiene un único registro con `id = 15` ("DESARROLLO DE SISTEMAS DE INFORMACION"), al cual están asociadas las cargas lectivas (`carga_lectiva.programa_id = 15`). Filtrar los detalles de matrícula por `matriculas.programa_id` provocaba que el conteo de estudiantes fuera erróneamente `0`.
+* **Regla Canónica Institucional:**
+  Una matrícula es calificable si y solo si:
+  $$\text{estado\_matricula} = \text{'confirmada'} \quad \land \quad (\text{estado\_curso} \neq \text{'retirado'} \lor \text{estado\_curso IS NULL})$$
+* **Alcance de Conteo:**
+  El conteo de estudiantes matriculados y evaluados para una unidad didáctica se realiza agrupando estrictamente por `(unidad_didactica_id, periodo_id)` sin filtrar por el programa de la matrícula. El parámetro `programa_id` en `GET /actas/periodo/{periodo_id}/programa/{programa_id}` se utiliza exclusivamente para:
+  1. Filtrar las cargas lectivas asignadas a dicho programa en `carga_lectiva`.
+  2. Clasificar las unidades sin carga asignada que pertenecen formalmente al plan/módulos del programa (`unidades_sin_carga`).
+  3. Clasificar de forma transparente en `unidades_sin_programa` aquellas unidades que no tienen asociación registrada con ningún programa o plan en la base de datos (por ejemplo, unidades 401 a 407 en el periodo 14), garantizando que ningún dato quede oculto ni falseado.
 
-### Reglas de Negocio en `mod-evaluacion`
-1. **Acta Cerrada:** Si todas las cargas lectivas correspondientes a una unidad y periodo tienen `acta_cerrada = true`, se rechazan `POST /registros` y `PUT /registros/{id}` con **409 Conflict**:
-   > *"El acta de la unidad X del periodo Y está cerrada. Solicite su reapertura al coordinador."*
-2. **Fecha Límite Vencida:** Si las cargas abiertas tienen fecha límite y `hoy` (en zona horaria `America/Lima`) supera dicha fecha (inclusive), se rechaza la calificación con **409 Conflict**:
-   > *"El plazo para ingresar notas venció el DD/MM/AAAA. Solicite una ampliación al coordinador."*
-   *(Si alguna carga abierta tiene `fecha_limite_notas = NULL`, se considera sin límite temporal).*
-3. **Limitación de Secciones Múltiples:** Cuando existen múltiples secciones (filas) de `carga_lectiva` para un mismo par `(unidad_didactica_id, periodo_id)`:
-   - El acta se considera cerrada **únicamente si todas las secciones están cerradas**.
-   - La fecha límite efectiva es **la más tardía** entre las secciones abiertas.
-4. **Endpoints de Actas Añadidos (`/actas/...`):**
-   - `GET /actas/unidad/{unidad_id}/periodo/{periodo_id}`: devuelve `tiene_carga`, `acta_cerrada`, `fecha_limite_notas`, `editable` (bool) y `motivo_bloqueo` para el Panel Docente.
-   - `GET /actas/periodo/{periodo_id}/programa/{programa_id}`: consolidado para Coordinación con total de matrículas activas (`confirmada`), con nota final, faltantes y unidades sin carga.
-   - `PUT /actas/carga/{carga_id}/fecha-limite`: fija fecha hoy o futura (si no 422), rechaza en acta o periodo cerrado (409).
-   - `POST /actas/programa/{programa_id}/periodo/{periodo_id}/fecha-limite`: fijación masiva a cargas abiertas del programa y periodo.
-   - `POST /actas/carga/{carga_id}/cerrar`: exige que todas las matrículas activas posean calificación final. Si faltan notas, responde **409** indicando el conteo de faltantes y los IDs de matrícula. Al cerrar guarda `acta_cerrada = true`, `acta_cerrada_at` y `acta_cerrada_por` (`X-User-ID`).
-   - `POST /actas/carga/{carga_id}/reabrir`: exige motivo (mínimo 10 caracteres, 422) y nueva fecha hoy o futura (422). Reactiva el acta y devuelve la edición al docente.
+### b) Preservación de `evaluacion_registros.estado`
+* **Motivo Técnico:**
+  En versiones preliminares, el cierre de acta sobreescribía `evaluacion_registros.estado = 'cerrado'`. Esto destruía la condición académica del estudiante (`aprobado`, `desaprobado`), impidiendo que el motor de matrícula y convalidaciones de `mod-gestion-academica` validara prerrequisitos y calculara el 70% de créditos aprobados exigido por la normativa MINEDU para la promoción académica.
+* **Solución Implementada:**
+  Se eliminó la sobreescritura de `evaluacion_registros.estado` en `/cerrar` y su recálculo en `/reabrir`. La restricción de edición de calificaciones reside de manera autónoma y exclusiva en `carga_lectiva.acta_cerrada = true` y la fecha límite `fecha_limite_notas`. De este modo, los registros de evaluación conservan intacta su condición académica original (`aprobado` si nota $\ge 13$, `desaprobado` si nota $< 13$, `cursando`).
 
-> [!WARNING]
-> ### Riesgo de Seguridad Conocido: Autorización de Rol Coordinador Pendiente
-> Los endpoints de gestión de actas (`/actas/...`) extraen y asocian la identidad del usuario llamante mediante la cabecera `X-User-ID` inyectada por el Gateway Core. Sin embargo, **aún no validan a nivel de microservicio que el usuario posea explícitamente el rol o permiso de Coordinador**.
-> Dicha validación de autorización RBAC/BOLA/IDOR forma parte integral del alcance de los bugs **BUG-D02** y **BUG-D03**, cuya resolución está reservada para una tarea dedicada posterior.
+### c) Registro Temporal de Cierre en UTC (`acta_cerrada_at`)
+* **Decisión de Auditoría y Zona Horaria:**
+  La columna `carga_lectiva.acta_cerrada_at` es de tipo `TIMESTAMP WITHOUT TIME ZONE`. Para evitar desfases por el huso horario local de los clientes o coordinadores, el backend genera el sello de tiempo en tiempo universal coordinado (UTC): `datetime.now(timezone.utc).replace(tzinfo=None)`.
+* **Compatibilidad de Base de Datos:**
+  El objeto se almacena como datetime naive en UTC para garantizar compatibilidad con los drivers `asyncpg` y PostgreSQL, serializándose en formato ISO 8601 hacia los clientes y los eventos de auditoría (`outbox_events`).
+* **Comparaciones de Fechas Límite:**
+  La validación de fechas límite se evalúa contra la fecha calendario oficial en el territorio institucional usando la zona horaria `America/Lima` (`get_hoy_lima()`).
 
----
-2. **Frontend como Simulación Visual:** En `EvaluationDashboard.jsx`, el botón "Generar Acta Oficial" abre un modal (`showActaModal`) que toma las notas en memoria de los estudiantes y maqueta un documento HTML imprimible en el navegador (`window.print()`). No persiste ningún estado ni invoca ningún endpoint de cierre en el backend.
-3. **Módulo Gestión Académica vs Evaluación:** En `matriculas`, existe una bandera booleana `consolidada`, pero representa la matrícula global de un estudiante en el semestre completo (todas sus asignaturas), no el cierre de acta de una unidad didáctica por un docente.
-4. **Decisión:** Siguiendo la regla de no inventar mecanismos sin aprobación de arquitectura, la prueba `test_editar_notas_unidad_acta_cerrada_se_rechaza` se mantiene con `xfail` (documentando el comportamiento esperado).
+### d) Tratamiento de Matrículas Pendientes (Advertencia Informativa)
+* En el periodo 15 de `siga_local`, existen estudiantes con matrículas en estado `pendiente`.
+* **Regla de Cierre:** Las matrículas pendientes **no bloquean** el cierre de acta (no son calificables, pues no han completado sus requisitos administrativos/académicos).
+* **Transparencia y Alerta al Coordinador:**
+  - En `POST /actas/carga/{carga_id}/cerrar`, si existen matrículas pendientes en la unidad y periodo, la respuesta incluye un mensaje explícito en el campo `advertencia` detallando la cantidad exacta de matrículas no consideradas (ej. *"Atención: existen 2 matrícula(s) en estado pendiente que no fueron consideradas para el cierre del acta"*).
+  - En `GET /actas/periodo/{periodo_id}/programa/{programa_id}`, se reporta el campo `matriculas_pendientes` por cada carga lectiva y unidad sin carga, además de un consolidado `total_matriculas_pendientes`.
 
-### Opciones de Solución para la Siguiente Etapa
-
-* **Opción A (Recomendada - Nivel Carga Lectiva):**
-  - Agregar una columna `acta_cerrada: bool = False` (o `estado_acta: str = 'abierta'`) en la tabla `carga_lectiva`.
-  - Crear el endpoint `POST /api/mod-evaluacion/carga-lectiva/{carga_id}/cerrar-acta` (o en `mod-programas-estudio`) con confirmación del docente o coordinador.
-  - En `PUT /api/mod-evaluacion/registros/{registro_id}`, validar que la carga lectiva vinculada a la unidad didáctica y periodo no tenga `acta_cerrada == True`. Si está cerrada, devolver `HTTP 409 Conflict`.
-
-* **Opción B (Nivel Registro de Evaluación):**
-  - Utilizar el campo `estado` de la tabla `evaluacion_registros` admitiendo valores `'cursando'`, `'aprobado'`, `'desaprobado'`, `'cerrado'` o `'consolidado'`.
-  - Crear un endpoint `POST /api/mod-evaluacion/registros/unidad/{unidad_id}/periodo/{periodo_id}/cerrar` que actualice masivamente el estado de todos los registros de la unidad a `'cerrado'`.
-  - En `PUT /api/mod-evaluacion/registros/{registro_id}`, rechazar con `HTTP 409 Conflict` si `registro.estado in ['cerrado', 'consolidado']`.
+### e) Concurrencia y Control de Carreras (Row-Level Locking)
+* **Operaciones de Cierre y Reapertura:** Se protegen mediante bloqueos exclusivos `SELECT ... FOR UPDATE` sobre la fila de `carga_lectiva` dentro de la transacción, evitando que dos coordinadores concurrentes alteren el estado de la misma acta.
+* **Operaciones de Calificación Docente (`POST /registros`, `PUT /registros/{id}`):** Validan la carga lectiva mediante `SELECT ... FOR SHARE` dentro de la transacción, garantizando que el acta no pueda ser cerrada en el milisegundo exacto en que un docente guarda una nota.
 
 ---
 
-## 4. Verificación de Contenedores y Endpoints de Solo Lectura
+## 4. Endpoints de Actas Implementados en `mod-evaluacion`
 
-Tras aplicar las correcciones, se reiniciaron ordenadamente los contenedores correspondientes:
-- `siga_suiza_2026-mod-gestion-academica-1`
-- `siga_suiza_2026-mod-evaluacion-1`
-- `siga_suiza_2026-mod-programas-estudio-1`
-
-### a) Pruebas Unitarias Ejecutadas dentro del Contenedor
-Se ejecutaron los tests unitarios dentro del contenedor `mod-gestion-academica-1`:
-```powershell
-docker exec -w /app/modules/mod-gestion-academica siga_suiza_2026-mod-gestion-academica-1 python -m unittest test_enrollment_engine.py test_matricula_schema.py
-```
-**Resultado:** 15 pruebas ejecutadas exitosamente (OK).
-
-### b) Verificación HTTP (GET Solo Lectura) contra Contenedores
-Se validó la disponibilidad y serialización correcta en los puertos de los microservicios:
-- `GET http://127.0.0.1:8008/health` -> **200 OK** (`{"status":"healthy","module":"mod-gestion-academica"}`)
-- `GET http://127.0.0.1:8008/api/mod-gestion-academica/matriculas/` -> **200 OK** (Matrículas recuperadas y serializadas correctamente).
-- `GET http://127.0.0.1:8005/health` -> **200 OK** (`{"status":"healthy","module":"mod-evaluacion"}`)
-- `GET http://127.0.0.1:8006/health` -> **200 OK** (`{"status":"healthy","module":"mod-programas-estudio"}`)
-
----
-
-## 5. Registro de Ejecución Real de la Suite de Pruebas
-
-Comando centralizado:
-```powershell
-$env:PGPASSWORD = '...'; .\scripts\run_tests.ps1
-```
-
-### Resultados Consolidados:
-- **Backend (Pytest sobre `siga_test`):**
-  - **27 PASSED** (incluyendo las pruebas de BUG-D04, BUG-D05, BUG-D06, BUG-D07, BUG-D08, BUG-D09 y nueva prueba para notas nulas).
-  - **3 XFAIL** (Bugs intencionalmente diferidos o sin modelo backend: BUG-D01 acta cerrada, BUG-D02 BOLA, BUG-D03 IDOR).
-  - **0 FAILED / 0 Errores inesperados**.
-- **Frontend (Vitest):**
-  - **8 PASSED** (incluyendo BUG-D10 con alerta visual y validación de notas 0–20).
-  - **0 FAILED**.
-  - ESLint: 0 errores en `EvaluationDashboard.jsx`.
-  - Vite Build: Compilación exitosa en producción (`dist/` generado limpiamente).
-- **Aislamiento de Base de Datos Institucional:**
-  - Estudiantes en `siga_local` ANTES de las pruebas: **784**
-  - Estudiantes en `siga_local` DESPUÉS de las pruebas: **784**
-  - **Invarianza confirmada:** Ninguna prueba escribió en la base de datos institucional.
+1. **`GET /actas/unidad/{unidad_id}/periodo/{periodo_id}`:**
+   - Retorna: `tiene_carga`, `acta_cerrada`, `fecha_limite_notas`, `editable` (booleano) y `motivo_bloqueo`.
+   - Utilizado por el panel docente para determinar si se habilita la edición de calificaciones.
+2. **`GET /actas/periodo/{periodo_id}/programa/{programa_id}`:**
+   - Retorna resumen completo para coordinación: `cargas` (con estadísticas de confirmadas, calificadas, faltantes y pendientes), `unidades_sin_carga` del programa y `unidades_sin_programa` (unidades activas sin programa/plan asignado en DB).
+3. **`PUT /actas/carga/{carga_id}/fecha-limite`:**
+   - Exige cabecera `X-User-ID` numérica (401 si falta).
+   - Fija fecha límite hoy o futura (422 si es pasada). Rechaza si el acta o el periodo están cerrados (409).
+4. **`POST /actas/programa/{programa_id}/periodo/{periodo_id}/fecha-limite`:**
+   - Exige `X-User-ID` numérica. Fija fecha masiva a todas las cargas abiertas del programa y periodo.
+5. **`POST /actas/carga/{carga_id}/cerrar`:**
+   - Exige `X-User-ID` numérica. Bloquea la carga lectiva con `FOR UPDATE`.
+   - Rechaza con 409 si la unidad tiene 0 matrículas calificables.
+   - Rechaza con 409 si faltan notas en matrículas calificables (detalla total de faltantes e IDs de matrícula).
+   - Emite advertencia si hay matrículas pendientes. Guarda `acta_cerrada = true`, fecha UTC y usuario.
+6. **`POST /actas/carga/{carga_id}/reabrir`:**
+   - Exige `X-User-ID` numérica, motivo de al menos 10 caracteres (422) y nueva fecha válida (422).
+   - Bloquea con `FOR UPDATE`. Restablece el acta a abierta y devuelve la edición al docente.
