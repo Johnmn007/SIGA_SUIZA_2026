@@ -18,7 +18,7 @@ if (-not (Test-Path $python)) {
 $env:DB_HOST     = "localhost"
 $env:DB_PORT     = "5432"
 $env:DB_USER     = "postgres"
-$env:DB_PASSWORD = "franciscodavid"
+$env:DB_PASSWORD = "john.007"
 $env:DB_NAME     = "siga_core"
 $env:SKIP_MIGRATIONS = "true"
 

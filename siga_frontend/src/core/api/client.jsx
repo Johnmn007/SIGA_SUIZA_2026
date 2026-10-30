@@ -51,7 +51,7 @@ class SIGAApiClient {
         try {
           const errorData = await response.json();
           errorMsg = errorData.detail || errorMsg;
-        } catch (e) {
+        } catch {
           // ignore
         }
         throw new Error(errorMsg);

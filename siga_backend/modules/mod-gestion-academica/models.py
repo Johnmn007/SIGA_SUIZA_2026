@@ -1,4 +1,4 @@
-from sqlalchemy import Column, JSON, String, Integer, Date, Boolean, Text, Float, ForeignKey, TIMESTAMP, func
+from sqlalchemy import Column, JSON, String, Integer, Date, Boolean, Text, Float, ForeignKey, TIMESTAMP, Numeric, func
 from sqlalchemy.orm import relationship
 from database import BaseModel
 
@@ -122,3 +122,55 @@ class SolicitudTramite(BaseModel):
     fecha_resolucion = Column(Date)
     documento_url = Column(String(255)) # Si es digital
     observaciones = Column(Text)
+
+# ---------------------------------------------------------------------------
+# Tesorería y Caja (tarifario TUPA, recibos de caja y configuración de cobro)
+# ---------------------------------------------------------------------------
+
+class ConceptoTupa(BaseModel):
+    __tablename__ = "tesoreria_conceptos"
+
+    codigo = Column(String(30), index=True, nullable=False)
+    nombre = Column(String(255), nullable=False)
+    categoria = Column(String(100), default="Otros")
+    descripcion = Column(Text)
+    tipo_precio = Column(String(20), default="fijo")  # fijo | tarifas | libre
+    tarifas = Column(JSON, default=list)               # [{id, nombre, monto}]
+    monto_minimo = Column(Numeric(10, 2), default=0)
+    libera_matricula = Column(Boolean, default=False)  # Al pagarse habilita la matrícula
+    permite_repetir = Column(Boolean, default=False)   # Se puede cobrar más de una vez al mismo alumno
+    activo = Column(Boolean, default=True, index=True) # Baja lógica: los recibos emitidos se conservan
+
+class PagoCaja(BaseModel):
+    __tablename__ = "tesoreria_pagos"
+
+    codigo_recibo = Column(String(30), unique=True, index=True, nullable=False)
+    estudiante_id = Column(Integer, ForeignKey("estudiantes.id"), index=True, nullable=False)
+    # Datos del alumno y del concepto al momento del pago (el recibo no cambia si luego se editan)
+    dni = Column(String(15), index=True, nullable=False)
+    estudiante_nombre = Column(String(255), nullable=False)
+    codigo_estudiante = Column(String(20))
+    carrera_nombre = Column(String(255))
+    concepto_id = Column(Integer, ForeignKey("tesoreria_conceptos.id"), index=True)
+    concepto_codigo = Column(String(30), index=True, nullable=False)
+    concepto_nombre = Column(String(255), nullable=False)
+    concepto_categoria = Column(String(100))
+    tipo_precio = Column(String(20))
+    tarifa_nombre = Column(String(100))
+    monto = Column(Numeric(10, 2), nullable=False)
+    metodo_pago_id = Column(String(30), nullable=False)
+    metodo_pago_nombre = Column(String(100), nullable=False)
+    numero_operacion = Column(String(100))
+    cajero = Column(String(150))
+    registrado_por = Column(String(150))               # Correo del usuario autenticado
+    observaciones = Column(Text)
+    libera_matricula = Column(Boolean, default=False)
+    estado = Column(String(20), default="PAGADO", index=True)
+    fecha_pago = Column(TIMESTAMP, nullable=False)
+    qr_contenido = Column(Text)                        # Datos del pago grabados en el QR al momento de cobrar
+
+class ConfiguracionCaja(BaseModel):
+    __tablename__ = "tesoreria_configuracion"
+
+    clave = Column(String(50), unique=True, index=True, nullable=False)
+    valor = Column(JSON, default=dict)

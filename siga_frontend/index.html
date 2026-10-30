@@ -8,6 +8,10 @@
   </head>
   <body>
     <script>
+      // QR de boleta con el formato anterior (/?boleta=...): ir directo a la página liviana sin cargar el SIGA
+      if (/[?&]boleta=/.test(location.search)) location.replace('/boleta.html' + location.search);
+    </script>
+    <script>
       // Desregistrar service workers heredados (p. ej. Código Rojo u otros proyectos en localhost)
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(registrations) {

@@ -68,3 +68,4 @@ siga_backend/.venv_fixed/
 # Volcado local (ya no se versiona; main lo elimino)
 dump_railway.sql
 siga_core_inserts.sql
+dump_*.sql

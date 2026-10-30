@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 
 // Mapeo canónico de las 11 carreras a sus 3 imágenes de referencia
-export const CAREER_IMAGES = {
+const CAREER_IMAGES = {
   sistemas: [
     { src: '/carreras/sistemas_1.jpg', title: 'Laboratorio de Software y Redes', tag: 'Desarrollo & IA' },
     { src: '/carreras/sistemas_2.jpg', title: 'Programación Full-Stack & Cloud', tag: 'Cloud & Web' },
@@ -61,7 +61,7 @@ export const CAREER_IMAGES = {
 };
 
 // Función auxiliar para detectar la clave de carrera a partir del nombre
-export function getCareerImageKey(programName = '') {
+function getCareerImageKey(programName = '') {
   const norm = programName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (norm.includes('sistema') || norm.includes('computacion') || norm.includes('informacion')) return 'sistemas';
   if (norm.includes('enferm')) return 'enfermeria';
