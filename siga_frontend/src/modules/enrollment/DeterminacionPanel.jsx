@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { ClipboardCheck, Scale } from 'lucide-react';
 import { apiClient } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
+import { getDefaultPeriod, getPeriodLabel } from './periodUtils';
 
 /** Sección 4 del diagrama — Determinación del ciclo y cursos. */
 export function DeterminacionPanel() {
@@ -32,10 +33,8 @@ export function DeterminacionPanel() {
         setPrograms(progs);
         setPeriods(pers);
         if (progs.length > 0) setProgramaId(String(progs[0].id));
-        if (pers.length > 0) {
-          const activo = pers.find((x) => x.estado === 'ACTIVO') || pers[pers.length - 1];
-          setPeriodoId(String(activo.id));
-        }
+        const activo = getDefaultPeriod(pers);
+        if (activo) setPeriodoId(String(activo.id));
       } catch (e) {
         console.error(e);
         setError(e.message);
@@ -175,7 +174,7 @@ export function DeterminacionPanel() {
             <select className="input-field w-full py-2.5 text-sm" value={periodoId} onChange={(e) => setPeriodoId(e.target.value)}>
               <option value="">Selecciona</option>
               {periods.map((p) => (
-                <option key={p.id} value={p.id}>{p.nombre || `Periodo ${p.id}`} ({p.estado || '—'})</option>
+                <option key={p.id} value={p.id}>{getPeriodLabel(p)}</option>
               ))}
             </select>
           </div>
