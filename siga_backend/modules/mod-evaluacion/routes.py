@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from zoneinfo import ZoneInfo
 
 from database import get_db, OutboxEvent
@@ -10,7 +10,7 @@ from models import RegistroEvaluacion
 from schemas import (
     RegistroEvaluacionCreate, RegistroEvaluacionResponse, RegistroEvaluacionUpdate,
     EstadoActaUnidadResponse, ResumenActasProgramaResponse, CargaActaItem, UnidadSinCargaItem,
-    FechaLimiteRequest, ReabrirActaRequest
+    FechaLimiteRequest, ReabrirActaRequest, CerrarActaResponse
 )
 
 router = APIRouter()
@@ -18,6 +18,27 @@ router = APIRouter()
 def get_hoy_lima() -> date:
     """Retorna la fecha actual en la zona horaria institucional America/Lima."""
     return datetime.now(ZoneInfo("America/Lima")).date()
+
+def get_now_utc() -> datetime:
+    """Retorna la fecha y hora actual en UTC (offset-naive para columnas TIMESTAMP WITHOUT TIME ZONE)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+def _condicion_matricula_calificable_sql(alias_m="m", alias_md="md") -> str:
+    """Retorna la condición SQL canónica institucional para matrículas calificables:
+    - Estado de matrícula: 'confirmada'
+    - Condición de curso: diferente de 'retirado' (o nula)
+    """
+    return f"({alias_m}.estado_matricula = 'confirmada' AND ({alias_md}.estado_curso IS NULL OR {alias_md}.estado_curso != 'retirado'))"
+
+def _exigir_user_id_numerico(request: Request) -> int:
+    """Valida la presencia y formato numérico de la cabecera X-User-ID."""
+    user_id_str = request.headers.get("X-User-ID")
+    if not user_id_str or not user_id_str.strip().isdigit():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Cabecera X-User-ID faltante o inválida. Se requiere un identificador numérico de usuario."
+        )
+    return int(user_id_str.strip())
 
 def _calcular_promedio(c1, c2, c3):
     notas = [n for n in (c1, c2, c3) if n is not None]
@@ -45,7 +66,7 @@ ESTADOS_PERIODO_CALIFICABLES = {"en_curso", "matricula_abierta"}
 
 async def _validar_cierre_y_fecha_limite(db: AsyncSession, unidad_didactica_id: int, periodo_id: int, codigo_periodo: str):
     """
-    Busca la fila de carga_lectiva por (unidad_didactica_id, periodo_id):
+    Busca la fila de carga_lectiva por (unidad_didactica_id, periodo_id) con bloqueo compartido (FOR SHARE):
     - Si no hay fila: solo rige la regla del periodo (no inventar filas).
     - Si hay filas:
       * El acta está cerrada solo si TODAS están cerradas.
@@ -55,7 +76,7 @@ async def _validar_cierre_y_fecha_limite(db: AsyncSession, unidad_didactica_id: 
       * Fecha vencida: 409 ("El plazo para ingresar notas venció el DD/MM/AAAA. Solicite una ampliación al coordinador.").
     """
     carga_res = await db.execute(
-        text("SELECT acta_cerrada, fecha_limite_notas FROM carga_lectiva WHERE unidad_didactica_id = :u_id AND periodo_id = :p_id"),
+        text("SELECT acta_cerrada, fecha_limite_notas FROM carga_lectiva WHERE unidad_didactica_id = :u_id AND periodo_id = :p_id FOR SHARE"),
         {"u_id": unidad_didactica_id, "p_id": periodo_id}
     )
     cargas = carga_res.fetchall()
@@ -103,20 +124,19 @@ async def crear_registro(data: RegistroEvaluacionCreate, request: Request, db: A
             detail=f"El periodo académico {codigo_periodo} se encuentra en estado '{estado_periodo}'. No se permite registrar calificaciones."
         )
 
-    # 1.b Validar reglas de cierre de acta y fecha límite (PASO 2)
+    # 1.b Validar reglas de cierre de acta y fecha límite (PASO 2 y 4)
     await _validar_cierre_y_fecha_limite(db, data.unidad_didactica_id, data.periodo_id, codigo_periodo)
 
-    # 2. Validar que la matrícula exista y corresponda a la unidad y periodo (BUG-D04)
+    # 2. Validar que la matrícula exista y corresponda a la unidad y periodo (BUG-D04 / PASO 1)
     mat_res = await db.execute(
         text("""
-            SELECT md.id 
+            SELECT md.id, m.estado_matricula, md.estado_curso
             FROM matricula_detalles md
             JOIN matriculas m ON md.matricula_id = m.id
             WHERE md.id = :det_id 
               AND md.unidad_didactica_id = :u_id
               AND m.estudiante_id = :est_id
               AND m.periodo_id = :per_id
-              AND m.estado_matricula != 'anulada'
         """),
         {
             "det_id": data.matricula_detalle_id,
@@ -125,10 +145,29 @@ async def crear_registro(data: RegistroEvaluacionCreate, request: Request, db: A
             "per_id": data.periodo_id
         }
     )
-    if not mat_res.scalar_one_or_none():
+    mat_row = mat_res.fetchone()
+    if not mat_row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No se encontró una matrícula activa válida que corresponda al estudiante, unidad didáctica y periodo indicados."
+        )
+
+    estado_mat = mat_row[1]
+    estado_cur = mat_row[2]
+    if estado_mat == "pendiente":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La matrícula del estudiante se encuentra en estado 'pendiente'. Solo se permite calificar matrículas en estado 'confirmada'."
+        )
+    if estado_mat != "confirmada":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"La matrícula se encuentra en estado '{estado_mat}'. No se permite calificar."
+        )
+    if estado_cur == "retirado":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El estudiante se encuentra en estado 'retirado' en esta unidad didáctica."
         )
 
     # 3. Validar no duplicidad
@@ -327,15 +366,17 @@ async def consultar_estado_acta_unidad(unidad_id: int, periodo_id: int, db: Asyn
 
 @router.get("/actas/periodo/{periodo_id}/programa/{programa_id}", response_model=ResumenActasProgramaResponse)
 async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db: AsyncSession = Depends(get_db)):
-    """Resumen de actas para el coordinador: lista cargas lectivas y unidades sin carga."""
-    # 1. Cargas lectivas del programa y periodo
+    """Resumen de actas para el coordinador: lista cargas lectivas, unidades sin carga del programa y unidades sin programa."""
+    calificables_cond = _condicion_matricula_calificable_sql("m", "md")
+
+    # 1. Cargas lectivas asignadas a este programa y periodo
     cargas_res = await db.execute(
         text("""
             SELECT cl.id, cl.unidad_didactica_id, cl.docente_id, cl.fecha_limite_notas, cl.acta_cerrada,
-                   COALESCE(up.nombre, pu.nombre, 'Unidad ' || cl.unidad_didactica_id) AS unidad_nombre
+                   COALESCE(pu.nombre, up.nombre, 'Unidad ' || cl.unidad_didactica_id) AS unidad_nombre
             FROM carga_lectiva cl
-            LEFT JOIN unidades_plan up ON up.id = cl.unidad_didactica_id
             LEFT JOIN programa_unidades pu ON pu.id = cl.unidad_didactica_id
+            LEFT JOIN unidades_plan up ON up.id = cl.unidad_didactica_id
             WHERE cl.periodo_id = :p_id AND cl.programa_id = :prog_id
             ORDER BY cl.id;
         """),
@@ -344,29 +385,34 @@ async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db
     cargas_rows = cargas_res.fetchall()
 
     cargas_items = []
+    cargas_u_ids = set()
+    total_gral_pendientes = 0
+
     for row in cargas_rows:
         carga_id, u_id, docente_id, f_limite, a_cerrada, u_nombre = row
-        # Calcular estadísticas de matrículas activas
+        cargas_u_ids.add(u_id)
+
+        # Calcular estadísticas por (unidad, periodo) sin filtrar por el programa de la matrícula
         stats_res = await db.execute(
-            text("""
+            text(f"""
                 SELECT 
-                    count(md.id) AS total_matriculas,
-                    count(er.nota_final) AS con_nota_final,
-                    count(md.id) - count(er.nota_final) AS faltantes
+                    count(DISTINCT CASE WHEN {calificables_cond} THEN md.id END) AS total_matriculas,
+                    count(DISTINCT CASE WHEN {calificables_cond} AND er.nota_final IS NOT NULL THEN md.id END) AS con_nota_final,
+                    count(DISTINCT CASE WHEN m.estado_matricula = 'pendiente' THEN md.id END) AS matriculas_pendientes
                 FROM matricula_detalles md
                 JOIN matriculas m ON m.id = md.matricula_id
                 LEFT JOIN evaluacion_registros er ON er.matricula_detalle_id = md.id
                 WHERE md.unidad_didactica_id = :u_id 
-                  AND m.periodo_id = :p_id 
-                  AND m.programa_id = :prog_id
-                  AND m.estado_matricula = 'confirmada';
+                  AND m.periodo_id = :p_id;
             """),
-            {"u_id": u_id, "p_id": periodo_id, "prog_id": programa_id}
+            {"u_id": u_id, "p_id": periodo_id}
         )
         s_row = stats_res.fetchone()
         tot = s_row[0] if s_row else 0
         con_n = s_row[1] if s_row else 0
-        falt = s_row[2] if s_row else 0
+        pend = s_row[2] if s_row else 0
+        falt = max(0, tot - con_n)
+        total_gral_pendientes += pend
 
         cargas_items.append(CargaActaItem(
             carga_id=carga_id,
@@ -377,51 +423,119 @@ async def consultar_actas_programa_periodo(periodo_id: int, programa_id: int, db
             acta_cerrada=bool(a_cerrada),
             total_matriculas=tot,
             con_nota_final=con_n,
-            faltantes=falt
+            faltantes=falt,
+            matriculas_pendientes=pend
         ))
 
-    # 2. Unidades con notas pero sin fila en carga_lectiva
-    sin_carga_res = await db.execute(
+    # 2. Identificar otras unidades con actividad académica en este periodo que no tienen carga en este programa
+    actividad_res = await db.execute(
         text("""
-            SELECT er.unidad_didactica_id,
-                   COALESCE(up.nombre, pu.nombre, 'Unidad ' || er.unidad_didactica_id) AS unidad_nombre,
-                   count(md.id) AS total_matriculas,
-                   count(er.nota_final) AS con_nota_final,
-                   count(md.id) - count(er.nota_final) AS faltantes
-            FROM evaluacion_registros er
-            JOIN matricula_detalles md ON md.id = er.matricula_detalle_id
-            JOIN matriculas m ON m.id = md.matricula_id
-            LEFT JOIN unidades_plan up ON up.id = er.unidad_didactica_id
-            LEFT JOIN programa_unidades pu ON pu.id = er.unidad_didactica_id
-            LEFT JOIN carga_lectiva cl ON cl.unidad_didactica_id = er.unidad_didactica_id 
-                                     AND cl.periodo_id = er.periodo_id 
-                                     AND cl.programa_id = :prog_id
-            WHERE er.periodo_id = :p_id 
-              AND m.programa_id = :prog_id
-              AND m.estado_matricula = 'confirmada'
-              AND cl.id IS NULL
-            GROUP BY er.unidad_didactica_id, up.nombre, pu.nombre
-            ORDER BY er.unidad_didactica_id;
+            SELECT DISTINCT unidad_id FROM (
+                SELECT md.unidad_didactica_id AS unidad_id
+                FROM matricula_detalles md
+                JOIN matriculas m ON m.id = md.matricula_id
+                WHERE m.periodo_id = :p_id
+                UNION
+                SELECT er.unidad_didactica_id AS unidad_id
+                FROM evaluacion_registros er
+                WHERE er.periodo_id = :p_id
+            ) t
+            ORDER BY unidad_id;
         """),
-        {"p_id": periodo_id, "prog_id": programa_id}
+        {"p_id": periodo_id}
     )
-    sin_carga_rows = sin_carga_res.fetchall()
-    sin_carga_items = [
-        UnidadSinCargaItem(
-            unidad_didactica_id=r[0],
-            unidad=r[1],
-            total_matriculas=r[2],
-            con_nota_final=r[3],
-            faltantes=r[4]
-        )
-        for r in sin_carga_rows
-    ]
+    todas_u_ids = [r[0] for r in actividad_res.fetchall()]
+    otras_u_ids = [u for u in todas_u_ids if u not in cargas_u_ids]
 
-    return ResumenActasProgramaResponse(cargas=cargas_items, unidades_sin_carga=sin_carga_items)
+    unidades_sin_carga = []
+    unidades_sin_programa = []
+
+    for u_id in otras_u_ids:
+        # Verificar si la unidad pertenece formalmente al programa solicitado
+        pu_check = await db.execute(
+            text("""
+                SELECT pu.nombre 
+                FROM programa_unidades pu
+                JOIN programa_modulos pm ON pm.id = pu.programa_modulo_id
+                WHERE pu.id = :u_id AND pm.programa_id = :prog_id
+            """),
+            {"u_id": u_id, "prog_id": programa_id}
+        )
+        pu_row = pu_check.fetchone()
+
+        up_check = await db.execute(
+            text("""
+                SELECT up.nombre 
+                FROM unidades_plan up
+                JOIN modulos_plan mp ON mp.id = up.modulo_id
+                JOIN planes_estudio pe ON pe.id = mp.plan_id
+                JOIN programas_estudio prog ON prog.plan_estudio_id = pe.id
+                WHERE up.id = :u_id AND prog.id = :prog_id
+            """),
+            {"u_id": u_id, "prog_id": programa_id}
+        )
+        up_row = up_check.fetchone()
+
+        pu_nombre = pu_row[0] if pu_row else None
+        up_nombre = up_row[0] if up_row else None
+        if not pu_nombre and not up_nombre:
+            pu_res = await db.execute(text("SELECT nombre FROM programa_unidades WHERE id = :u_id"), {"u_id": u_id})
+            pu_n = pu_res.fetchone()
+            pu_nombre = pu_n[0] if pu_n else None
+            if not pu_nombre:
+                up_res = await db.execute(text("SELECT nombre FROM unidades_plan WHERE id = :u_id"), {"u_id": u_id})
+                up_n = up_res.fetchone()
+                up_nombre = up_n[0] if up_n else None
+
+        nombre_unidad = pu_nombre or up_nombre or f"Unidad {u_id}"
+
+        # Estadísticas en este periodo
+        stats_res = await db.execute(
+            text(f"""
+                SELECT 
+                    count(DISTINCT CASE WHEN {calificables_cond} THEN md.id END) AS total_matriculas,
+                    count(DISTINCT CASE WHEN {calificables_cond} AND er.nota_final IS NOT NULL THEN md.id END) AS con_nota_final,
+                    count(DISTINCT CASE WHEN m.estado_matricula = 'pendiente' THEN md.id END) AS matriculas_pendientes
+                FROM matricula_detalles md
+                JOIN matriculas m ON m.id = md.matricula_id
+                LEFT JOIN evaluacion_registros er ON er.matricula_detalle_id = md.id
+                WHERE md.unidad_didactica_id = :u_id 
+                  AND m.periodo_id = :p_id;
+            """),
+            {"u_id": u_id, "p_id": periodo_id}
+        )
+        s_row = stats_res.fetchone()
+        tot = s_row[0] if s_row else 0
+        con_n = s_row[1] if s_row else 0
+        pend = s_row[2] if s_row else 0
+        falt = max(0, tot - con_n)
+        total_gral_pendientes += pend
+
+        item = UnidadSinCargaItem(
+            unidad_didactica_id=u_id,
+            unidad=nombre_unidad,
+            total_matriculas=tot,
+            con_nota_final=con_n,
+            faltantes=falt,
+            matriculas_pendientes=pend
+        )
+
+        if pu_row or up_row:
+            unidades_sin_carga.append(item)
+        else:
+            unidades_sin_programa.append(item)
+
+    return ResumenActasProgramaResponse(
+        cargas=cargas_items,
+        unidades_sin_carga=unidades_sin_carga,
+        unidades_sin_programa=unidades_sin_programa,
+        total_matriculas_pendientes=total_gral_pendientes
+    )
 
 @router.put("/actas/carga/{carga_id}/fecha-limite")
 async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Fija la fecha límite de ingreso de notas para una carga lectiva."""
+    user_id = _exigir_user_id_numerico(request)
     hoy = get_hoy_lima()
     if data.fecha_limite_notas < hoy:
         raise HTTPException(
@@ -430,7 +544,7 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
         )
 
     carga_res = await db.execute(
-        text("SELECT id, periodo_id, programa_id, unidad_didactica_id, acta_cerrada, fecha_limite_notas FROM carga_lectiva WHERE id = :id"),
+        text("SELECT id, periodo_id, programa_id, unidad_didactica_id, acta_cerrada, fecha_limite_notas FROM carga_lectiva WHERE id = :id FOR UPDATE"),
         {"id": carga_id}
     )
     carga = carga_res.fetchone()
@@ -459,8 +573,8 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
         {"f": data.fecha_limite_notas, "id": carga_id}
     )
 
-    user_id = request.headers.get("X-User-ID")
     req_id = request.headers.get("X-Request-ID", "unknown")
+    now_utc = get_now_utc()
 
     event = OutboxEvent(
         event_type="evaluacion.acta.fecha_limite_actualizada",
@@ -472,7 +586,7 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
             "valores_nuevos": {"fecha_limite_notas": str(data.fecha_limite_notas)},
             "motivo": "Actualización de fecha límite de acta",
             "user_id": user_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": now_utc.isoformat(),
             "metadata": {"request_id": req_id, "user_id": user_id}
         }
     )
@@ -488,6 +602,7 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
 @router.post("/actas/programa/{programa_id}/periodo/{periodo_id}/fecha-limite")
 async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data: FechaLimiteRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Fija la misma fecha límite a todas las cargas lectivas abiertas de un programa y periodo."""
+    user_id = _exigir_user_id_numerico(request)
     hoy = get_hoy_lima()
     if data.fecha_limite_notas < hoy:
         raise HTTPException(
@@ -509,7 +624,7 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
         )
 
     cargas_res = await db.execute(
-        text("SELECT id FROM carga_lectiva WHERE programa_id = :prog_id AND periodo_id = :p_id AND acta_cerrada = false"),
+        text("SELECT id FROM carga_lectiva WHERE programa_id = :prog_id AND periodo_id = :p_id AND acta_cerrada = false FOR UPDATE"),
         {"prog_id": programa_id, "p_id": periodo_id}
     )
     cargas_ids = [r[0] for r in cargas_res.fetchall()]
@@ -520,8 +635,8 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
             {"f": data.fecha_limite_notas, "ids": cargas_ids}
         )
 
-    user_id = request.headers.get("X-User-ID")
     req_id = request.headers.get("X-Request-ID", "unknown")
+    now_utc = get_now_utc()
 
     event = OutboxEvent(
         event_type="evaluacion.acta.fecha_limite_masiva",
@@ -534,7 +649,7 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
             "valores_nuevos": {"fecha_limite_notas": str(data.fecha_limite_notas)},
             "motivo": "Actualización masiva de fechas límite por coordinación",
             "user_id": user_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": now_utc.isoformat(),
             "metadata": {"request_id": req_id, "user_id": user_id}
         }
     )
@@ -547,11 +662,13 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
         "fecha_limite_notas": data.fecha_limite_notas
     }
 
-@router.post("/actas/carga/{carga_id}/cerrar")
+@router.post("/actas/carga/{carga_id}/cerrar", response_model=CerrarActaResponse)
 async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    """Cierra el acta de una carga lectiva verificando que todas las matrículas activas tengan calificación final."""
+    """Cierra el acta de una carga lectiva verificando que todas las matrículas calificables tengan calificación final."""
+    user_id = _exigir_user_id_numerico(request)
+
     carga_res = await db.execute(
-        text("SELECT id, periodo_id, programa_id, unidad_didactica_id, acta_cerrada FROM carga_lectiva WHERE id = :id"),
+        text("SELECT id, periodo_id, programa_id, unidad_didactica_id, acta_cerrada FROM carga_lectiva WHERE id = :id FOR UPDATE"),
         {"id": carga_id}
     )
     carga = carga_res.fetchone()
@@ -574,20 +691,39 @@ async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = 
             detail=f"No se puede cerrar el acta porque el periodo académico {cod_per} está cerrado."
         )
 
-    # Verificar que CADA matrícula activa tenga un registro de evaluación con nota_final no nula
+    # 1. Verificar cantidad de matrículas calificables (regla única: confirmada y no retirada)
+    calificables_cond = _condicion_matricula_calificable_sql("m", "md")
+    tot_res = await db.execute(
+        text(f"""
+            SELECT count(md.id)
+            FROM matricula_detalles md
+            JOIN matriculas m ON m.id = md.matricula_id
+            WHERE md.unidad_didactica_id = :u_id 
+              AND m.periodo_id = :p_id
+              AND {calificables_cond}
+        """),
+        {"u_id": carga[3], "p_id": carga[1]}
+    )
+    total_calificables = tot_res.scalar() or 0
+    if total_calificables == 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede cerrar el acta: la unidad no cuenta con matrículas calificables en este periodo."
+        )
+
+    # 2. Verificar que CADA matrícula calificable tenga nota_final no nula
     faltantes_res = await db.execute(
-        text("""
+        text(f"""
             SELECT md.matricula_id, er.nota_final
             FROM matricula_detalles md
             JOIN matriculas m ON m.id = md.matricula_id
             LEFT JOIN evaluacion_registros er ON er.matricula_detalle_id = md.id
             WHERE md.unidad_didactica_id = :u_id 
               AND m.periodo_id = :p_id 
-              AND m.programa_id = :prog_id
-              AND m.estado_matricula = 'confirmada'
+              AND {calificables_cond}
               AND (er.id IS NULL OR er.nota_final IS NULL);
         """),
-        {"u_id": carga[3], "p_id": carga[1], "prog_id": carga[2]}
+        {"u_id": carga[3], "p_id": carga[1]}
     )
     faltantes_rows = faltantes_res.fetchall()
     if faltantes_rows:
@@ -601,11 +737,27 @@ async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = 
             }
         )
 
-    user_id_str = request.headers.get("X-User-ID")
-    user_id_int = int(user_id_str) if user_id_str and user_id_str.isdigit() else None
-    now_ts = datetime.utcnow()
+    # 3. Verificar si existen matrículas pendientes para generar advertencia (PASO 4b)
+    pend_res = await db.execute(
+        text("""
+            SELECT count(md.id)
+            FROM matricula_detalles md
+            JOIN matriculas m ON m.id = md.matricula_id
+            WHERE md.unidad_didactica_id = :u_id 
+              AND m.periodo_id = :p_id 
+              AND m.estado_matricula = 'pendiente';
+        """),
+        {"u_id": carga[3], "p_id": carga[1]}
+    )
+    pendientes_count = pend_res.scalar() or 0
+    advertencia = None
+    if pendientes_count > 0:
+        advertencia = f"Atención: existen {pendientes_count} matrícula(s) en estado pendiente que no fueron consideradas para el cierre del acta."
 
-    # Guardar acta cerrada en carga_lectiva
+    now_ts = get_now_utc()
+    now_db = now_ts.replace(tzinfo=None) if getattr(now_ts, "tzinfo", None) else now_ts
+
+    # 4. Guardar acta cerrada en carga_lectiva
     await db.execute(
         text("""
             UPDATE carga_lectiva 
@@ -615,18 +767,10 @@ async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = 
                 updated_at = NOW() 
             WHERE id = :id
         """),
-        {"now": now_ts, "u_id": user_id_int, "id": carga_id}
+        {"now": now_db, "u_id": user_id, "id": carga_id}
     )
 
-    # Consolidar/cerrar registros asociados
-    await db.execute(
-        text("""
-            UPDATE evaluacion_registros 
-            SET estado = 'cerrado', updated_at = NOW() 
-            WHERE unidad_didactica_id = :u_id AND periodo_id = :p_id
-        """),
-        {"u_id": carga[3], "p_id": carga[1]}
-    )
+    # PASO 3: evaluacion_registros.estado NO se sobreescribe a 'cerrado' para preservar la condición académica ('aprobado'/'desaprobado')
 
     req_id = request.headers.get("X-Request-ID", "unknown")
     event = OutboxEvent(
@@ -639,28 +783,32 @@ async def cerrar_acta_carga(carga_id: int, request: Request, db: AsyncSession = 
             "valores_nuevos": {
                 "acta_cerrada": True,
                 "acta_cerrada_at": now_ts.isoformat(),
-                "acta_cerrada_por": user_id_int
+                "acta_cerrada_por": user_id
             },
             "motivo": "Cierre regular de acta de evaluación",
-            "user_id": user_id_str,
+            "user_id": user_id,
             "timestamp": now_ts.isoformat(),
-            "metadata": {"request_id": req_id, "user_id": user_id_str}
+            "metadata": {"request_id": req_id, "user_id": user_id}
         }
     )
     db.add(event)
     await db.commit()
 
-    return {
-        "message": "Acta cerrada exitosamente",
-        "carga_id": carga_id,
-        "acta_cerrada": True,
-        "acta_cerrada_at": now_ts,
-        "acta_cerrada_por": user_id_int
-    }
+    return CerrarActaResponse(
+        message="Acta cerrada exitosamente",
+        carga_id=carga_id,
+        acta_cerrada=True,
+        acta_cerrada_at=now_ts,
+        acta_cerrada_por=user_id,
+        total_calificados=total_calificables,
+        advertencia=advertencia
+    )
 
 @router.post("/actas/carga/{carga_id}/reabrir")
 async def reabrir_acta_carga(carga_id: int, data: ReabrirActaRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Reabre un acta cerrada exigiendo motivo justificatorio y nueva fecha límite."""
+    user_id = _exigir_user_id_numerico(request)
+
     if not data.motivo or len(data.motivo.strip()) < 10:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -675,7 +823,7 @@ async def reabrir_acta_carga(carga_id: int, data: ReabrirActaRequest, request: R
         )
 
     carga_res = await db.execute(
-        text("SELECT id, periodo_id, programa_id, unidad_didactica_id, acta_cerrada, fecha_limite_notas, acta_cerrada_por FROM carga_lectiva WHERE id = :id"),
+        text("SELECT id, periodo_id, programa_id, unidad_didactica_id, acta_cerrada, fecha_limite_notas, acta_cerrada_por FROM carga_lectiva WHERE id = :id FOR UPDATE"),
         {"id": carga_id}
     )
     carga = carga_res.fetchone()
@@ -712,24 +860,10 @@ async def reabrir_acta_carga(carga_id: int, data: ReabrirActaRequest, request: R
         {"f": data.nueva_fecha_limite, "id": carga_id}
     )
 
-    # Restablecer estado de los registros a su condición según nota_final
-    await db.execute(
-        text("""
-            UPDATE evaluacion_registros 
-            SET estado = CASE 
-                WHEN nota_final >= 13 THEN 'aprobado' 
-                WHEN nota_final IS NOT NULL THEN 'desaprobado' 
-                ELSE 'cursando' 
-            END,
-            updated_at = NOW() 
-            WHERE unidad_didactica_id = :u_id AND periodo_id = :p_id
-        """),
-        {"u_id": carga[3], "p_id": carga[1]}
-    )
+    # PASO 3: evaluacion_registros.estado NO se altera al reabrir, se mantiene intacta la calificación
 
-    user_id_str = request.headers.get("X-User-ID")
     req_id = request.headers.get("X-Request-ID", "unknown")
-    now_ts = datetime.utcnow()
+    now_ts = get_now_utc()
 
     event = OutboxEvent(
         event_type="evaluacion.acta.reabierta",
@@ -748,9 +882,9 @@ async def reabrir_acta_carga(carga_id: int, data: ReabrirActaRequest, request: R
                 "acta_cerrada_por": None
             },
             "motivo": data.motivo.strip(),
-            "user_id": user_id_str,
+            "user_id": user_id,
             "timestamp": now_ts.isoformat(),
-            "metadata": {"request_id": req_id, "user_id": user_id_str}
+            "metadata": {"request_id": req_id, "user_id": user_id}
         }
     )
     db.add(event)

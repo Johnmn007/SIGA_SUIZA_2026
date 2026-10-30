@@ -46,6 +46,7 @@ class CargaActaItem(BaseModel):
     total_matriculas: int
     con_nota_final: int
     faltantes: int
+    matriculas_pendientes: int = 0
 
 class UnidadSinCargaItem(BaseModel):
     unidad_didactica_id: int
@@ -53,10 +54,22 @@ class UnidadSinCargaItem(BaseModel):
     total_matriculas: int
     con_nota_final: int
     faltantes: int
+    matriculas_pendientes: int = 0
 
 class ResumenActasProgramaResponse(BaseModel):
     cargas: List[CargaActaItem]
     unidades_sin_carga: List[UnidadSinCargaItem]
+    unidades_sin_programa: List[UnidadSinCargaItem] = []
+    total_matriculas_pendientes: int = 0
+
+class CerrarActaResponse(BaseModel):
+    message: str
+    carga_id: int
+    acta_cerrada: bool
+    acta_cerrada_at: datetime
+    acta_cerrada_por: int
+    total_calificados: int
+    advertencia: Optional[str] = None
 
 class FechaLimiteRequest(BaseModel):
     fecha_limite_notas: date
