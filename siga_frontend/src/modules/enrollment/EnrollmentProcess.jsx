@@ -60,28 +60,43 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
   useEffect(() => {
     const fetchAcademic = async () => {
       try {
-        const [pRes, peRes] = await Promise.all([
-          apiClient.request('/api/mod-programas-estudio/programas').catch(()=>[]),
-          apiClient.request('/api/mod-programas-estudio/periodos').catch(()=>[])
-        ]);
-        const fetchedPrograms = Array.isArray(pRes) ? pRes : [];
-        const fetchedPeriods = Array.isArray(peRes) ? peRes : [];
+      const [pRes, peRes] = await Promise.all([
+        apiClient.request('/api/mod-programas-estudio/programas').catch(()=>[]),
+        apiClient.callModule('mod-programas-estudio', 'periodos').catch(()=>[])
+      ]);
+      const fetchedPrograms = Array.isArray(pRes) ? pRes : [];
+      const fetchedPeriods = Array.isArray(peRes) ? peRes : [];
+      
+      console.log("Academic Data Loaded:", {fetchedPrograms, fetchedPeriods, initialStudent});
+      
+      // Auto-select based on student and active period (usar mismos periodos que Periodos Lectivos)
+      if (initialStudent) {
+        const studentProgram = fetchedPrograms.find(p => p.id === initialStudent.programa_id || String(p.id) === String(initialStudent.programa_id));
+        const activePeriod = fetchedPeriods.find(p => {
+          const est = (p.estado || '').toString().toLowerCase();
+          return est === 'matricula_abierta' || est === 'abierto' || est === 'activo' || est === 'en_curso';
+        }) || fetchedPeriods[0] || null;
         
-        console.log("Academic Data Loaded:", {fetchedPrograms, fetchedPeriods, initialStudent});
+        console.log("Auto-selecting:", {studentProgram, activePeriod});
         
-        // Auto-select based on student and active period
-        if (initialStudent) {
-          const studentProgram = fetchedPrograms.find(p => p.id === initialStudent.programa_id || String(p.id) === String(initialStudent.programa_id));
-          const activePeriod = fetchedPeriods.find(p => p.estado === 'ACTIVO') || fetchedPeriods[fetchedPeriods.length - 1];
-          
-          console.log("Auto-selecting:", {studentProgram, activePeriod});
-          
+        setSelection(prev => ({
+          ...prev,
+          program: studentProgram || fetchedPrograms[0] || null,
+          period: activePeriod || fetchedPeriods[0] || null
+        }));
+      } else {
+        // También auto-seleccionar periodo abierto si no hay estudiante inicial
+        const activePeriod = fetchedPeriods.find(p => {
+          const est = (p.estado || '').toString().toLowerCase();
+          return est === 'matricula_abierta' || est === 'abierto' || est === 'activo' || est === 'en_curso';
+        }) || fetchedPeriods[0] || null;
+        if (activePeriod) {
           setSelection(prev => ({
             ...prev,
-            program: studentProgram || fetchedPrograms[0] || null, // fallback if missing
-            period: activePeriod || fetchedPeriods[0] || null
+            period: prev.period || activePeriod
           }));
         }
+      }
       } catch (e) { 
         console.error('Error fetching academic data:', e); 
       }
@@ -222,15 +237,8 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
         observaciones: 'Registrada desde el asistente visual de matrícula.',
         detalles: detalles
       });
-      setMatricula(mat);
+      setMatricula(mat);      // Emisión de boleta/QR eliminada: corresponde exclusivamente al módulo Finanzas y Pagos.
 
-      // Sección 6: emitir la boleta con su código QR único.
-      try {
-        const b = await apiClient.callModule('mod-gestion-academica', `matriculas/${mat.id}/boleta`, 'POST');
-        setBoleta(b);
-      } catch (boletaError) {
-        console.warn('No se pudo emitir la boleta:', boletaError);
-      }
 
       // Sección 8: avance de créditos del estudiante.
       try {
