@@ -239,4 +239,336 @@ describe('Auditoría Frontend - Rol Docente (EvaluationDashboard & DocentePlanni
 
     expect(container.firstChild).toHaveClass('space-y-6');
   });
+
+  it('7. [PASO 1] Renderiza banner editable con fecha límite formateada en DD/MM/AAAA y alerta si quedan <= 3 días', async () => {
+    // Calculamos fecha límite dentro de 2 días
+    const hoy = new Date();
+    const fechaLimite = new Date(hoy.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const y = fechaLimite.getFullYear();
+    const m = String(fechaLimite.getMonth() + 1).padStart(2, '0');
+    const d = String(fechaLimite.getDate()).padStart(2, '0');
+    const fechaLimiteIso = `${y}-${m}-${d}`;
+    const fechaLimiteEsp = `${d}/${m}/${y}`;
+
+    apiClient.request.mockImplementation((endpoint) => {
+      if (endpoint.includes('/programas-estudio/programas') && !endpoint.includes('/malla')) {
+        return Promise.resolve([{ id: 1, nombre: 'DSI' }]);
+      }
+      if (endpoint.includes('/programas-estudio/periodos')) {
+        return Promise.resolve([{ id: 1, codigo: '2026-I' }]);
+      }
+      if (endpoint.includes('/carga-lectiva')) {
+        return Promise.resolve([{ id: 1, programa_id: 1, periodo_id: 1, unidad_didactica_id: 101 }]);
+      }
+      if (endpoint.includes('/malla')) {
+        return Promise.resolve([
+          { id: 1, nombre: 'Módulo 3', unidades: [{ id: 101, nombre: 'Taller Web' }] }
+        ]);
+      }
+      if (endpoint.includes('/matriculas/unidad/101/periodo/1')) {
+        return Promise.resolve([
+          { id: 100, matricula_detalle_id: 80, nombres: 'Estudiante', apellidos: 'Uno' }
+        ]);
+      }
+      if (endpoint.includes('/actas/unidad/101/periodo/1')) {
+        return Promise.resolve({
+          tiene_carga: true,
+          acta_cerrada: false,
+          fecha_limite_notas: fechaLimiteIso,
+          editable: true,
+          motivo_bloqueo: null
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<EvaluationDashboard />);
+    await screen.findByText('Taller Web');
+    const selectUnit = screen.getByRole('combobox');
+    fireEvent.change(selectUnit, { target: { value: '101' } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('banner-fecha-limite')).toBeInTheDocument();
+    });
+
+    // Validar formato DD/MM/AAAA y mensaje de urgencia (<= 3 días)
+    const banner = screen.getByTestId('banner-fecha-limite');
+    expect(banner).toHaveTextContent(new RegExp(`Plazo para ingresar notas hasta\\s+${fechaLimiteEsp}`, 'i'));
+    expect(banner).toHaveTextContent(/¡Quedan 2 días!/i);
+  });
+
+  it('8. [PASO 1] Banner de acta cerrada con motivo de bloqueo e inputs en read-only / deshabilitados', async () => {
+    apiClient.request.mockImplementation((endpoint) => {
+      if (endpoint.includes('/programas-estudio/programas') && !endpoint.includes('/malla')) {
+        return Promise.resolve([{ id: 1, nombre: 'DSI' }]);
+      }
+      if (endpoint.includes('/programas-estudio/periodos')) {
+        return Promise.resolve([{ id: 1, codigo: '2026-I' }]);
+      }
+      if (endpoint.includes('/carga-lectiva')) {
+        return Promise.resolve([{ id: 1, programa_id: 1, periodo_id: 1, unidad_didactica_id: 101 }]);
+      }
+      if (endpoint.includes('/malla')) {
+        return Promise.resolve([
+          { id: 1, nombre: 'Módulo 3', unidades: [{ id: 101, nombre: 'Taller Web' }] }
+        ]);
+      }
+      if (endpoint.includes('/matriculas/unidad/101/periodo/1')) {
+        return Promise.resolve([
+          { id: 100, matricula_detalle_id: 80, nombres: 'Estudiante', apellidos: 'Uno' }
+        ]);
+      }
+      if (endpoint.includes('/actas/unidad/101/periodo/1')) {
+        return Promise.resolve({
+          tiene_carga: true,
+          acta_cerrada: true,
+          fecha_limite_notas: null,
+          editable: false,
+          motivo_bloqueo: 'El acta de la unidad 101 del periodo 2026-I está cerrada. Solicite su reapertura al coordinador.'
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<EvaluationDashboard />);
+    await screen.findByText('Taller Web');
+    const selectUnit = screen.getByRole('combobox');
+    fireEvent.change(selectUnit, { target: { value: '101' } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('banner-bloqueado')).toBeInTheDocument();
+    });
+
+    // Verificar motivo de bloqueo visible
+    expect(screen.getByText(/El acta de la unidad 101 del periodo 2026-I está cerrada/i)).toBeInTheDocument();
+
+    // Verificar inputs deshabilitados
+    const inputNota = screen.getByRole('textbox');
+    expect(inputNota).toBeDisabled();
+
+    // Botón guardar deshabilitado con title explicativo
+    const saveBtn = screen.getByRole('button', { name: /Guardar Promedios/i });
+    expect(saveBtn).toBeDisabled();
+    expect(saveBtn).toHaveAttribute('title', expect.stringMatching(/está cerrada|solo lectura/i));
+  });
+
+  it('9. [PASO 1] Unidad sin carga muestra mensaje "Esta unidad no tiene docente asignado..." en read-only', async () => {
+    apiClient.request.mockImplementation((endpoint) => {
+      if (endpoint.includes('/programas-estudio/programas') && !endpoint.includes('/malla')) {
+        return Promise.resolve([{ id: 1, nombre: 'DSI' }]);
+      }
+      if (endpoint.includes('/programas-estudio/periodos')) {
+        return Promise.resolve([{ id: 1, codigo: '2026-I' }]);
+      }
+      if (endpoint.includes('/carga-lectiva')) {
+        return Promise.resolve([{ id: 1, programa_id: 1, periodo_id: 1, unidad_didactica_id: 101 }]);
+      }
+      if (endpoint.includes('/malla')) {
+        return Promise.resolve([
+          { id: 1, nombre: 'Módulo 3', unidades: [{ id: 101, nombre: 'Taller Web' }] }
+        ]);
+      }
+      if (endpoint.includes('/matriculas/unidad/101/periodo/1')) {
+        return Promise.resolve([
+          { id: 100, matricula_detalle_id: 80, nombres: 'Estudiante', apellidos: 'Uno' }
+        ]);
+      }
+      if (endpoint.includes('/actas/unidad/101/periodo/1')) {
+        return Promise.resolve({
+          tiene_carga: false,
+          acta_cerrada: false,
+          fecha_limite_notas: null,
+          editable: false,
+          motivo_bloqueo: null
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<EvaluationDashboard />);
+    await screen.findByText('Taller Web');
+    const selectUnit = screen.getByRole('combobox');
+    fireEvent.change(selectUnit, { target: { value: '101' } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('banner-sin-carga')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Esta unidad no tiene docente asignado\. Solicite la asignación a Coordinación de Programa\./i)).toBeInTheDocument();
+    const inputNota = screen.getByRole('textbox');
+    expect(inputNota).toBeDisabled();
+  });
+
+  it('10. [PASO 2] Error 409 al guardar muestra el detail del backend y no pierde notas ingresadas', async () => {
+    apiClient.request.mockImplementation((endpoint, options) => {
+      if (endpoint.includes('/programas-estudio/programas') && !endpoint.includes('/malla')) {
+        return Promise.resolve([{ id: 1, nombre: 'DSI' }]);
+      }
+      if (endpoint.includes('/programas-estudio/periodos')) {
+        return Promise.resolve([{ id: 1, codigo: '2026-I' }]);
+      }
+      if (endpoint.includes('/carga-lectiva')) {
+        return Promise.resolve([{ id: 1, programa_id: 1, periodo_id: 1, unidad_didactica_id: 101 }]);
+      }
+      if (endpoint.includes('/malla')) {
+        return Promise.resolve([
+          { id: 1, nombre: 'Módulo 3', unidades: [{ id: 101, nombre: 'Taller Web' }] }
+        ]);
+      }
+      if (endpoint.includes('/matriculas/unidad/101/periodo/1')) {
+        return Promise.resolve([
+          { id: 100, matricula_detalle_id: 80, nombres: 'Estudiante', apellidos: 'Uno' }
+        ]);
+      }
+      if (endpoint.includes('/actas/unidad/101/periodo/1')) {
+        return Promise.resolve({
+          tiene_carga: true,
+          acta_cerrada: false,
+          fecha_limite_notas: null,
+          editable: true,
+          motivo_bloqueo: null
+        });
+      }
+      if (endpoint.includes('/registros') && options?.method === 'POST') {
+        const err = new Error('HTTP error! status: 409');
+        err.status = 409;
+        err.detail = 'El acta de esta unidad didáctica ya se encuentra cerrada';
+        return Promise.reject(err);
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<EvaluationDashboard />);
+    await screen.findByText('Taller Web');
+    const selectUnit = screen.getByRole('combobox');
+    fireEvent.change(selectUnit, { target: { value: '101' } });
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox')).toBeInTheDocument();
+    });
+
+    const inputNota = screen.getByRole('textbox');
+    fireEvent.change(inputNota, { target: { value: '17' } });
+
+    await waitFor(() => {
+      expect(inputNota).toHaveValue('17');
+    });
+
+    // Click en Guardar
+    const saveBtn = screen.getByRole('button', { name: /Guardar Promedios/i });
+    fireEvent.click(saveBtn);
+
+    // Debe mostrar la alerta con el detail devuelto por el backend
+    await waitFor(() => {
+      expect(screen.getByTestId('save-error-alert')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/El acta de esta unidad didáctica ya se encuentra cerrada/i)).toBeInTheDocument();
+
+    // Las notas ingresadas por el docente NO deben perderse
+    expect(inputNota).toHaveValue('17');
+  });
+
+  it('11. [PASO 3] Botón "Vista previa del acta" y modal con marca de agua cuando no está cerrada', async () => {
+    apiClient.request.mockImplementation((endpoint) => {
+      if (endpoint.includes('/programas-estudio/programas') && !endpoint.includes('/malla')) {
+        return Promise.resolve([{ id: 1, nombre: 'DSI' }]);
+      }
+      if (endpoint.includes('/programas-estudio/periodos')) {
+        return Promise.resolve([{ id: 1, codigo: '2026-I' }]);
+      }
+      if (endpoint.includes('/carga-lectiva')) {
+        return Promise.resolve([{ id: 1, programa_id: 1, periodo_id: 1, unidad_didactica_id: 101 }]);
+      }
+      if (endpoint.includes('/malla')) {
+        return Promise.resolve([
+          { id: 1, nombre: 'Módulo 3', unidades: [{ id: 101, nombre: 'Taller Web' }] }
+        ]);
+      }
+      if (endpoint.includes('/matriculas/unidad/101/periodo/1')) {
+        return Promise.resolve([
+          { id: 100, matricula_detalle_id: 80, nombres: 'Estudiante', apellidos: 'Uno' }
+        ]);
+      }
+      if (endpoint.includes('/actas/unidad/101/periodo/1')) {
+        return Promise.resolve({
+          tiene_carga: true,
+          acta_cerrada: false,
+          fecha_limite_notas: null,
+          editable: true,
+          motivo_bloqueo: null
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<EvaluationDashboard />);
+    await screen.findByText('Taller Web');
+    const selectUnit = screen.getByRole('combobox');
+    fireEvent.change(selectUnit, { target: { value: '101' } });
+
+    // Esperar a que la nómina de estudiantes cargue y habilite el botón
+    await screen.findByText(/Uno, Estudiante/i);
+    const actaBtn = await screen.findByRole('button', { name: /Vista previa del acta/i });
+    expect(actaBtn).toBeEnabled();
+
+    // Abrir modal de vista previa
+    fireEvent.click(actaBtn);
+    await waitFor(() => {
+      expect(screen.getByTestId('acta-watermark')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/VISTA PREVIA - ACTA NO CERRADA/i)).toBeInTheDocument();
+  });
+
+  it('12. [PASO 3] Botón "Acta oficial" y modal oficial con fecha/hora de cierre en Lima cuando está cerrada', async () => {
+    apiClient.request.mockImplementation((endpoint) => {
+      if (endpoint.includes('/programas-estudio/programas') && !endpoint.includes('/malla')) {
+        return Promise.resolve([{ id: 1, nombre: 'DSI' }]);
+      }
+      if (endpoint.includes('/programas-estudio/periodos')) {
+        return Promise.resolve([{ id: 1, codigo: '2026-I' }]);
+      }
+      if (endpoint.includes('/carga-lectiva')) {
+        return Promise.resolve([{ id: 1, programa_id: 1, periodo_id: 1, unidad_didactica_id: 101 }]);
+      }
+      if (endpoint.includes('/malla')) {
+        return Promise.resolve([
+          { id: 1, nombre: 'Módulo 3', unidades: [{ id: 101, nombre: 'Taller Web' }] }
+        ]);
+      }
+      if (endpoint.includes('/matriculas/unidad/101/periodo/1')) {
+        return Promise.resolve([
+          { id: 100, matricula_detalle_id: 80, nombres: 'Estudiante', apellidos: 'Uno' }
+        ]);
+      }
+      if (endpoint.includes('/actas/unidad/101/periodo/1')) {
+        return Promise.resolve({
+          tiene_carga: true,
+          acta_cerrada: true,
+          fecha_limite_notas: null,
+          editable: false,
+          motivo_bloqueo: 'El acta está cerrada',
+          acta_cerrada_at: '2026-10-30T20:45:00Z' // 15:45 en Lima (UTC-5)
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<EvaluationDashboard />);
+    await screen.findByText('Taller Web');
+    const selectUnit = screen.getByRole('combobox');
+    fireEvent.change(selectUnit, { target: { value: '101' } });
+
+    // Esperar a que la nómina de estudiantes cargue y habilite el botón
+    await screen.findByText(/Uno, Estudiante/i);
+    const actaOficialBtn = await screen.findByRole('button', { name: /Acta oficial/i });
+    expect(actaOficialBtn).toBeEnabled();
+
+    // Abrir modal oficial
+    fireEvent.click(actaOficialBtn);
+    await waitFor(() => {
+      expect(screen.getByText(/ACTA OFICIAL CONSOLIDADA \(CERRADA\)/i)).toBeInTheDocument();
+      // En Lima UTC-5, 20:45 UTC es 15:45 (se renderiza en encabezado y pie de página del acta)
+      expect(screen.getAllByText(/30\/10\/2026.*15:45/i).length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

@@ -4,6 +4,114 @@ import { DocentePlanning } from '../academic/DocentePlanning';
 import { useAuth } from '../../core/auth/useAuth';
 import { Save, GraduationCap, Calendar, BookOpen, ClipboardList, AlertTriangle, Target, FileText, Printer, X, CheckCircle2 } from 'lucide-react';
 
+/**
+ * Formatea una fecha a formato institucional DD/MM/AAAA.
+ */
+export function formatDateDDMMAAAA(dateStr) {
+  if (!dateStr) return '';
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    const [year, month, day] = dateStr.split('T')[0].split('-');
+    return `${day}/${month}/${year}`;
+  }
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return String(dateStr);
+  }
+}
+
+/**
+ * Convierte una marca de tiempo UTC a America/Lima (UTC-5) en formato DD/MM/AAAA HH:mm.
+ */
+export function formatDateTimeLima(isoStr) {
+  if (!isoStr) return '';
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return String(isoStr);
+    const formatter = new Intl.DateTimeFormat('es-PE', {
+      timeZone: 'America/Lima',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    return formatter.format(d);
+  } catch {
+    return String(isoStr);
+  }
+}
+
+/**
+ * Calcula los días calendario restantes respecto a la fecha actual en America/Lima.
+ */
+export function getDaysRemainingLima(dateStr) {
+  if (!dateStr) return null;
+  try {
+    const targetDateOnly = typeof dateStr === 'string' ? dateStr.split('T')[0] : '';
+    const parts = targetDateOnly.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return null;
+    const [y, m, d] = parts;
+
+    const now = new Date();
+    const limaFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Lima',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const todayLimaStr = limaFormatter.format(now);
+    const [todayY, todayM, todayD] = todayLimaStr.split('-').map(Number);
+
+    const targetUtc = Date.UTC(y, m - 1, d);
+    const todayUtc = Date.UTC(todayY, todayM - 1, todayD);
+
+    return Math.round((targetUtc - todayUtc) / (1000 * 60 * 60 * 24));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Mapea códigos de error HTTP a mensajes institucionales claros.
+ */
+export function mapSaveError(error) {
+  let errorText = "No se pudo guardar, intente nuevamente";
+  if (!error) return errorText;
+
+  const status = error.status || (error.response && error.response.status);
+  const msg = String(error.message || '');
+  const detail = error.detail || (error.response && error.response.data && error.response.data.detail);
+
+  if (status === 401 || /401/i.test(msg) || /sesi[oó]n|token|no autenticado/i.test(msg)) {
+    return "Su sesión expiró, vuelva a iniciar sesión";
+  }
+  if (status === 403 || /403/i.test(msg) || /permiso|no asignado/i.test(msg)) {
+    return "No tiene permiso sobre esta unidad";
+  }
+  if (status === 409 || /409/i.test(msg) || /acta.*cerrada|plazo.*venci/i.test(msg)) {
+    if (detail) return detail;
+    const cleanMsg = msg.replace(/^HTTP error!\s*status:\s*409\s*-?\s*/i, '').trim();
+    return cleanMsg || "El acta de esta unidad está cerrada o el plazo ha vencido";
+  }
+  if (status === 422 || /422/i.test(msg) || /inv[aá]lid/i.test(msg)) {
+    return "Dato inválido (la nota debe ser un entero entre 0 y 20)";
+  }
+  if (status === 500 || /500|failed to fetch|network/i.test(msg)) {
+    return "No se pudo guardar, intente nuevamente";
+  }
+  if (detail) {
+    return detail;
+  }
+  return errorText;
+}
+
 export function EvaluationDashboard() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('notas'); // 'notas', 'planificacion'
@@ -11,6 +119,9 @@ export function EvaluationDashboard() {
   const [saving, setSaving] = useState(false);
   const [showActaModal, setShowActaModal] = useState(false);
   const [gradeError, setGradeError] = useState(null);
+  const [saveSuccess, setSaveSuccess] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+  const [actaStatus, setActaStatus] = useState(null);
   
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
@@ -69,21 +180,38 @@ export function EvaluationDashboard() {
     fetchMalla();
   }, [selectedProgram]);
 
-  // Cargar Estudiantes matriculados y sus notas cuando se selecciona la Unidad y el Periodo
+  // Cargar Estudiantes matriculados, notas y estado del acta cuando se selecciona la Unidad y el Periodo
   useEffect(() => {
+    setSaveSuccess(null);
+    setSaveError(null);
+    setGradeError(null);
+
     if (!selectedUnit || !selectedPeriod) {
       setStudents([]);
+      setActaStatus(null);
       return;
     }
     
     const fetchStudentsAndGrades = async () => {
       setLoading(true);
       try {
-        const enrolled = await apiClient.request(`/api/mod-gestion-academica/matriculas/unidad/${selectedUnit}/periodo/${selectedPeriod}`).catch(() => []);
-        const grades = await apiClient.request(`/api/mod-evaluacion/registros/unidad/${selectedUnit}/periodo/${selectedPeriod}`).catch(() => []);
+        const [enrolled, grades, actaInfo] = await Promise.all([
+          apiClient.request(`/api/mod-gestion-academica/matriculas/unidad/${selectedUnit}/periodo/${selectedPeriod}`).catch(() => []),
+          apiClient.request(`/api/mod-evaluacion/registros/unidad/${selectedUnit}/periodo/${selectedPeriod}`).catch(() => []),
+          apiClient.request(`/api/mod-evaluacion/actas/unidad/${selectedUnit}/periodo/${selectedPeriod}`).catch(() => null)
+        ]);
+
+        if (actaInfo && typeof actaInfo === 'object' && !Array.isArray(actaInfo) && 'tiene_carga' in actaInfo) {
+          setActaStatus(actaInfo);
+        } else {
+          setActaStatus(null);
+        }
         
-        const combined = enrolled.map(est => {
-          const gradeRecord = grades.find(g => g.matricula_detalle_id === est.matricula_detalle_id);
+        const enrolledList = Array.isArray(enrolled) ? enrolled : [];
+        const gradesList = Array.isArray(grades) ? grades : [];
+
+        const combined = enrolledList.map(est => {
+          const gradeRecord = gradesList.find(g => g.matricula_detalle_id === est.matricula_detalle_id);
           return {
             id: est.id,
             matricula_detalle_id: est.matricula_detalle_id,
@@ -104,7 +232,13 @@ export function EvaluationDashboard() {
     fetchStudentsAndGrades();
   }, [selectedUnit, selectedPeriod]);
 
+  const isReadOnly = Boolean(
+    actaStatus && (!actaStatus.tiene_carga || !actaStatus.editable)
+  );
+
   const handleGradeChange = (studentId, criteria, value) => {
+    if (isReadOnly) return;
+
     if (value !== '' && !/^\d+$/.test(value)) {
       setGradeError('La nota debe ser un número entero entre 0 y 20');
       return;
@@ -117,6 +251,7 @@ export function EvaluationDashboard() {
     }
 
     setGradeError(null);
+    setSaveError(null);
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
         return { ...s, [criteria]: value };
@@ -126,13 +261,27 @@ export function EvaluationDashboard() {
   };
 
   const handleSaveGrades = async () => {
-    if (!selectedUnit || !selectedPeriod || students.length === 0) return;
+    if (!selectedUnit || !selectedPeriod || students.length === 0 || isReadOnly) return;
     
+    // Validación cliente de todas las notas
+    const hasInvalidGrade = students.some(s => {
+      if (s.nota_final === '' || s.nota_final === null || s.nota_final === undefined) return false;
+      const n = Number(s.nota_final);
+      return isNaN(n) || !Number.isInteger(n) || n < 0 || n > 20;
+    });
+
+    if (hasInvalidGrade) {
+      setGradeError('La nota debe estar entre 0 y 20');
+      return;
+    }
+
     setSaving(true);
+    setSaveError(null);
+    setSaveSuccess(null);
     try {
       const promises = students.map(student => {
         const payload = {
-          nota_final: student.nota_final !== '' ? parseInt(student.nota_final) : null
+          nota_final: student.nota_final !== '' && student.nota_final !== null ? parseInt(student.nota_final, 10) : null
         };
         
         if (student.registro_id) {
@@ -147,8 +296,8 @@ export function EvaluationDashboard() {
               ...payload,
               matricula_detalle_id: student.matricula_detalle_id,
               estudiante_id: student.id,
-              unidad_didactica_id: parseInt(selectedUnit),
-              periodo_id: parseInt(selectedPeriod)
+              unidad_didactica_id: parseInt(selectedUnit, 10),
+              periodo_id: parseInt(selectedPeriod, 10)
             })
           }).then(data => ({ status: 'ok', data }));
         }
@@ -164,12 +313,13 @@ export function EvaluationDashboard() {
         }
       }
       setStudents(newStudents);
-      alert("✅ Calificaciones guardadas exitosamente");
+      setSaveSuccess('Calificaciones guardadas exitosamente');
     } catch (e) {
       console.error('Error saving grades', e);
-      alert("❌ Ocurrió un error al guardar las calificaciones.");
+      setSaveError(mapSaveError(e));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const getTipoCompetencia = (unidadNombre, moduloNombre) => {
@@ -232,14 +382,15 @@ export function EvaluationDashboard() {
             }`}
           >
             <FileText className="w-3.5 h-3.5 text-slate-500" />
-            <span>Acta Oficial (PDF)</span>
+            <span>{actaStatus?.acta_cerrada ? 'Acta oficial' : 'Vista previa del acta'}</span>
           </button>
 
           <button 
             onClick={handleSaveGrades}
-            disabled={saving || !selectedUnit || students.length === 0}
+            disabled={saving || !selectedUnit || students.length === 0 || isReadOnly}
+            title={isReadOnly ? (actaStatus?.motivo_bloqueo || 'Calificaciones en solo lectura') : 'Guardar Promedios'}
             className={`inline-flex items-center gap-1.5 py-2 px-4 rounded-xl font-medium text-xs shadow-sm transition-all ${
-              saving || !selectedUnit || students.length === 0 
+              saving || !selectedUnit || students.length === 0 || isReadOnly
                 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
                 : 'bg-slate-900 hover:bg-slate-800 text-white cursor-pointer'
             }`}
@@ -363,10 +514,98 @@ export function EvaluationDashboard() {
             </div>
           </div>
 
+          {/* Banners Informativos del Estado del Acta */}
+          {selectedUnit && selectedPeriod && actaStatus && (
+            <div className="space-y-3">
+              {/* 1. Unidad sin docente asignado en carga_lectiva */}
+              {!actaStatus.tiene_carga && (
+                <div data-testid="banner-sin-carga" className="p-4 bg-amber-50/90 border border-amber-300 rounded-2xl flex items-center gap-3 text-amber-900 text-xs shadow-sm animate-fade-in">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <div>
+                    <p className="font-bold">Unidad sin docente asignado</p>
+                    <p>Esta unidad no tiene docente asignado. Solicite la asignación a Coordinación de Programa.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Acta Bloqueada (cerrada, plazo vencido o periodo no calificable) */}
+              {actaStatus.tiene_carga && !actaStatus.editable && (
+                <div data-testid="banner-bloqueado" className="p-4 bg-rose-50/90 border border-rose-300 rounded-2xl flex items-center gap-3 text-rose-900 text-xs shadow-sm animate-fade-in">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+                  <div>
+                    <p className="font-bold">Ingreso de calificaciones bloqueado</p>
+                    <p>{actaStatus.motivo_bloqueo || 'El registro de notas no está disponible en este momento.'}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Editable con Fecha Límite */}
+              {actaStatus.tiene_carga && actaStatus.editable && actaStatus.fecha_limite_notas && (
+                (() => {
+                  const dias = getDaysRemainingLima(actaStatus.fecha_limite_notas);
+                  const esUrgente = dias !== null && dias <= 3;
+                  return (
+                    <div 
+                      data-testid="banner-fecha-limite" 
+                      className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm animate-fade-in ${
+                        esUrgente 
+                          ? 'bg-amber-50/95 border-amber-300 text-amber-950 font-medium' 
+                          : 'bg-blue-50/80 border-blue-200 text-blue-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Calendar className={`w-4 h-4 ${esUrgente ? 'text-amber-600' : 'text-blue-600'} flex-shrink-0`} />
+                        <div>
+                          <span>Plazo para ingresar notas hasta <strong>{formatDateDDMMAAAA(actaStatus.fecha_limite_notas)}</strong></span>
+                          {esUrgente && (
+                            <span className="ml-2 font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-950 text-[11px]">
+                              {dias < 0 ? '¡Plazo vencido!' : dias === 0 ? '¡Vence hoy!' : dias === 1 ? '¡Queda 1 día!' : `¡Quedan ${dias} días!`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {actaStatus.matriculas_pendientes > 0 && (
+                        <span className="text-[11px] text-amber-800 bg-amber-100/80 border border-amber-200 px-2.5 py-1 rounded-lg">
+                          ⚠️ {actaStatus.matriculas_pendientes} matrícula(s) pendiente(s) de confirmación
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          )}
+
           {/* Tabla de Registro de Promedios */}
           {selectedUnit && selectedPeriod && (
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden animate-fade-in">
-              {/* Alerta de Error de Validación */}
+              {/* Notificación de Éxito al Guardar */}
+              {saveSuccess && (
+                <div data-testid="save-success-alert" className="mx-6 mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between gap-2 animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
+                    <span className="font-semibold">{saveSuccess}</span>
+                  </div>
+                  <button onClick={() => setSaveSuccess(null)} className="text-emerald-600 hover:text-emerald-800 cursor-pointer">
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* Notificación de Error al Guardar */}
+              {saveError && (
+                <div data-testid="save-error-alert" className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between gap-2 animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle size={16} className="text-rose-600 flex-shrink-0" />
+                    <span className="font-medium">{saveError}</span>
+                  </div>
+                  <button onClick={() => setSaveError(null)} className="text-rose-600 hover:text-rose-800 cursor-pointer">
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* Alerta de Error de Validación de Formato */}
               {gradeError && (
                 <div data-testid="grade-error-alert" className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2 animate-fade-in">
                   <AlertTriangle size={15} className="text-rose-600 flex-shrink-0" />
@@ -384,6 +623,11 @@ export function EvaluationDashboard() {
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
                       <Target size={12} className="text-slate-500" />
                       <span>{tipoCompetencia}</span>
+                    </span>
+                  )}
+                  {isReadOnly && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                      Solo Lectura
                     </span>
                   )}
                 </div>
@@ -416,7 +660,7 @@ export function EvaluationDashboard() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {students.map((student, idx) => {
-                        const numGrade = parseInt(student.nota_final);
+                        const numGrade = parseInt(student.nota_final, 10);
                         const hasGrade = student.nota_final !== '' && !isNaN(numGrade);
                         const isPassed = hasGrade && numGrade >= 13;
 
@@ -427,12 +671,16 @@ export function EvaluationDashboard() {
                             <td className="py-2 px-4 text-center">
                               <input 
                                 type="text" 
+                                disabled={isReadOnly}
+                                readOnly={isReadOnly}
                                 className={`w-16 mx-auto text-center py-1.5 px-2 border rounded-xl outline-none font-bold text-sm transition-all ${
-                                  student.nota_final === '' 
-                                    ? 'border-slate-200 bg-white text-slate-800 focus:border-slate-900 focus:ring-1 focus:ring-slate-900' 
-                                    : isPassed 
-                                      ? 'border-emerald-300 text-emerald-800 bg-emerald-50/50 focus:border-emerald-500 focus:bg-white' 
-                                      : 'border-rose-300 text-rose-700 bg-rose-50/50 focus:border-rose-500 focus:bg-white'
+                                  isReadOnly
+                                    ? 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed'
+                                    : student.nota_final === '' 
+                                      ? 'border-slate-200 bg-white text-slate-800 focus:border-slate-900 focus:ring-1 focus:ring-slate-900' 
+                                      : isPassed 
+                                        ? 'border-emerald-300 text-emerald-800 bg-emerald-50/50 focus:border-emerald-500 focus:bg-white' 
+                                        : 'border-rose-300 text-rose-700 bg-rose-50/50 focus:border-rose-500 focus:bg-white'
                                 }`}
                                 value={student.nota_final}
                                 onChange={(e) => handleGradeChange(student.id, 'nota_final', e.target.value)}
@@ -473,7 +721,9 @@ export function EvaluationDashboard() {
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center print:hidden">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-slate-600" />
-                <span className="font-bold text-sm text-slate-900">Acta Oficial de Evaluación</span>
+                <span className="font-bold text-sm text-slate-900">
+                  {actaStatus?.acta_cerrada ? 'Acta Oficial de Evaluación' : 'Vista Previa del Acta de Evaluación'}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -503,6 +753,24 @@ export function EvaluationDashboard() {
                 </h2>
                 <div className="inline-block px-3 py-1 bg-slate-100 font-extrabold text-[11px] uppercase mt-2 rounded border border-slate-300">
                   ACTA CONSOLIDADA DE EVALUACIÓN FINAL DE UNIDAD DIDÁCTICA
+                </div>
+
+                {/* Marca de Agua / Estado Oficial */}
+                <div>
+                  {!actaStatus?.acta_cerrada ? (
+                    <div data-testid="acta-watermark" className="mt-2 inline-block px-4 py-1.5 bg-amber-100 text-amber-900 border-2 border-dashed border-amber-400 font-black text-xs uppercase tracking-wider rounded-lg shadow-sm">
+                      VISTA PREVIA - ACTA NO CERRADA
+                    </div>
+                  ) : (
+                    <div className="mt-2 inline-block px-4 py-1 bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold text-xs uppercase rounded-lg">
+                      ACTA OFICIAL CONSOLIDADA (CERRADA)
+                    </div>
+                  )}
+                  {actaStatus?.acta_cerrada && actaStatus?.acta_cerrada_at && (
+                    <p className="text-[11px] text-slate-500 font-medium mt-1">
+                      Cierre registrado el: {formatDateTimeLima(actaStatus.acta_cerrada_at)} (Hora Institucional Perú)
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -607,7 +875,9 @@ export function EvaluationDashboard() {
               </div>
 
               <div className="text-[9px] text-slate-400 text-center mt-8 pt-4 border-t border-slate-200">
-                Acta oficial generada por el SIGA el {new Date().toLocaleString()} • Válida como registro institucional oficial
+                {actaStatus?.acta_cerrada 
+                  ? `Acta oficial institucional cerrada el ${formatDateTimeLima(actaStatus.acta_cerrada_at) || ''} • Válida como registro institucional oficial` 
+                  : `Borrador / Vista previa de acta no cerrada generada el ${formatDateDDMMAAAA(new Date().toISOString())} • Documento sin validez oficial`}
               </div>
             </div>
           </div>
