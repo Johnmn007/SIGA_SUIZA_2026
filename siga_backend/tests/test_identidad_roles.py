@@ -424,3 +424,95 @@ async def test_ruta_grupo_2_sync_matricula_responde_sin_token(client_eval):
     r = await client_eval.post("/registros/sync-matricula", json=payload)
     assert r.status_code == 200
     assert r.json()["message"] == "Sincronización completada"
+
+
+# ==============================================================================
+# 12. CASOS ADICIONALES DE MOD-EVALUACION (TOKEN EXPIRADO, TIPO ERRONEO, PUT/GET AJENO, ACTAS)
+# ==============================================================================
+@pytest.mark.asyncio
+async def test_token_expirado_y_tipo_erroneo_mod_evaluacion(client_eval, fix_entorno_evaluacion):
+    from jose import jwt
+    secret = get_jwt_secret()
+
+    # Token expirado
+    payload_exp = {
+        "sub": "module::core-gateway",
+        "scopes": ["all"],
+        "type": "module_access",
+        "exp": datetime.utcnow() - timedelta(minutes=10)
+    }
+    tok_exp = jwt.encode(payload_exp, secret, algorithm="HS256")
+    r1 = await client_eval.get(
+        "/registros/unidad/101/periodo/1",
+        headers={"X-Internal-Token": tok_exp, "X-User-ID": "10"}
+    )
+    assert r1.status_code == 401
+
+    # Token con type equivocado (ej. user_access en vez de module_access)
+    payload_tipo = {
+        "sub": "module::core-gateway",
+        "scopes": ["all"],
+        "type": "user_access",
+        "exp": datetime.utcnow() + timedelta(hours=1)
+    }
+    tok_tipo = jwt.encode(payload_tipo, secret, algorithm="HS256")
+    r2 = await client_eval.get(
+        "/registros/unidad/101/periodo/1",
+        headers={"X-Internal-Token": tok_tipo, "X-User-ID": "10"}
+    )
+    assert r2.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_put_y_get_registros_docente_ajeno_mod_evaluacion(client_eval, fix_entorno_evaluacion):
+    doc_ajeno = fix_entorno_evaluacion["docente_noasig_id"]
+    eval_id = fix_entorno_evaluacion["evaluacion_id"]
+
+    # PUT ajeno
+    r_put = await client_eval.put(
+        f"/registros/{eval_id}",
+        json={"nota_final": 16},
+        headers=auth_headers(doc_ajeno)
+    )
+    assert r_put.status_code == 403
+
+    # GET ajeno
+    r_get = await client_eval.get(
+        "/registros/unidad/101/periodo/1",
+        headers=auth_headers(doc_ajeno)
+    )
+    assert r_get.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_coordinador_cierra_reabre_y_cambia_fecha_exito(client_eval, fix_entorno_evaluacion, db_session: AsyncSession):
+    coord_a = fix_entorno_evaluacion["coord_a_id"]
+    cl_id = fix_entorno_evaluacion["carga_id"]
+
+    # 1. Cambiar fecha límite
+    hoy = date.today()
+    fecha_futura = (hoy + timedelta(days=5)).isoformat()
+    r_fecha = await client_eval.put(
+        f"/actas/carga/{cl_id}/fecha-limite",
+        json={"fecha_limite_notas": fecha_futura},
+        headers=auth_headers(coord_a)
+    )
+    assert r_fecha.status_code == 200
+
+    # 2. Cerrar acta
+    r_cerrar = await client_eval.post(
+        f"/actas/carga/{cl_id}/cerrar",
+        headers=auth_headers(coord_a)
+    )
+    assert r_cerrar.status_code == 200
+    assert r_cerrar.json()["acta_cerrada"] is True
+
+    # 3. Reabrir acta
+    nueva_fecha = (hoy + timedelta(days=10)).isoformat()
+    r_reabrir = await client_eval.post(
+        f"/actas/carga/{cl_id}/reabrir",
+        json={"motivo": "Reapertura justificada por rectificación", "nueva_fecha_limite": nueva_fecha},
+        headers=auth_headers(coord_a)
+    )
+    assert r_reabrir.status_code == 200
+    assert r_reabrir.json()["acta_cerrada"] is False

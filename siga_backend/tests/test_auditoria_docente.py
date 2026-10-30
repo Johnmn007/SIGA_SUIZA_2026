@@ -152,17 +152,16 @@ async def test_docente_no_puede_calificar_unidad_no_asignada(client_evaluacion, 
 
 
 # ==============================================================================
-# CASO 5: UN DOCENTE NO PUEDE VER CARGA, SÍLABOS NI PLANES DE OTRO DOCENTE (IDOR)
+# CASO 5: UN DOCENTE NO PUEDE VER CARGA, SÍLABOS NI PLANES DE OTRO DOCENTE (BUG-D03 RESUELTO)
 # ==============================================================================
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="BUG-D03: mod-programas-estudio no valida autorizacion a nivel de objeto (IDOR) en /docente/{docente_id}/*")
 async def test_docente_no_puede_ver_datos_de_otro_docente_idor(client_programas, fixture_carga_lectiva_y_plan):
     """
     Regla: Un docente autenticado no debe poder acceder a la carga lectiva,
     sílabos ni planes de trabajo de otro docente simplemente alterando el {docente_id} en la URL.
     """
     docente_victima_id = fixture_carga_lectiva_y_plan["docente_id"]
-    headers_docente_atacante = {"X-User-ID": "999", "X-User-Role": "Docente"}
+    headers_docente_atacante = auth_headers(user_id=11)
 
     # Intentar ver carga de otro docente
     r_carga = await client_programas.get(f"/docente/{docente_victima_id}/carga-lectiva?periodo_id=1", headers=headers_docente_atacante)
@@ -329,7 +328,8 @@ async def test_listado_silabos_con_campos_null_responde_200(client_programas, db
     """), {"id": silabo_id})
     await db_session.commit()
 
-    resp = await client_programas.get(f"/docente/{docente_id}/silabos")
+    headers = auth_headers(user_id=docente_id)
+    resp = await client_programas.get(f"/docente/{docente_id}/silabos", headers=headers)
     assert resp.status_code == 200, f"Error detectado en silabos con NULL: {resp.text}"
 
 
@@ -347,7 +347,8 @@ async def test_listado_planes_con_campos_null_responde_200(client_programas, db_
     """), {"id": plan_id})
     await db_session.commit()
 
-    resp = await client_programas.get(f"/docente/{docente_id}/planes-trabajo?periodo_id=1")
+    headers = auth_headers(user_id=docente_id)
+    resp = await client_programas.get(f"/docente/{docente_id}/planes-trabajo?periodo_id=1", headers=headers)
     assert resp.status_code == 200, f"Error detectado en planes-trabajo con NULL: {resp.text}"
 
 
