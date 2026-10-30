@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { apiClient } from '../../core/api/client';
 import { ArrowLeft, X, Plus, Trash2, BookOpen, Clock, Layers, Sparkles, CheckCircle2 } from 'lucide-react';
 
@@ -10,6 +11,8 @@ export function CurriculumMesh({ programId, onBack }) {
   // Modals state
   const [showAddModule, setShowAddModule] = useState(false);
   const [newModule, setNewModule] = useState({ nombre: '', periodo: 1 });
+  const [moduleError, setModuleError] = useState('');
+  const [savingModule, setSavingModule] = useState(false);
   
   const [showAddUnit, setShowAddUnit] = useState({ show: false, moduloId: null, moduloNombre: '' });
   const [newUnit, setNewUnit] = useState({
@@ -20,6 +23,15 @@ export function CurriculumMesh({ programId, onBack }) {
     orden: 1
   });
   const [savingUnit, setSavingUnit] = useState(false);
+
+  const nameInputRef = useRef(null);
+  const triggerRef = useRef(null);
+
+  const openAddModule = (e) => {
+    triggerRef.current = e?.currentTarget || document.activeElement;
+    setModuleError('');
+    setShowAddModule(true);
+  };
 
   const fetchMalla = async () => {
     setLoading(true);
@@ -38,22 +50,65 @@ export function CurriculumMesh({ programId, onBack }) {
   };
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     fetchMalla();
   }, [programId]);
 
+  useEffect(() => {
+    if (!showAddModule) return;
+
+    const prevOverflow = document.body.style.overflow;
+    const prevPadding = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setShowAddModule(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    nameInputRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPadding;
+      window.removeEventListener('keydown', handleKeyDown);
+      const trigger = triggerRef.current;
+      if (trigger && typeof trigger.focus === 'function' && document.contains(trigger)) {
+        trigger.focus();
+      }
+    };
+  }, [showAddModule]);
+
   const handleAddModule = async (e) => {
     e.preventDefault();
+    if (savingModule) return;
+    setSavingModule(true);
+    setModuleError('');
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${programId}/modulos`, {
         method: 'POST',
-        data: newModule
+        body: JSON.stringify({
+          nombre: newModule.nombre.trim(),
+          periodo: parseInt(newModule.periodo, 10)
+        })
       });
+      alert('Módulo creado correctamente');
       setShowAddModule(false);
       setNewModule({ nombre: '', periodo: 1 });
       fetchMalla();
     } catch (error) {
       console.error('Error adding module:', error);
-      alert('Error al agregar el módulo');
+      const apiDetail = typeof error?.message === 'string'
+        && error.message
+        && !error.message.startsWith('HTTP error!')
+        ? error.message
+        : null;
+      setModuleError(apiDetail || 'No se pudo crear el módulo. Verifica los datos e inténtalo nuevamente.');
+    } finally {
+      setSavingModule(false);
     }
   };
 
@@ -172,7 +227,7 @@ export function CurriculumMesh({ programId, onBack }) {
         </div>
 
         <button 
-          onClick={() => setShowAddModule(true)}
+          onClick={openAddModule}
           className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-sm hover:shadow transition-all cursor-pointer"
         >
           <Plus size={15} />
@@ -266,7 +321,7 @@ export function CurriculumMesh({ programId, onBack }) {
 
         {/* Add Module Card */}
         <div 
-          onClick={() => setShowAddModule(true)}
+          onClick={openAddModule}
           className="bg-slate-50/40 hover:bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 hover:border-slate-400 p-8 flex flex-col items-center justify-center transition-all cursor-pointer group min-h-[220px]"
         >
           <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
@@ -278,9 +333,9 @@ export function CurriculumMesh({ programId, onBack }) {
       </div>
 
       {/* Modal: New Module */}
-      {showAddModule && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xl w-full max-w-md overflow-hidden">
+      {showAddModule && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xl w-full max-w-md max-h-[calc(100dvh-32px)] overflow-hidden flex flex-col">
             <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
               <h6 className="font-bold text-sm text-slate-900">Nuevo Módulo Formativo</h6>
               <button
@@ -292,10 +347,16 @@ export function CurriculumMesh({ programId, onBack }) {
               </button>
             </div>
 
-            <form onSubmit={handleAddModule} className="p-6 space-y-4">
+            <form onSubmit={handleAddModule} className="p-6 space-y-4 overflow-y-auto">
+              {moduleError && (
+                <div className="px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-[11px] text-red-700 leading-relaxed">{moduleError}</p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Nombre del Módulo</label>
                 <input
+                  ref={nameInputRef}
                   type="text"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   value={newModule.nombre}
@@ -328,14 +389,16 @@ export function CurriculumMesh({ programId, onBack }) {
                 </button>
                 <button 
                   type="submit" 
-                  className="flex-1 py-2 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-all"
+                  disabled={savingModule}
+                  className="flex-1 py-2 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Crear Módulo
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal: New Unit (UD) */}

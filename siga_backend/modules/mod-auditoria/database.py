@@ -2,12 +2,12 @@ import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 
-# Auditoría vive en el schema core (siga_core) al igual que identidades y auth
+# Auditoría vive en el schema core (siga_suiza_2026) al igual que identidades y auth
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "railway")
+DB_NAME = os.getenv("DB_NAME", "siga_suiza_2026")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:

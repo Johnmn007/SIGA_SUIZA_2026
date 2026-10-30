@@ -1,106 +1,110 @@
-// Catálogo Oficial de Tasas Educativas y Aranceles (TUPA) - IESTP Suiza 2026
-export const TUPA_CONCEPTS = [
-  {
-    id: 'MAT-01',
-    codigo: 'MAT-01',
-    nombre: 'Derecho de Matrícula Regular 2026-I',
-    categoria: 'Matrícula',
-    monto: 120.00,
-    liberaMatricula: true,
-    descripcion: 'Inscripción y ratificación del periodo académico regular 2026-I.',
-    badge: 'bg-emerald-50 text-emerald-700 border-emerald-200'
-  },
-  {
-    id: 'MAT-02',
-    codigo: 'MAT-02',
-    nombre: 'Matrícula Extemporánea 2026-I',
-    categoria: 'Matrícula',
-    monto: 150.00,
-    liberaMatricula: true,
-    descripcion: 'Inscripción académica fuera del cronograma ordinario oficial.',
-    badge: 'bg-amber-50 text-amber-700 border-amber-200'
-  },
-  {
-    id: 'CAR-01',
-    codigo: 'CAR-01',
-    nombre: 'Carnet Estudiantil / Fotocheck Institucional',
-    categoria: 'Identificación',
-    monto: 15.00,
-    liberaMatricula: false,
-    descripcion: 'Expedición y laminado de carnet de estudiante con código QR y chip de acceso.',
-    badge: 'bg-blue-50 text-blue-700 border-blue-200'
-  },
-  {
-    id: 'CAR-02',
-    codigo: 'CAR-02',
-    nombre: 'Duplicado de Carnet Estudiantil',
-    categoria: 'Identificación',
-    monto: 20.00,
-    liberaMatricula: false,
-    descripcion: 'Emisión por pérdida, deterioro o robo de carnet estudiantil.',
-    badge: 'bg-indigo-50 text-indigo-700 border-indigo-200'
-  },
-  {
-    id: 'CON-01',
-    codigo: 'CON-01',
-    nombre: 'Constancia de Matrícula y Estudios',
-    categoria: 'Certificaciones',
-    monto: 20.00,
-    liberaMatricula: false,
-    descripcion: 'Acreditación formal del ciclo, semestre y programa de estudio matriculado.',
-    badge: 'bg-cyan-50 text-cyan-700 border-cyan-200'
-  },
-  {
-    id: 'CON-02',
-    codigo: 'CON-02',
-    nombre: 'Constancia de No Adeudo Institucional',
-    categoria: 'Certificaciones',
-    monto: 15.00,
-    liberaMatricula: false,
-    descripcion: 'Certificación de libre deuda con biblioteca, talleres y tesorería.',
-    badge: 'bg-teal-50 text-teal-700 border-teal-200'
-  },
-  {
-    id: 'CER-01',
-    codigo: 'CER-01',
-    nombre: 'Certificado Modular Oficial (DOC-10/15)',
-    categoria: 'Certificaciones',
-    monto: 50.00,
-    liberaMatricula: false,
-    descripcion: 'Emisión de diploma de Certificación Modular con valor oficial MINEDU.',
-    badge: 'bg-purple-50 text-purple-700 border-purple-200'
-  },
-  {
-    id: 'EXA-01',
-    codigo: 'EXA-01',
-    nombre: 'Examen Extraordinario / Recuperación',
-    categoria: 'Evaluación',
-    monto: 30.00,
-    liberaMatricula: false,
-    descripcion: 'Derecho a evaluación extraordinaria por unidad didáctica no aprobada.',
-    badge: 'bg-rose-50 text-rose-700 border-rose-200'
-  },
-  {
-    id: 'TIT-01',
-    codigo: 'TIT-01',
-    nombre: 'Derecho de Titulación Profesional Técnico',
-    categoria: 'Grados y Títulos',
-    monto: 250.00,
-    liberaMatricula: false,
-    descripcion: 'Revisión de expediente, asesoría de proyecto y expedición de Título a Nombre de la Nación.',
-    badge: 'bg-amber-50 text-amber-800 border-amber-300'
-  },
-  {
-    id: 'TRM-01',
-    codigo: 'TRM-01',
-    nombre: 'Convalidación y Reconocimiento de Asignaturas',
-    categoria: 'Trámites',
-    monto: 80.00,
-    liberaMatricula: false,
-    descripcion: 'Evaluación técnica de syllabus y tabla de equivalencias por traslado o reingreso.',
-    badge: 'bg-slate-100 text-slate-700 border-slate-300'
-  }
-];
+import { useState, useEffect, useCallback } from 'react';
+import { tesoreriaApi } from './lib/tesoreriaApi';
+
+// Tarifario TUPA, métodos de pago y reglas de cobro de Tesorería - IESTP Suiza 2026.
+// El catálogo y la configuración se guardan en la base de datos (mod-gestion-academica /tesoreria).
+
+export const TUPA_CATEGORIES = ['Matrícula', 'Identificación', 'Certificaciones', 'Evaluación', 'Grados y Títulos', 'Trámites', 'Otros'];
+
+// Tipos de precio que puede tener un concepto
+export const PRICE_TYPES = {
+  fijo: { label: 'Precio fijo', descripcion: 'Un único monto oficial para todos los alumnos.' },
+  tarifas: { label: 'Varias tarifas', descripcion: 'Se elige la tarifa al cobrar (ej. Regular, Extemporáneo, Beca 50%).' },
+  libre: { label: 'Monto libre', descripcion: 'El cajero digita el monto al cobrar (con mínimo opcional).' },
+};
+
+export const DEFAULT_CAJA_CONFIG = {
+  yapeNumero: '961-824-192',
+  yapeTitular: 'IESTP Suiza',
+  yapeQrImagen: '',
+  bnCuenta: '00-521-029481',
+  urlPublica: '',
+};
+
+// Tarifario TUPA vigente (base de datos): agregar, editar precios y eliminar conceptos
+export function useTupaCatalog() {
+  const [catalog, setCatalog] = useState([]);
+  const [catalogError, setCatalogError] = useState('');
+
+  const reloadCatalog = useCallback(async () => {
+    try {
+      setCatalog(await tesoreriaApi.listarConceptos());
+      setCatalogError('');
+    } catch (e) {
+      setCatalogError(e.message);
+    }
+  }, []);
+
+  // Devuelve el concepto guardado; lanza el error del servidor (ej. código duplicado)
+  const saveConcept = useCallback(async (concept, originalId = null) => {
+    const saved = originalId
+      ? await tesoreriaApi.actualizarConcepto(originalId, concept)
+      : await tesoreriaApi.crearConcepto(concept);
+    setCatalog(prev => (originalId ? prev.map(c => (c.id === originalId ? saved : c)) : [...prev, saved]));
+    return saved;
+  }, []);
+
+  const deleteConcept = useCallback(async (id) => {
+    await tesoreriaApi.eliminarConcepto(id);
+    setCatalog(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  const resetCatalog = useCallback(async () => {
+    setCatalog(await tesoreriaApi.restaurarConceptos());
+  }, []);
+
+  return { catalog, catalogError, reloadCatalog, saveConcept, deleteConcept, resetCatalog };
+}
+
+// Datos de cobro de la institución (Yape/Plin, Banco de la Nación, URL pública de los QR)
+export function useCajaConfig() {
+  const [config, setConfig] = useState(DEFAULT_CAJA_CONFIG);
+
+  useEffect(() => {
+    let cancelled = false;
+    tesoreriaApi.leerConfig()
+      .then(saved => { if (!cancelled) setConfig({ ...DEFAULT_CAJA_CONFIG, ...saved }); })
+      .catch(e => console.error('Error cargando la configuración de caja:', e));
+    return () => { cancelled = true; };
+  }, []);
+
+  const saveConfig = useCallback(async (next) => {
+    const saved = await tesoreriaApi.guardarConfig(next);
+    setConfig({ ...DEFAULT_CAJA_CONFIG, ...saved });
+    return saved;
+  }, []);
+
+  return { config, saveConfig };
+}
+
+// Movimiento con el nombre, código y categoría vigentes de su concepto en el tarifario.
+// El monto cobrado no cambia; `original` conserva el recibo tal como se emitió (para la boleta y su QR).
+export function withCurrentConcept(movement, catalog = []) {
+  const code = String(movement.conceptoCodigo || '').toUpperCase();
+  const concept = catalog.find(c => movement.conceptoId != null && c.id === movement.conceptoId)
+    || catalog.find(c => String(c.codigo).toUpperCase() === code);
+  const original = movement.original || movement;
+  if (!concept) return { ...movement, original };
+  return { ...movement, conceptoCodigo: concept.codigo, conceptoNombre: concept.nombre, conceptoCategoria: concept.categoria, original };
+}
+
+// Conceptos que el alumno aún puede pagar.
+// - Los que habilitan la matrícula dependen SOLO de estudiantes.pago_matricula (base de datos):
+//   si el alumno tiene deuda de matrícula siempre podrá pagarla, y si está habilitado no se le vuelve a cobrar.
+// - El resto se oculta cuando ya fue pagado, salvo que el concepto sea repetible.
+export function getAvailableConcepts(catalog, student, payments) {
+  const paidCodes = new Set(payments.filter(p => p.estado === 'PAGADO').map(p => String(p.conceptoCodigo).toUpperCase()));
+  const matriculaPagada = Boolean(student?.pago_matricula);
+  const available = [];
+  const hidden = [];
+  catalog.forEach(c => {
+    const yaPagado = c.liberaMatricula
+      ? matriculaPagada
+      : !c.permiteRepetir && paidCodes.has(String(c.codigo).toUpperCase());
+    (yaPagado ? hidden : available).push(c);
+  });
+  return { available, hidden };
+}
 
 export const PAYMENT_METHODS = [
   { id: 'efectivo', nombre: 'Efectivo en Ventanilla', icono: 'Banknote', descripcion: 'Cobro en caja física del instituto' },
@@ -122,97 +126,3 @@ export const CAREERS_MAP = {
   11: 'Manejo Forestal',
   15: 'Desarrollo de Sistemas de Información'
 };
-
-// Helper: Genera el historial completo de pagos realizados por el estudiante durante todo el año
-export function getStudentAnnualPayments(student, allTransactions = []) {
-  if (!student) return [];
-  const payments = [];
-
-  // 1. Pago de Admisión del Estudiante (obtenido de metadata_admision o generado por derecho de ingreso 2026)
-  const meta = student.metadata_admision || {};
-  const costoAdm = parseFloat(meta['S/. COSTO (S/. 250):']) || 250.00;
-  const fechaAdmRaw = meta['Fecha de inscripcion:'];
-  const fechaAdm = fechaAdmRaw ? new Date(fechaAdmRaw).toLocaleDateString() : '04/04/2026';
-  const codigoAdm = meta['CODIGO'] || (student.id * 7 % 900 + 100);
-  const modalidadAdm = student.modalidad_admision || meta['MODALIDAD (EBR O EBA)'] || 'ORDINARIO';
-
-  payments.push({
-    id: `adm-${student.id}`,
-    codigoRecibo: `ADM-2026-${String(codigoAdm).padStart(5, '0')}`,
-    fechaHora: `${fechaAdm}, 08:30:00`,
-    estudianteNombre: `${student.nombres} ${student.apellidos}`,
-    dni: student.dni,
-    codigoEstudiante: student.codigo_estudiante,
-    carreraNombre: CAREERS_MAP[student.programa_id] || 'General',
-    conceptoCodigo: 'ADM-01',
-    conceptoNombre: `Derecho de Inscripción y Carpeta de Admisión 2026 (${modalidadAdm})`,
-    conceptoCategoria: 'Admisión Institucional',
-    monto: costoAdm,
-    metodoPagoId: 'banco_nacion',
-    metodoPagoNombre: 'Banco de la Nación (Cta. Admisión)',
-    numeroOperacion: `BN-${String(student.dni).slice(0, 6)}`,
-    estado: 'PAGADO',
-    cajero: 'Comisión Central de Admisión 2026',
-    liberaMatricula: false
-  });
-
-  // 2. Transacciones registradas en caja para este estudiante
-  const studentTx = allTransactions.filter(t => 
-    String(t.estudianteId) === String(student.id) || 
-    (t.dni && String(t.dni) === String(student.dni))
-  );
-
-  studentTx.forEach(tx => {
-    payments.push({
-      ...tx,
-      estado: 'PAGADO'
-    });
-  });
-
-  // 3. Matrícula regular: si student.pago_matricula === true y no estaba ya en studentTx
-  const hasMatriculaTx = studentTx.some(p => p.conceptoCodigo === 'MAT-01' || p.conceptoCodigo === 'MAT-02');
-  if (student.pago_matricula && !hasMatriculaTx) {
-    payments.push({
-      id: `mat-${student.id}`,
-      codigoRecibo: `REC-2026-${String(student.id * 17 % 90000 + 10000)}`,
-      fechaHora: '15/10/2026, 09:30:00',
-      estudianteNombre: `${student.nombres} ${student.apellidos}`,
-      dni: student.dni,
-      codigoEstudiante: student.codigo_estudiante,
-      carreraNombre: CAREERS_MAP[student.programa_id] || 'General',
-      conceptoCodigo: 'MAT-01',
-      conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
-      conceptoCategoria: 'Matrícula',
-      monto: 120.00,
-      metodoPagoId: 'banco_nacion',
-      metodoPagoNombre: 'Banco de la Nación (BN)',
-      numeroOperacion: `BN-94${String(student.dni).slice(0, 4)}`,
-      estado: 'PAGADO',
-      cajero: 'Caja Central - Tesorería',
-      liberaMatricula: true
-    });
-  } else if (!student.pago_matricula && !hasMatriculaTx) {
-    // Compromiso pendiente de matrícula
-    payments.push({
-      id: `pending-mat-${student.id}`,
-      codigoRecibo: 'PENDIENTE',
-      fechaHora: 'Vence: 30/10/2026',
-      estudianteNombre: `${student.nombres} ${student.apellidos}`,
-      dni: student.dni,
-      codigoEstudiante: student.codigo_estudiante,
-      carreraNombre: CAREERS_MAP[student.programa_id] || 'General',
-      conceptoCodigo: 'MAT-01',
-      conceptoNombre: 'Derecho de Matrícula Regular 2026-I',
-      conceptoCategoria: 'Matrícula',
-      monto: 120.00,
-      metodoPagoId: 'pendiente',
-      metodoPagoNombre: 'Pendiente en Caja',
-      numeroOperacion: '-',
-      estado: 'PENDIENTE',
-      cajero: '-',
-      liberaMatricula: true
-    });
-  }
-
-  return payments;
-}
