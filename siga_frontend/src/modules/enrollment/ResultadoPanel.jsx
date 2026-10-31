@@ -17,10 +17,6 @@ const PASOS = [
 export function ResultadoPanel() {
   const [data, setData] = useState(null);
   const [periods, setPeriods] = useState([]);
-<<<<<<< HEAD
-  const [periodoFiltro, setPeriodoFiltro] = useState('');
-=======
->>>>>>> 7414644fa55a85f68c43f864e0ba67c520c28a47
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -32,24 +28,12 @@ export function ResultadoPanel() {
   const [historial, setHistorial] = useState(null);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
 
-  useEffect(() => {
-    apiClient.request('/api/mod-programas-estudio/periodos')
-      .then((res) => setPeriods(Array.isArray(res) ? res : []))
-      .catch(() => []);
-  }, []);
-
-  const getPeriodoNombre = (pid) => {
-    const found = periods.find((p) => String(p.id) === String(pid));
-    return found ? (found.codigo || found.nombre) : (pid ? `Periodo ${pid}` : '—');
-  };
-
   const cargar = async () => {
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams();
       if (soloPendientes) params.set('solo_pendientes', 'true');
-      if (periodoFiltro) params.set('periodo_id', periodoFiltro);
       if (search.trim()) params.set('q', search.trim());
       const json = await apiClient.request(`/api/mod-gestion-academica/matriculas/resultado?${params.toString()}`);
       setData(json);
@@ -64,7 +48,7 @@ export function ResultadoPanel() {
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [soloPendientes, periodoFiltro]);
+  }, [soloPendientes]);
 
   useEffect(() => {
     (async () => {

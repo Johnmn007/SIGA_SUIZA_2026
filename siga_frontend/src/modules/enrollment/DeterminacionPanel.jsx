@@ -4,15 +4,6 @@ import { apiClient } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
 import { getDefaultPeriod, getPeriodLabel } from './periodUtils';
 
-const formatEstadoPeriodo = (estado) => {
-  const est = (estado || '').toString().toLowerCase();
-  if (est === 'matricula_abierta' || est === 'abierto') return 'Matrícula abierta';
-  if (est === 'en_curso' || est === 'activo') return 'En curso';
-  if (est === 'planificacion') return 'Planificación';
-  if (est === 'historico' || est === 'cerrado') return 'Histórico';
-  return estado || '';
-};
-
 /** Sección 4 del diagrama — Determinación del ciclo y cursos. */
 export function DeterminacionPanel() {
   const [students, setStudents] = useState([]);
@@ -42,18 +33,8 @@ export function DeterminacionPanel() {
         setPrograms(progs);
         setPeriods(pers);
         if (progs.length > 0) setProgramaId(String(progs[0].id));
-<<<<<<< HEAD
-        if (pers.length > 0) {
-          const activo = pers.find((x) => {
-            const est = (x.estado || '').toString().toLowerCase();
-            return est === 'matricula_abierta' || est === 'abierto' || est === 'activo' || est === 'en_curso';
-          }) || pers[0];
-          setPeriodoId(String(activo.id));
-        }
-=======
         const activo = getDefaultPeriod(pers);
         if (activo) setPeriodoId(String(activo.id));
->>>>>>> 7414644fa55a85f68c43f864e0ba67c520c28a47
       } catch (e) {
         console.error(e);
         setError(e.message);
@@ -190,24 +171,12 @@ export function DeterminacionPanel() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Periodo / Semestre</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Periodo</label>
             <select className="input-field w-full py-2.5 text-sm" value={periodoId} onChange={(e) => setPeriodoId(e.target.value)}>
               <option value="">Selecciona</option>
-<<<<<<< HEAD
-              {periods.map((p) => {
-                const label = p.codigo || p.nombre || `Periodo ${p.id}`;
-                const estLabel = formatEstadoPeriodo(p.estado);
-                return (
-                  <option key={p.id} value={p.id}>
-                    {label}{estLabel ? ` (${estLabel})` : ''}
-                  </option>
-                );
-              })}
-=======
               {periods.map((p) => (
                 <option key={p.id} value={p.id}>{getPeriodLabel(p)}</option>
               ))}
->>>>>>> 7414644fa55a85f68c43f864e0ba67c520c28a47
             </select>
           </div>
 

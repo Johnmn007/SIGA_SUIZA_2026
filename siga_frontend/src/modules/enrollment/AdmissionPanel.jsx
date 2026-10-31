@@ -179,25 +179,11 @@ export function AdmissionPanel() {
             }}
           >
             <option value="">Selecciona un periodo</option>
-<<<<<<< HEAD
-            {periods.map((p) => {
-              const est = (p.estado || '').toString().toLowerCase();
-              const isHistorico = est === 'historico' || est === 'cerrado';
-              const label = p.codigo || p.nombre || p.descripcion || `Periodo ${p.id}`;
-              const estadoLabel = est === 'matricula_abierta' || est === 'abierto' ? 'Matrícula abierta' : (est === 'historico' ? 'Histórico' : (p.estado || ''));
-              return (
-                <option key={p.id} value={p.id} disabled={isHistorico}>
-                  {label}{estadoLabel ? ` — ${estadoLabel}` : ''}
-                </option>
-              );
-            })}
-=======
             {periods.map((p) => (
               <option key={p.id} value={p.id} disabled={isHistoricalPeriod(p)}>
                 {getPeriodLabel(p)}
               </option>
             ))}
->>>>>>> 7414644fa55a85f68c43f864e0ba67c520c28a47
           </select>
         </div>
         <div className="md:col-span-1">
@@ -385,21 +371,6 @@ export function AdmissionPanel() {
                   <p className="text-sm text-slate-400">Sin matrículas registradas.</p>
                 ) : (
                   <ul className="space-y-2">
-<<<<<<< HEAD
-                    {ficha.matriculas.map((m) => {
-                      const perObj = periods.find(p => String(p.id) === String(m.periodo_id));
-                      const perLabel = perObj ? (perObj.codigo || perObj.nombre) : `Periodo ${m.periodo_id}`;
-                      return (
-                        <li key={m.id} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="font-semibold text-slate-700">{perLabel} · Ciclo {m.ciclo}</span>
-                            <Badge tone={m.estado_matricula === 'confirmada' ? 'green' : 'slate'}>{m.estado_matricula}</Badge>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">{m.unidades} unidades · {m.creditos} créditos · {m.casuistica}</p>
-                        </li>
-                      );
-                    })}
-=======
                     {ficha.matriculas.map((m) => (
                       <li key={m.id} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
                         <div className="flex justify-between">
@@ -409,7 +380,6 @@ export function AdmissionPanel() {
                         <p className="text-xs text-slate-500 mt-1">{m.unidades} unidades · {m.creditos} créditos · {m.casuistica}</p>
                       </li>
                     ))}
->>>>>>> 7414644fa55a85f68c43f864e0ba67c520c28a47
                   </ul>
                 )}
               </div>
