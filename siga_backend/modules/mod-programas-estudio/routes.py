@@ -479,6 +479,12 @@ class CargaLectivaResponse(CargaLectivaBase):
     id: int
     programa_id: int
     created_at: datetime
+    unidad_nombre: Optional[str] = None
+    programa_nombre: Optional[str] = None
+    modulo_nombre: Optional[str] = None
+    ciclo: Optional[int] = None
+    creditos: Optional[int] = None
+    horas: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 class HorarioPeriodoBase(BaseModel):
@@ -575,7 +581,43 @@ async def listar_carga_docente(docente_id: int, periodo_id: Optional[int] = None
     if periodo_id:
         query = query.where(CargaLectiva.periodo_id == periodo_id)
     result = await db.execute(query)
-    return result.scalars().all()
+    cargas = result.scalars().all()
+
+    items = []
+    for c in cargas:
+        res_u = await db.execute(select(ProgramaUnidad).where(ProgramaUnidad.id == c.unidad_didactica_id))
+        u = res_u.scalar_one_or_none()
+        modulo_nombre = None
+        ciclo = None
+        if u and u.programa_modulo_id:
+            res_m = await db.execute(select(ProgramaModulo).where(ProgramaModulo.id == u.programa_modulo_id))
+            m = res_m.scalar_one_or_none()
+            if m:
+                modulo_nombre = m.nombre
+                ciclo = m.periodo
+
+        res_p = await db.execute(select(ProgramaEstudio).where(ProgramaEstudio.id == c.programa_id))
+        p = res_p.scalar_one_or_none()
+
+        item = CargaLectivaResponse(
+            id=c.id,
+            programa_id=c.programa_id,
+            periodo_id=c.periodo_id,
+            docente_id=c.docente_id,
+            unidad_didactica_id=c.unidad_didactica_id,
+            turno=c.turno,
+            seccion=c.seccion,
+            estado=c.estado,
+            created_at=c.created_at,
+            unidad_nombre=u.nombre if u else f"Unidad #{c.unidad_didactica_id}",
+            programa_nombre=p.nombre if p else None,
+            modulo_nombre=modulo_nombre,
+            ciclo=ciclo,
+            creditos=u.creditos if u else None,
+            horas=((u.horas_teoria or 0) + (u.horas_practica or 0)) if u else None
+        )
+        items.append(item)
+    return items
 
 @router.post("/programas/{programa_id}/horarios", response_model=HorarioPeriodoResponse, status_code=status.HTTP_201_CREATED)
 async def crear_horario(programa_id: int, horario: HorarioPeriodoCreate, request: Request, db: AsyncSession = Depends(get_db)):
@@ -649,11 +691,7 @@ from models import Silabo, PlanTrabajoDocente
 
 @router.get("/docente/{docente_id}/carga-lectiva", response_model=List[CargaLectivaResponse])
 async def obtener_carga_docente(docente_id: int, periodo_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(CargaLectiva)
-        .where(CargaLectiva.docente_id == docente_id, CargaLectiva.periodo_id == periodo_id)
-    )
-    return result.scalars().all()
+    return await listar_carga_docente(docente_id=docente_id, periodo_id=periodo_id, db=db)
 
 @router.post("/silabos", response_model=SilaboResponse, status_code=status.HTTP_201_CREATED)
 async def crear_silabo(silabo: SilaboCreate, db: AsyncSession = Depends(get_db)):

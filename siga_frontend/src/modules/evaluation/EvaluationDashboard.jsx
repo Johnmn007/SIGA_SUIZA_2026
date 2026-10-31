@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '../../core/api/client';
 import { DocentePlanning } from '../academic/DocentePlanning';
 import { useAuth } from '../../core/auth/useAuth';
-import { Save, GraduationCap, Calendar, BookOpen, ClipboardList, AlertTriangle, Target, FileText, Printer, X, CheckCircle2 } from 'lucide-react';
+import { Save, GraduationCap, Calendar, BookOpen, ClipboardList, AlertTriangle, Target, FileText, Printer, X, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export function EvaluationDashboard() {
   const { user } = useAuth();
@@ -27,20 +27,29 @@ export function EvaluationDashboard() {
     const fetchInitialData = async () => {
       try {
         const [progRes, perRes, loadRes] = await Promise.all([
-          apiClient.request('/api/mod-programas-estudio/programas'),
-          apiClient.request('/api/mod-programas-estudio/periodos'),
+          apiClient.request('/api/mod-programas-estudio/programas').catch(() => []),
+          apiClient.request('/api/mod-programas-estudio/periodos').catch(() => []),
           user?.id ? apiClient.request(`/api/mod-programas-estudio/docentes/${user.id}/carga-lectiva`).catch(() => []) : Promise.resolve([])
         ]);
         setPrograms(progRes || []);
         setPeriods(perRes || []);
         setTeacherLoad(loadRes || []);
 
+        let initProg = '';
+        let initPer = '';
         if (loadRes && loadRes.length > 0) {
-          setSelectedProgram(loadRes[0].programa_id.toString());
-          setSelectedPeriod(loadRes[0].periodo_id.toString());
-        } else if (perRes && perRes.length > 0) {
-          setSelectedPeriod(perRes[perRes.length - 1].id.toString());
+          initProg = loadRes[0].programa_id.toString();
+          initPer = loadRes[0].periodo_id.toString();
         }
+        if (!initProg && progRes && progRes.length > 0) {
+          initProg = progRes[0].id.toString();
+        }
+        if (!initPer && perRes && perRes.length > 0) {
+          const activePer = perRes.find(p => p.estado === 'matricula_abierta' || p.estado === 'abierto' || p.estado === 'ACTIVO');
+          initPer = activePer ? activePer.id.toString() : perRes[perRes.length - 1].id.toString();
+        }
+        if (initProg) setSelectedProgram(initProg);
+        if (initPer) setSelectedPeriod(initPer);
       } catch (e) {
         console.error('Error fetching initial data', e);
       }
@@ -49,6 +58,31 @@ export function EvaluationDashboard() {
       fetchInitialData();
     }
   }, [user]);
+
+  const reloadTeacherLoad = async () => {
+    if (!user?.id) return;
+    try {
+      const loadRes = await apiClient.request(`/api/mod-programas-estudio/docentes/${user.id}/carga-lectiva`).catch(() => []);
+      setTeacherLoad(loadRes || []);
+    } catch (e) {
+      console.error('Error reloading teacher load', e);
+    }
+  };
+
+  // Cursos asignados filtrados por periodo y programa actual
+  const currentAssignedCargas = useMemo(() => {
+    return teacherLoad.filter(t => 
+      (!selectedPeriod || String(t.periodo_id) === String(selectedPeriod)) &&
+      (!selectedProgram || String(t.programa_id) === String(selectedProgram))
+    );
+  }, [teacherLoad, selectedPeriod, selectedProgram]);
+
+  // Auto-seleccionar primer curso asignado si no hay ninguno seleccionado
+  useEffect(() => {
+    if (!selectedUnit && currentAssignedCargas.length > 0) {
+      setSelectedUnit(String(currentAssignedCargas[0].unidad_didactica_id));
+    }
+  }, [currentAssignedCargas, selectedUnit]);
 
   // Cargar Malla cuando se selecciona un Programa
   useEffect(() => {
@@ -193,7 +227,7 @@ export function EvaluationDashboard() {
 
   const currentProgramName = programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Programa de Estudios';
   const currentPeriodName = periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Periodo';
-  const currentUnitName = selectedUnitData?.nombre || 'Unidad Didáctica';
+  const currentUnitName = selectedUnitData?.nombre || currentAssignedCargas.find(c => String(c.unidad_didactica_id) === String(selectedUnit))?.unidad_nombre || 'Unidad Didáctica';
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -280,79 +314,166 @@ export function EvaluationDashboard() {
       ) : (
         <>
           {/* Tarjeta de Contexto y Selección de Curso */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
-                  <GraduationCap size={18} />
-                </div>
-                <div>
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Programa Seleccionado</span>
-                  <span className="text-xs font-bold text-slate-900">
-                    {programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Seleccione un programa'}
-                  </span>
-                </div>
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pb-5 border-b border-slate-100 items-end">
+              <div className="md:col-span-5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                  <GraduationCap size={14} className="text-primary" />
+                  <span>Programa de Estudios</span>
+                </label>
+                <select
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+                  value={selectedProgram}
+                  onChange={(e) => {
+                    setSelectedProgram(e.target.value);
+                    setSelectedUnit('');
+                  }}
+                >
+                  <option value="">-- Seleccione un programa --</option>
+                  {programs.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
-                  <Calendar size={18} />
-                </div>
-                <div>
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Periodo Lectivo</span>
-                  <span className="text-xs font-bold text-slate-900 font-mono">
-                    {periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}
-                  </span>
-                </div>
+              <div className="md:col-span-5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                  <Calendar size={14} className="text-primary" />
+                  <span>Periodo Lectivo</span>
+                </label>
+                <select
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono transition-all cursor-pointer"
+                  value={selectedPeriod}
+                  onChange={(e) => {
+                    setSelectedPeriod(e.target.value);
+                    setSelectedUnit('');
+                  }}
+                >
+                  <option value="">-- Seleccione un periodo --</option>
+                  {periods.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.codigo} {p.estado ? `— ${p.estado.replace(/_/g, ' ')}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <button
+                  type="button"
+                  onClick={reloadTeacherLoad}
+                  className="w-full py-2.5 px-3 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  title="Actualizar cursos asignados"
+                >
+                  <RefreshCw size={14} className="text-primary" />
+                  <span>Actualizar</span>
+                </button>
               </div>
             </div>
 
+            {/* Tarjetas de Cursos Asignados */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                <BookOpen size={14} className="text-slate-400" />
-                <span>Seleccionar Unidad Didáctica a Evaluar</span>
-              </label>
-              
-              <div className="relative">
-                <select 
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
-                  value={selectedUnit}
-                  onChange={(e) => setSelectedUnit(e.target.value)}
-                  disabled={!selectedProgram || !selectedPeriod || malla.length === 0}
-                >
-                  <option value="" className="text-slate-400">-- Seleccione el curso a evaluar --</option>
-                  {malla.map(modulo => {
-                    const assignedUnits = modulo.unidades.filter(u => 
-                      teacherLoad.some(t => t.unidad_didactica_id === u.id && t.periodo_id === parseInt(selectedPeriod))
-                    );
-                    
-                    if (assignedUnits.length === 0) return null;
-                    
-                    return (
-                      <optgroup key={`mod-${modulo.id}`} label={`Ciclo ${modulo.periodo} - ${modulo.nombre}`} className="bg-slate-50 font-bold text-slate-500 text-xs">
-                        {assignedUnits.map(u => (
-                          <option key={u.id} value={u.id} className="font-medium text-slate-800 text-xs">
-                            {u.nombre}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
-                  </svg>
-                </div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <BookOpen size={14} className="text-primary" />
+                  <span>Mis Cursos Asignados ({currentAssignedCargas.length})</span>
+                </label>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  {currentAssignedCargas.length > 0 ? 'Haz clic en un curso para evaluar' : ''}
+                </span>
               </div>
 
-              {teacherLoad.length === 0 && (
-                <div className="mt-3 flex items-center gap-2 p-3 bg-amber-50/70 border border-amber-200/70 rounded-xl text-xs text-amber-800">
-                  <AlertTriangle size={15} className="text-amber-600 flex-shrink-0" />
-                  <span>No tienes unidades didácticas asignadas en tu carga lectiva para este periodo.</span>
+              {currentAssignedCargas.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {currentAssignedCargas.map((carga) => {
+                    const isSelected = String(selectedUnit) === String(carga.unidad_didactica_id);
+                    const udName = carga.unidad_nombre || malla.flatMap(m => m.unidades || []).find(u => u.id === carga.unidad_didactica_id)?.nombre || `Unidad #${carga.unidad_didactica_id}`;
+                    const cicloNum = carga.ciclo || malla.find(m => (m.unidades || []).some(u => u.id === carga.unidad_didactica_id))?.periodo;
+
+                    return (
+                      <button
+                        key={carga.id}
+                        type="button"
+                        onClick={() => setSelectedUnit(String(carga.unidad_didactica_id))}
+                        className={`text-left p-4 rounded-xl border transition-all cursor-pointer relative ${
+                          isSelected
+                            ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm'
+                            : 'border-slate-200 bg-white hover:border-primary/40 hover:bg-slate-50/80 shadow-xs'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-slate-100 text-slate-600">
+                            {cicloNum ? `Ciclo ${cicloNum}` : 'Ciclo —'}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700">
+                              Sec. {carga.seccion || 'A'}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700">
+                              {carga.turno || 'Mañana'}
+                            </span>
+                          </div>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug mb-1">
+                          {udName}
+                        </h4>
+                        <div className="flex items-center justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100">
+                          <span>
+                            {carga.creditos ? `${carga.creditos} Cr.` : ''} {carga.horas ? `· ${carga.horas}h` : ''}
+                          </span>
+                          <span className={`font-semibold text-[11px] ${isSelected ? 'text-primary' : 'text-slate-400'}`}>
+                            {isSelected ? '✓ Seleccionado' : 'Evaluar →'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-800 flex items-start gap-3">
+                  <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">No tienes cursos asignados para este periodo y programa.</p>
+                    <p className="text-[11px] text-amber-700 mt-0.5">
+                      El Coordinador del Programa Académico asigna los cursos a cada docente en la sección "Coordinación de Programa".
+                      Si tienes cursos asignados en otro periodo o programa, puedes cambiar los selectores superiores.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
+
+            {/* Selector desplegable de respaldo */}
+            {currentAssignedCargas.length > 0 && (
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-[11px] font-medium text-slate-500 mb-1.5">
+                  O selecciona directamente de la lista:
+                </label>
+                <div className="relative">
+                  <select 
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
+                    value={selectedUnit}
+                    onChange={(e) => setSelectedUnit(e.target.value)}
+                  >
+                    <option value="" className="text-slate-400">-- Seleccione el curso a evaluar --</option>
+                    {currentAssignedCargas.map((carga) => {
+                      const udName = carga.unidad_nombre || malla.flatMap(m => m.unidades || []).find(u => u.id === carga.unidad_didactica_id)?.nombre || `Unidad #${carga.unidad_didactica_id}`;
+                      const cicloNum = carga.ciclo || malla.find(m => (m.unidades || []).some(u => u.id === carga.unidad_didactica_id))?.periodo;
+                      return (
+                        <option key={carga.id} value={carga.unidad_didactica_id} className="font-medium text-slate-800 text-xs">
+                          {cicloNum ? `[Ciclo ${cicloNum}] ` : ''}{udName} (Sec. {carga.seccion || 'A'} · {carga.turno || 'Mañana'})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Tabla de Registro de Promedios */}
