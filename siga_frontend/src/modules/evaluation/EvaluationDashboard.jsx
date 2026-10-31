@@ -165,11 +165,15 @@ export function EvaluationDashboard() {
     if (!selectedUnit || !selectedPeriod) return;
     setSyncing(true);
     try {
-      await apiClient.request(`/api/mod-evaluacion/seccion/${selectedUnit}/periodo/${selectedPeriod}/sincronizar`, {
+      const res = await apiClient.request(`/api/mod-evaluacion/seccion/${selectedUnit}/periodo/${selectedPeriod}/sincronizar`, {
         method: 'POST'
       });
       await fetchStudentsAndGrades();
-      alert("✅ Nómina de estudiantes sincronizada con éxito.");
+      if (res?.status === 'warning') {
+        alert("ℹ️ " + res.message);
+      } else {
+        alert("✅ " + (res?.message || "Nómina de estudiantes sincronizada con éxito."));
+      }
     } catch (e) {
       console.error("Error sincronizando nómina", e);
       alert("❌ Ocurrió un error al sincronizar la nómina: " + (e.message || "Error del servidor"));

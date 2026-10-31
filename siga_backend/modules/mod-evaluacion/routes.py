@@ -172,50 +172,63 @@ async def guardar_registros_batch(items: List[dict], request: Request, db: Async
 @router.post("/seccion/{unidad_id}/periodo/{periodo_id}/sincronizar")
 async def sincronizar_nomina_seccion(unidad_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     """
-    Sincroniza y matricula a los estudiantes activos del programa para esta unidad didáctica,
-    asegurando que el docente disponga inmediatamente de los registros de evaluación de su sección.
+    Sincroniza y matricula a los estudiantes activos del programa EXCLUSIVAMENTE del ciclo
+    que corresponde a esta unidad didáctica. Previene estrictamente que estudiantes de ciclos
+    inferiores (ej. ingresantes de Ciclo 1) sean asignados a cursos de ciclos superiores.
     """
     query_ud = text("""
-        SELECT u.id, u.creditos, m.programa_id, m.periodo as ciclo
+        SELECT u.id, u.creditos, m.programa_id, m.periodo as ciclo, u.nombre as unidad_nombre
         FROM programa_unidades u
         JOIN programa_modulos m ON u.programa_modulo_id = m.id
         WHERE u.id = :uid
     """)
     res_ud = await db.execute(query_ud, {"uid": unidad_id})
     row_ud = res_ud.fetchone()
+    if not row_ud:
+        raise HTTPException(status_code=404, detail="Unidad didáctica no encontrada")
     
-    prog_id = row_ud[2] if row_ud else None
-    creds = row_ud[1] if row_ud and row_ud[1] else 2
-    ciclo = row_ud[3] if row_ud and row_ud[3] else 1
+    prog_id = row_ud[2]
+    creds = row_ud[1] or 2
+    ciclo = row_ud[3] or 1
+    unidad_nombre = row_ud[4]
     
-    # Buscar estudiantes del programa
-    if prog_id:
-        res_est = await db.execute(text("SELECT id, dni, nombres, apellidos FROM estudiantes WHERE programa_id = :pid ORDER BY apellidos, nombres"), {"pid": prog_id})
-        estudiantes = res_est.fetchall()
-    else:
-        estudiantes = []
-        
+    # Buscar estudiantes que pertenezcan estrictamente al programa Y al ciclo de la unidad
+    res_est = await db.execute(
+        text("SELECT id, dni, nombres, apellidos FROM estudiantes WHERE programa_id = :pid AND ciclo_actual = :ciclo ORDER BY apellidos, nombres"),
+        {"pid": prog_id, "ciclo": ciclo}
+    )
+    estudiantes = res_est.fetchall()
+    
     if not estudiantes:
-        res_est = await db.execute(text("SELECT id, dni, nombres, apellidos FROM estudiantes ORDER BY apellidos, nombres LIMIT 35"))
-        estudiantes = res_est.fetchall()
+        return {
+            "status": "warning", 
+            "message": f"No hay estudiantes registrados en el Ciclo {ciclo} para el curso '{unidad_nombre}'.",
+            "count": 0
+        }
         
     for est in estudiantes:
         est_id = est[0]
-        # Verificar o crear matrícula del estudiante en el periodo
-        res_mat = await db.execute(text("SELECT id FROM matriculas WHERE estudiante_id = :eid AND periodo_id = :pid"), {"eid": est_id, "pid": periodo_id})
+        # Verificar o crear matrícula del estudiante en el periodo para su ciclo correspondiente
+        res_mat = await db.execute(
+            text("SELECT id FROM matriculas WHERE estudiante_id = :eid AND periodo_id = :pid"),
+            {"eid": est_id, "pid": periodo_id}
+        )
         row_mat = res_mat.fetchone()
         if not row_mat:
             res_ins_mat = await db.execute(text("""
                 INSERT INTO matriculas (estudiante_id, programa_id, periodo_id, estado_matricula, ciclo, tipo_ingreso, casuistica, created_at)
                 VALUES (:eid, :prid, :pid, 'confirmada', :ciclo, 'regular', 'regular', NOW())
                 RETURNING id
-            """), {"eid": est_id, "prid": prog_id or 1, "pid": periodo_id, "ciclo": ciclo})
+            """), {"eid": est_id, "prid": prog_id, "pid": periodo_id, "ciclo": ciclo})
             mat_id = res_ins_mat.fetchone()[0]
         else:
             mat_id = row_mat[0]
             
-        # Verificar detalle de matrícula
-        res_det = await db.execute(text("SELECT id FROM matricula_detalles WHERE matricula_id = :mid AND unidad_didactica_id = :uid"), {"mid": mat_id, "uid": unidad_id})
+        # Verificar detalle de matrícula para esta unidad
+        res_det = await db.execute(
+            text("SELECT id FROM matricula_detalles WHERE matricula_id = :mid AND unidad_didactica_id = :uid"),
+            {"mid": mat_id, "uid": unidad_id}
+        )
         row_det = res_det.fetchone()
         if not row_det:
             res_ins_det = await db.execute(text("""
@@ -240,6 +253,6 @@ async def sincronizar_nomina_seccion(unidad_id: int, periodo_id: int, request: R
             db.add(db_reg)
             
     await db.commit()
-    return {"status": "ok", "message": f"Sincronizados {len(estudiantes)} estudiantes para la unidad {unidad_id}"}
+    return {"status": "ok", "message": f"Sincronizados {len(estudiantes)} estudiantes del Ciclo {ciclo} para {unidad_nombre}", "count": len(estudiantes)}
 
 

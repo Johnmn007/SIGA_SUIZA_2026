@@ -749,16 +749,19 @@ async def sincronizar_estudiantes_seccion(unidad_id: int, periodo_id: int, reque
     creds = row_ud[1] if row_ud and row_ud[1] else 2
     ciclo = row_ud[3] if row_ud and row_ud[3] else 1
     
-    # Buscar estudiantes del programa
+    # Buscar estudiantes que pertenezcan estrictamente al programa Y al ciclo de la unidad
     if prog_id:
-        res_est = await db.execute(select(Estudiante).where(Estudiante.programa_id == prog_id))
+        res_est = await db.execute(
+            select(Estudiante)
+            .where(Estudiante.programa_id == prog_id)
+            .where(Estudiante.ciclo_actual == ciclo)
+        )
         estudiantes = res_est.scalars().all()
     else:
         estudiantes = []
         
     if not estudiantes:
-        res_est = await db.execute(select(Estudiante).limit(35))
-        estudiantes = res_est.scalars().all()
+        return []
         
     for est in estudiantes:
         res_mat = await db.execute(
