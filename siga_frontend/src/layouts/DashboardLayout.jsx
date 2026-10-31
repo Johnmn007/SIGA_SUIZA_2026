@@ -1,19 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../core/auth/useAuth';
 import { wsClient } from '../core/api/client';
-import { ChangePasswordModal } from '../core/auth/ChangePasswordModal';
 import { SIGAAIAssistant } from '../core/ai/SIGAAIAssistant';
 import {
   LayoutDashboard, GraduationCap, Users, ClipboardList, ClipboardCheck,
   LineChart, Eye, ScrollText, BookOpen, CreditCard, Settings, Bell, LogOut,
-  KeyRound, User,
+  KeyRound, User, ChevronDown, ShieldCheck,
 } from 'lucide-react';
 
 export function DashboardLayout({ children, currentView, onNavigate }) {
-  const { user, logout, permissions } = useAuth();
+  const { user, logout, permissions, openPasswordModal } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [wsStatus, setWsStatus] = useState(wsClient.connected ? 'connected' : 'disconnected');
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
   const sidebarRef = useRef(null);
 
   const getUserRoles = () => {
@@ -27,6 +27,23 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
     return roles.length > 0 ? roles : ['invitado'];
   };
   const userRoles = getUserRoles();
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsProfileMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     wsClient.connect();
@@ -112,26 +129,111 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
               </span>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="hidden md:block text-right">
-                <div className="text-sm font-bold text-slate-text">{user?.full_name}</div>
-                <div className="text-xs text-slate-500">{user?.email}</div>
-              </div>
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* Botón directo de cambio de contraseña */}
+              <button
+                type="button"
+                onClick={openPasswordModal}
+                className="hidden md:inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white/70 hover:bg-white text-navy hover:text-primary text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                title="Configuración de seguridad y cambio de clave"
+              >
+                <KeyRound size={15} className="text-primary" />
+                <span>Cambiar Contraseña</span>
+              </button>
+
+              {/* Menú de Configuración y Perfil de Usuario */}
+              <div className="relative" ref={profileMenuRef}>
                 <button
-                  onClick={() => setIsPasswordModalOpen(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-navy hover:bg-slate-light hover:border-slate-300 text-sm font-medium transition-colors"
+                  type="button"
+                  onClick={() => setIsProfileMenuOpen(prev => !prev)}
+                  className={`flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border transition-all cursor-pointer ${
+                    isProfileMenuOpen 
+                      ? 'bg-white border-primary/40 shadow-md ring-2 ring-primary/10' 
+                      : 'bg-white/70 hover:bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+                  }`}
+                  aria-expanded={isProfileMenuOpen}
+                  aria-haspopup="true"
                 >
-                  <KeyRound size={16} />
-                  <span className="hidden sm:inline">Cambiar Contraseña</span>
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-secondary text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                    {user?.full_name ? user.full_name.slice(0, 2).toUpperCase() : <User size={16} />}
+                  </div>
+                  <div className="hidden sm:block text-left pr-1">
+                    <div className="text-xs font-bold text-slate-text truncate max-w-[130px] leading-tight">
+                      {user?.full_name || 'Usuario'}
+                    </div>
+                    <div className="text-[10px] font-semibold text-primary-dark uppercase tracking-wider leading-none mt-0.5">
+                      {user?.is_superuser ? 'Superadmin' : (userRoles[0] || 'Usuario')}
+                    </div>
+                  </div>
+                  <ChevronDown 
+                    size={14} 
+                    className={`text-slate-400 transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180 text-primary' : ''}`} 
+                  />
                 </button>
-                <button
-                  onClick={logout}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 text-sm font-medium transition-colors"
-                >
-                  <LogOut size={16} />
-                  <span className="hidden sm:inline">Cerrar Sesión</span>
-                </button>
+
+                {/* Dropdown de Configuración y Perfil */}
+                {isProfileMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-slate-100 shadow-2xl z-50 overflow-hidden animate-slide-up">
+                    {/* Encabezado perfil */}
+                    <div className="p-4 bg-gradient-to-br from-slate-50 to-primary-soft/30 border-b border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-secondary text-white flex items-center justify-center font-bold text-sm shadow-md shadow-primary/20">
+                          {user?.full_name ? user.full_name.slice(0, 2).toUpperCase() : <User size={20} />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-bold text-slate-800 truncate">{user?.full_name}</h4>
+                          <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+                          <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary-dark font-extrabold text-[9px] uppercase tracking-wider">
+                            {user?.is_superuser ? 'Superadmin' : (userRoles.join(' / '))}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Opciones de configuración */}
+                    <div className="p-2 space-y-1">
+                      <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Seguridad y Cuenta
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          openPasswordModal();
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-700 hover:text-primary hover:bg-primary-soft/40 transition-colors cursor-pointer group"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
+                          <KeyRound size={14} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold">Cambiar Contraseña</div>
+                          <div className="text-[10px] text-slate-400 font-normal">Actualiza tu clave institucional</div>
+                        </div>
+                      </button>
+
+                      <div className="my-1 border-t border-slate-100"></div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          logout();
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer group"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-red-100 text-red-600 flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-colors">
+                          <LogOut size={14} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold">Cerrar Sesión</div>
+                          <div className="text-[10px] text-red-400 font-normal">Salir de forma segura de SIGA</div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -145,7 +247,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
           {/* Sidebar */}
           <div ref={sidebarRef} className="w-full lg:w-1/4 flex-shrink-0 lg:self-start">
             <div className="glass-card p-6 flex flex-col">
-              <div className="text-center mb-8">
+              <div className="text-center mb-6">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/25 mb-3">
                   <User size={32} />
                 </div>
@@ -153,6 +255,15 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                 <p className="text-xs font-semibold text-primary-dark uppercase tracking-wider mt-1">
                   {user?.is_superuser ? 'Superadmin' : (userRoles.join(' / '))}
                 </p>
+                <button
+                  type="button"
+                  onClick={openPasswordModal}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-primary/10 text-slate-700 hover:text-primary text-xs font-semibold border border-slate-200 transition-all cursor-pointer w-full justify-center shadow-xs"
+                  title="Configurar contraseña"
+                >
+                  <KeyRound size={13} className="text-primary" />
+                  <span>Configurar Contraseña</span>
+                </button>
               </div>
 
               <div className="flex flex-col space-y-1.5 mb-8">
@@ -244,6 +355,19 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
                     label="Administración"
                   />
                 )}
+
+                {/* Menú de Configuración para Todos los Roles */}
+                <div className="pt-3 mt-3 border-t border-slate-200/60">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2 px-3">
+                    Configuración
+                  </span>
+                  <NavItem
+                    active={false}
+                    onClick={openPasswordModal}
+                    icon={KeyRound}
+                    label="Cambiar Contraseña"
+                  />
+                </div>
               </div>
 
               <div className="mt-auto pt-6 border-t border-slate-200/50">
@@ -271,11 +395,6 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
           </div>
         </div>
       </div>
-
-      <ChangePasswordModal
-        isOpen={isPasswordModalOpen}
-        onClose={() => setIsPasswordModalOpen(false)}
-      />
 
       {/* Asistente Virtual Inteligente Institucional SIGA */}
       <SIGAAIAssistant />

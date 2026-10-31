@@ -2,10 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '../../core/api/client';
 import { DocentePlanning } from '../academic/DocentePlanning';
 import { useAuth } from '../../core/auth/useAuth';
-import { Save, GraduationCap, Calendar, BookOpen, ClipboardList, AlertTriangle, Target, FileText, Printer, X, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Save, GraduationCap, Calendar, BookOpen, ClipboardList, AlertTriangle, Target, FileText, Printer, X, CheckCircle2, RefreshCw, KeyRound } from 'lucide-react';
 
 export function EvaluationDashboard() {
-  const { user } = useAuth();
+  const { user, openPasswordModal } = useAuth();
   const [activeTab, setActiveTab] = useState('notas'); // 'notas', 'planificacion'
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -247,6 +247,16 @@ export function EvaluationDashboard() {
         </div>
         
         <div className="flex items-center gap-2.5">
+          <button 
+            type="button"
+            onClick={openPasswordModal}
+            className="inline-flex items-center gap-1.5 py-2 px-3.5 rounded-xl font-medium text-xs border border-slate-200/90 text-slate-700 bg-white hover:bg-slate-50 hover:text-primary shadow-sm cursor-pointer transition-colors"
+            title="Configuración de seguridad y cambio de contraseña docente"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-primary" />
+            <span>Seguridad / Clave</span>
+          </button>
+
           <button 
             type="button"
             onClick={() => setShowActaModal(true)}

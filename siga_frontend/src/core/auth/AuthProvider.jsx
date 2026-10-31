@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import { apiClient, wsClient } from '../api/client';
 import { AuthContext } from './AuthContext';
+import { ChangePasswordModal } from './ChangePasswordModal';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState([]);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+
+  const openPasswordModal = () => setIsPasswordModalOpen(true);
+  const closePasswordModal = () => setIsPasswordModalOpen(false);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -61,12 +66,16 @@ export function AuthProvider({ children }) {
     login,
     logout,
     hasPermission,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
+    openPasswordModal,
+    closePasswordModal,
+    isPasswordModalOpen
   };
 
   return (
     <AuthContext.Provider value={value}>
       {children}
+      <ChangePasswordModal isOpen={isPasswordModalOpen} onClose={closePasswordModal} />
     </AuthContext.Provider>
   );
 }

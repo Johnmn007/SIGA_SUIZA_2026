@@ -4,11 +4,11 @@ import { apiClient } from '../../core/api/client';
 import { CoordinatorReview } from './CoordinatorReview';
 import { CoordinatorTutorias } from './CoordinatorTutorias';
 import { ScheduleBuilder } from './ScheduleBuilder';
-import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle } from 'lucide-react';
+import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle, KeyRound } from 'lucide-react';
 import { AssignmentModal } from './AssignmentModal';
 
 export function CoordinatorAcademic() {
-  const { user } = useAuth();
+  const { user, openPasswordModal } = useAuth();
   
   const [activeTab, setActiveTab] = useState('carga'); // 'carga', 'horarios'
   const [horariosSubTab, setHorariosSubTab] = useState('visual'); // 'excel', 'visual'
@@ -319,6 +319,17 @@ export function CoordinatorAcademic() {
           <p className="text-slate-500 text-sm mt-1">
             Gestión de Carga Lectiva y Horarios del Programa de Estudios
           </p>
+        </div>
+        <div>
+          <button
+            type="button"
+            onClick={openPasswordModal}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-primary hover:bg-slate-50 text-xs font-bold shadow-sm transition-all cursor-pointer"
+            title="Configuración de seguridad y cambio de contraseña"
+          >
+            <KeyRound size={15} className="text-primary" />
+            <span>Seguridad / Clave</span>
+          </button>
         </div>
       </div>
 
