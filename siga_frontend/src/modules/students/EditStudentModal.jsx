@@ -12,6 +12,20 @@ const SectionLabel = ({ label, icon: Icon }) => (
   </div>
 );
 
+const PROGRAMAS_LIST = [
+  { id: 1, label: 'Administración de Operaciones Turísticas' },
+  { id: 2, label: 'Asistencia Administrativa' },
+  { id: 3, label: 'Contabilidad' },
+  { id: 4, label: 'Construcción Civil' },
+  { id: 5, label: 'Gestión Administrativa' },
+  { id: 6, label: 'Desarrollo de Sistemas de Información' },
+  { id: 7, label: 'Electricidad Industrial' },
+  { id: 8, label: 'Enfermería Técnica' },
+  { id: 9, label: 'Manejo Forestal' },
+  { id: 10, label: 'Mecatrónica Automotriz' },
+  { id: 11, label: 'Producción Agropecuaria' },
+];
+
 const Field = ({ label, value, onChange, type = "text", required = false, placeholder = "" }) => (
   <div className="flex flex-col space-y-1">
     <label className="text-xs font-bold text-slate-600 uppercase">{label}</label>
@@ -198,6 +212,19 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Field label="Código de Estudiante" value={form.codigo_estudiante} onChange={e => handleChange('codigo_estudiante', e.target.value)} />
                 <Field label="Colegio de Procedencia" value={form.colegio_procedencia} onChange={e => handleChange('colegio_procedencia', e.target.value)} />
+                <div className="md:col-span-2 flex flex-col space-y-1">
+                  <label className="text-xs font-bold text-slate-600 uppercase">Programa de Estudios</label>
+                  <select
+                    className="input-field py-2 text-sm"
+                    value={form.programa_id || ''}
+                    onChange={e => handleChange('programa_id', e.target.value ? parseInt(e.target.value, 10) : null)}
+                  >
+                    <option value="">-- Sin Programa --</option>
+                    {PROGRAMAS_LIST.map(p => (
+                      <option key={p.id} value={p.id}>{p.id} - {p.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 

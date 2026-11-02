@@ -3,6 +3,7 @@ import { BadgeCheck, Trophy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { apiClient, API_BASE } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
+import { getPeriodLabelById } from './periodUtils';
 
 const PASOS = [
   'Se consolida la matrícula y se genera el registro académico del ciclo.',
@@ -15,6 +16,7 @@ const PASOS = [
 /** Sección 7 del diagrama — Resultado final (consolidación en 5 pasos). */
 export function ResultadoPanel() {
   const [data, setData] = useState(null);
+  const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -47,6 +49,13 @@ export function ResultadoPanel() {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [soloPendientes]);
+
+  useEffect(() => {
+    (async () => {
+      const per = await apiClient.callModule('mod-programas-estudio', 'periodos').catch(() => []);
+      setPeriods(Array.isArray(per) ? per : []);
+    })();
+  }, []);
 
   const abrirDetalle = async (row, pasos = null) => {
     setDetalle({ row, pasos });
@@ -188,7 +197,7 @@ export function ResultadoPanel() {
                     <td className="py-3 px-4 text-slate-800 font-medium">{m.nombres} {m.apellidos}
                       <span className="block text-xs text-slate-400">{m.codigo_estudiante}</span>
                     </td>
-                    <td className="py-3 px-4 text-slate-600">{m.periodo_id}</td>
+                    <td className="py-3 px-4 text-slate-600">{getPeriodLabelById(periods, m.periodo_id)}</td>
                     <td className="py-3 px-4 text-slate-600">{m.ciclo ?? '—'}</td>
                     <td className="py-3 px-4">
                       <span className={`inline-block px-2 py-1 text-[10px] font-bold uppercase rounded border ${
@@ -238,7 +247,7 @@ export function ResultadoPanel() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
                 <h5 className="font-bold text-slate-800">Resultado final — {detalle.row.nombres} {detalle.row.apellidos}</h5>
-                <p className="text-xs text-slate-400">{detalle.row.codigo_estudiante} · Ciclo {detalle.row.ciclo} · Periodo {detalle.row.periodo_id}</p>
+                <p className="text-xs text-slate-400">{detalle.row.codigo_estudiante} · Ciclo {detalle.row.ciclo} · Periodo {getPeriodLabelById(periods, detalle.row.periodo_id)}</p>
               </div>
               <button onClick={() => setDetalle(null)} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
             </div>
@@ -328,7 +337,7 @@ export function ResultadoPanel() {
                   <ul className="space-y-1.5">
                     {historial.matriculas.map((h) => (
                       <li key={h.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                        <span className="text-slate-700">Periodo {h.periodo_id} · Ciclo {h.ciclo ?? '—'}</span>
+                        <span className="text-slate-700">Periodo {getPeriodLabelById(periods, h.periodo_id)} · Ciclo {h.ciclo ?? '—'}</span>
                         <span className="text-xs text-slate-500">{h.unidades.length} unidades · {h.estado_matricula}</span>
                       </li>
                     ))}

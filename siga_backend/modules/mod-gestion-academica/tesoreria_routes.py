@@ -20,7 +20,7 @@ import re
 import secrets
 import unicodedata
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 from decimal import Decimal
 from typing import List, Optional
 
@@ -29,7 +29,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import OutboxEvent, engine, get_db
@@ -107,6 +107,15 @@ class ImportacionIn(BaseModel):
     conceptos: List[dict] = []
     pagos: List[dict] = []
     config: Optional[dict] = None
+
+
+class ValidarPagoIn(BaseModel):
+    codigo: Optional[str] = None
+    qrCode: Optional[str] = None
+    qr_code: Optional[str] = None
+    estudianteId: Optional[int] = None
+    estudiante_id: Optional[int] = None
+    dni: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -796,6 +805,237 @@ async def _estudiante_por_dni(db: AsyncSession, dni: str) -> Optional[Estudiante
 
 
 NO_VALIDO = "Comprobante no encontrado o código de verificación inválido."
+
+
+def _normalizar_texto(texto: str) -> str:
+    return unicodedata.normalize("NFD", str(texto or "")).encode("ascii", "ignore").decode().upper().strip()
+
+
+def _decodificar_boleta_qr(datos: str) -> dict:
+    try:
+        relleno = "=" * (-len(datos) % 4)
+        contenido = json.loads(base64.urlsafe_b64decode(datos + relleno))
+        return contenido if isinstance(contenido, dict) else {}
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return {}
+
+
+def _resolver_codigo_qr(texto: str) -> dict:
+    """Acepta el enlace público, el JSON firmado, el texto impreso o el código de recibo."""
+    original = (texto or "").strip()
+    info = {"codigo": "", "dni": "", "firma": "", "datos": None, "datos_b64": ""}
+    if not original:
+        return info
+
+    if original.startswith("{"):
+        try:
+            obj = json.loads(original)
+            if isinstance(obj, dict):
+                estudiante = obj.get("estudiante") if isinstance(obj.get("estudiante"), dict) else {}
+                info["datos"] = obj
+                info["codigo"] = str(
+                    obj.get("codigoRecibo") or obj.get("codigo_recibo") or obj.get("r") or
+                    obj.get("codigo") or obj.get("payment_id") or obj.get("receipt_number") or
+                    obj.get("boleta_codigo") or ""
+                ).strip()
+                info["dni"] = str(obj.get("dni") or obj.get("d") or estudiante.get("dni") or "").strip()
+        except ValueError:
+            pass
+
+    if "://" in original or original.startswith("/"):
+        parsed = urlparse(original)
+        params = parse_qs(parsed.query)
+        datos_b64 = (params.get("boleta") or params.get("datos") or [""])[0]
+        if datos_b64:
+            obj = _decodificar_boleta_qr(datos_b64)
+            if obj:
+                info["datos"] = obj
+                info["datos_b64"] = datos_b64
+                info["codigo"] = str(obj.get("r") or obj.get("codigoRecibo") or "").strip()
+                info["dni"] = str(obj.get("d") or obj.get("dni") or "").strip()
+                info["firma"] = (params.get("f") or params.get("firma") or [""])[0].strip()
+        for clave in ("codigo", "codigoRecibo", "recibo", "receipt", "boleta_codigo"):
+            if not info["codigo"] and params.get(clave):
+                info["codigo"] = params[clave][0].strip()
+        if not info["codigo"]:
+            encontrado = re.search(r"/boletas/validar/([^/?#]+)", parsed.path, re.I)
+            if encontrado:
+                info["codigo"] = encontrado.group(1).strip()
+
+    if not info["codigo"]:
+        encontrado = re.search(r"RECIBO\s*:\s*([^\s,;]+)", original, re.I)
+        if encontrado:
+            info["codigo"] = encontrado.group(1).strip()
+    if not info["dni"]:
+        encontrado = re.search(r"\bDNI\s*:\s*([0-9]{6,15})", original, re.I)
+        if encontrado:
+            info["dni"] = encontrado.group(1).strip()
+    if not info["codigo"]:
+        encontrado = re.search(r"\b((?:REC|ADM|ACR|BOL)-[A-Z0-9-]+)\b", original, re.I)
+        if encontrado:
+            info["codigo"] = encontrado.group(1).strip()
+    if not info["codigo"] and re.fullmatch(r"[A-Za-z0-9._/-]{3,120}", original):
+        info["codigo"] = original
+    if not info["codigo"] and re.fullmatch(r"\d{8}", original):
+        info["dni"] = original
+
+    return info
+
+
+async def _buscar_pago_dict(db: AsyncSession, codigo: str, dni: str, secreto: bytes, url_publica: Optional[str]) -> Optional[dict]:
+    codigo = str(codigo or "").strip()
+    dni = str(dni or "").strip()
+    if codigo:
+        pago = (await db.execute(select(PagoCaja).where(
+            func.upper(PagoCaja.codigo_recibo) == codigo.upper(),
+            PagoCaja.estado == "PAGADO",
+        ))).scalar_one_or_none()
+        if pago and (not dni or str(pago.dni) == dni):
+            return pago_dict(pago, secreto, url_publica)
+
+    est = await _estudiante_por_dni(db, dni) if dni else None
+    if not est and codigo.upper().startswith("ACR-"):
+        partes = codigo.split("-")
+        if partes and partes[-1].isdigit():
+            est = (await db.execute(select(Estudiante).where(Estudiante.id == int(partes[-1])))).scalar_one_or_none()
+    if est:
+        estado = await construir_estado_cuenta(db, est, secreto)
+        return next((m for m in estado["movimientos"] if
+                     str(m.get("codigoRecibo") or "").upper() == codigo.upper() and m.get("estado") == "PAGADO"), None)
+    return None
+
+
+async def _boletas_sinteticas(db: AsyncSession, secreto: bytes, dni: str, estudiante_id: Optional[int],
+                              termino: str, concepto: str) -> List[dict]:
+    if concepto and "MATRIC" not in _normalizar_texto(concepto):
+        return []
+    stmt = select(Estudiante).where(Estudiante.pago_matricula.is_(True))
+    if dni:
+        stmt = stmt.where(Estudiante.dni == str(dni).strip())
+    if estudiante_id is not None:
+        stmt = stmt.where(Estudiante.id == estudiante_id)
+    if termino:
+        like = f"%{termino}%"
+        stmt = stmt.where(or_(
+            Estudiante.dni.ilike(like),
+            Estudiante.nombres.ilike(like),
+            Estudiante.apellidos.ilike(like),
+            Estudiante.codigo_estudiante.ilike(like),
+        ))
+    estudiantes = (await db.execute(stmt.order_by(Estudiante.id).limit(200))).scalars().all()
+    if not estudiantes:
+        return []
+
+    con_pago = set((await db.execute(select(PagoCaja.estudiante_id).where(
+        PagoCaja.estado == "PAGADO", PagoCaja.libera_matricula.is_(True)))).scalars().all())
+    boletas = []
+    for est in estudiantes:
+        if est.id in con_pago:
+            continue
+        estado = await construir_estado_cuenta(db, est, secreto)
+        acreditado = next((m for m in estado["movimientos"] if
+                           m.get("origen") == "acreditado" and m.get("estado") == "PAGADO"), None)
+        if acreditado:
+            boletas.append(acreditado)
+    return boletas
+
+
+@router.get("/pagos/consultar")
+async def consultar_pago(codigo: Optional[str] = None, dni: Optional[str] = None, q: Optional[str] = None,
+                         db: AsyncSession = Depends(get_db)):
+    secreto = await secreto_qr(db)
+    info = _resolver_codigo_qr(codigo or q or "")
+    codigo_final = info.get("codigo") or ""
+    dni_final = str(dni or info.get("dni") or "").strip()
+
+    if info.get("datos_b64") and info.get("firma"):
+        if not token_valido(firmar(secreto, "BOLETA", info["datos_b64"]), info["firma"]):
+            raise HTTPException(404, detail="La boleta del QR fue alterada o no fue emitida por Tesorería.")
+    if not codigo_final:
+        raise HTTPException(400, detail="El código QR no contiene un número de recibo válido.")
+
+    recibo = await _buscar_pago_dict(db, codigo_final, dni_final, secreto, await url_publica_qr(db))
+    if not recibo:
+        raise HTTPException(404, detail=NO_VALIDO)
+    return {"valido": True, "recibo": recibo, "verificadoEn": formato_fecha_hora(ahora_peru())}
+
+
+@router.post("/pagos/validar")
+async def validar_pago(data: ValidarPagoIn, db: AsyncSession = Depends(get_db)):
+    secreto = await secreto_qr(db)
+    info = _resolver_codigo_qr(data.codigo or data.qrCode or data.qr_code or "")
+    codigo_final = info.get("codigo") or ""
+    dni_final = str(data.dni or info.get("dni") or "").strip()
+    estudiante_id = data.estudianteId if data.estudianteId is not None else data.estudiante_id
+
+    if info.get("datos_b64") and info.get("firma"):
+        if not token_valido(firmar(secreto, "BOLETA", info["datos_b64"]), info["firma"]):
+            raise HTTPException(404, detail="La boleta del QR fue alterada o no fue emitida por Tesorería.")
+    if not codigo_final:
+        raise HTTPException(400, detail="El código QR no contiene un número de recibo válido.")
+
+    recibo = await _buscar_pago_dict(db, codigo_final, dni_final, secreto, await url_publica_qr(db))
+    if not recibo:
+        raise HTTPException(404, detail=NO_VALIDO)
+    if estudiante_id is not None and recibo.get("estudianteId") != estudiante_id:
+        raise HTTPException(409, detail="La boleta no pertenece al estudiante seleccionado.")
+    if dni_final and str(recibo.get("dni")) != dni_final:
+        raise HTTPException(404, detail=NO_VALIDO)
+    return {"valido": True, "recibo": recibo, "verificadoEn": formato_fecha_hora(ahora_peru())}
+
+
+@router.get("/boletas-disponibles")
+async def listar_boletas_disponibles(dni: Optional[str] = None, q: Optional[str] = None, search: Optional[str] = None,
+                                     concepto: Optional[str] = None, status: Optional[str] = None,
+                                     estudiante_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+    if status and _normalizar_texto(status) != "PAGADO":
+        return {"boletas": [], "total": 0}
+
+    secreto = await secreto_qr(db)
+    url_publica = await url_publica_qr(db)
+    termino = (q or search or "").strip()
+    stmt = select(PagoCaja).where(PagoCaja.estado == "PAGADO")
+    if dni:
+        stmt = stmt.where(PagoCaja.dni == str(dni).strip())
+    if estudiante_id is not None:
+        stmt = stmt.where(PagoCaja.estudiante_id == estudiante_id)
+    if termino:
+        like = f"%{termino}%"
+        stmt = stmt.where(or_(
+            PagoCaja.codigo_recibo.ilike(like),
+            PagoCaja.dni.ilike(like),
+            PagoCaja.estudiante_nombre.ilike(like),
+            PagoCaja.codigo_estudiante.ilike(like),
+            PagoCaja.concepto_nombre.ilike(like),
+            PagoCaja.concepto_codigo.ilike(like),
+            PagoCaja.carrera_nombre.ilike(like),
+        ))
+    if concepto:
+        normalizado = _normalizar_texto(concepto)
+        if "MATRIC" in normalizado:
+            stmt = stmt.where(or_(
+                PagoCaja.libera_matricula.is_(True),
+                func.upper(PagoCaja.concepto_codigo).like("MAT%"),
+            ))
+        else:
+            stmt = stmt.where(or_(
+                func.upper(PagoCaja.concepto_codigo).like(f"%{normalizado}%"),
+                PagoCaja.concepto_nombre.ilike(f"%{concepto}%"),
+            ))
+
+    pagos = (await db.execute(stmt.order_by(PagoCaja.fecha_pago.desc(), PagoCaja.id.desc()).limit(200))).scalars().all()
+    boletas = [pago_dict(p, secreto, url_publica) for p in pagos]
+    boletas.extend(await _boletas_sinteticas(db, secreto, dni or "", estudiante_id, termino, concepto or ""))
+
+    vistas, resultado = set(), []
+    for boleta in boletas:
+        codigo = str(boleta.get("codigoRecibo") or "")
+        if codigo and codigo in vistas:
+            continue
+        vistas.add(codigo)
+        resultado.append(boleta)
+    resultado.sort(key=lambda b: b.get("timestamp") or 0, reverse=True)
+    return {"boletas": resultado, "total": len(resultado)}
 
 
 @router.get("/publico/recibo")

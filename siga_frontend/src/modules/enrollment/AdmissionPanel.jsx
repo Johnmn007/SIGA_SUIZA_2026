@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { apiClient, API_BASE } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
+import { getDefaultPeriod, getPeriodLabel, getPeriodLabelById, isHistoricalPeriod } from './periodUtils';
 import './enrollmentPremium.css';
 
 /**
@@ -32,17 +33,15 @@ export function AdmissionPanel() {
       try {
         const [p, pe] = await Promise.all([
           apiClient.request('/api/mod-programas-estudio/programas').catch(() => []),
-          apiClient.request('/api/mod-programas-estudio/periodos').catch(() => []),
+          apiClient.callModule('mod-programas-estudio', 'periodos').catch(() => []),
         ]);
         const prog = Array.isArray(p) ? p : [];
         const per = Array.isArray(pe) ? pe : [];
         setPrograms(prog);
         setPeriods(per);
         if (prog.length > 0) setProgramaId(String(prog[0].id));
-        if (per.length > 0) {
-          const activo = per.find((x) => x.estado === 'ACTIVO') || per[per.length - 1];
-          setPeriodoId(String(activo.id));
-        }
+        const activo = getDefaultPeriod(per);
+        if (activo) setPeriodoId(String(activo.id));
       } catch (e) {
         console.error('No se pudieron cargar programas/periodos:', e);
       }
@@ -56,6 +55,12 @@ export function AdmissionPanel() {
     }
     if (!periodoId) {
       setError('Selecciona un periodo de matrícula');
+      return;
+    }
+    const selPeriodo = periods.find(p => String(p.id) === String(periodoId));
+    const estSel = (selPeriodo?.estado || '').toString().toLowerCase();
+    if (estSel === 'historico' || estSel === 'cerrado') {
+      setError('Este periodo es histórico y ya no permite nuevas matrículas.');
       return;
     }
     setLoading(true);
@@ -161,12 +166,22 @@ export function AdmissionPanel() {
           <select
             className="input-field w-full py-2.5 text-sm"
             value={periodoId}
-            onChange={(e) => setPeriodoId(e.target.value)}
+            onChange={(e) => {
+              const pid = e.target.value;
+              const sel = periods.find(p => String(p.id) === String(pid));
+              const est = (sel?.estado || '').toString().toLowerCase();
+              if (est === 'historico' || est === 'cerrado') {
+                setError('Este periodo es histórico y ya no permite nuevas matrículas.');
+                return;
+              }
+              setError('');
+              setPeriodoId(pid);
+            }}
           >
             <option value="">Selecciona un periodo</option>
             {periods.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre ? `${p.nombre} — ` : ''}#{p.id} {p.estado ? `(${p.estado})` : ''}
+              <option key={p.id} value={p.id} disabled={isHistoricalPeriod(p)}>
+                {getPeriodLabel(p)}
               </option>
             ))}
           </select>
@@ -359,7 +374,7 @@ export function AdmissionPanel() {
                     {ficha.matriculas.map((m) => (
                       <li key={m.id} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="font-semibold text-slate-700">Periodo {m.periodo_id} · Ciclo {m.ciclo}</span>
+                          <span className="font-semibold text-slate-700">Periodo {getPeriodLabelById(periods, m.periodo_id)} · Ciclo {m.ciclo}</span>
                           <Badge tone={m.estado_matricula === 'confirmada' ? 'green' : 'slate'}>{m.estado_matricula}</Badge>
                         </div>
                         <p className="text-xs text-slate-500 mt-1">{m.unidades} unidades · {m.creditos} créditos · {m.casuistica}</p>

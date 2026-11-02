@@ -168,7 +168,8 @@ export function StudentMaster() {
     colegio_procedencia: '', año_egreso_colegio: 2023,
     contacto_emergencia_nombre: '', contacto_emergencia_telefono: '',
     nombre_padre: '', nombre_madre: '', estado_academico: 'postulante',
-    documentos_completos: true, fecha_limite_documentos: ''
+    documentos_completos: true, fecha_limite_documentos: '',
+    programa_id: ''
   });
 
   useEffect(() => {
@@ -295,6 +296,13 @@ export function StudentMaster() {
       payload.direccion_domicilio = payload.direccion_residencia;
       if (payload.fecha_limite_documentos === '') payload.fecha_limite_documentos = null;
 
+      // Garantizar asignación obligatoria de programa_id
+      const assignedProg = form.programa_id
+        || (currentPrograma && currentPrograma !== 'ALL' ? currentPrograma : null)
+        || (user?.programa_id ? String(user.programa_id) : null)
+        || (user?.email === 'secretaria_prog@siga.edu' ? '2' : '1');
+      payload.programa_id = parseInt(assignedProg, 10);
+
       const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
         method: 'POST',
         headers: {
@@ -411,6 +419,36 @@ export function StudentMaster() {
               <InputGroup label="Género" options={['Masculino', 'Femenino', 'Otro']} value={form.genero} onChange={e=>setForm({...form, genero: e.target.value})} />
               <InputGroup label="Estado Civil" options={['Soltero', 'Casado', 'Conviviente', 'Viudo', 'Divorciado']} value={form.estado_civil} onChange={e=>setForm({...form, estado_civil: e.target.value})} />
               <InputGroup label="Nacionalidad" value={form.nacionalidad} onChange={e=>setForm({...form, nacionalidad: e.target.value})} />
+              
+              <div className="sm:col-span-2 lg:col-span-3 flex flex-col space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
+                  <GraduationCap size={13} className="text-primary/60" />
+                  Programa de Estudios
+                </label>
+                {userRole === 'secretaria_programa' ? (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-primary-soft/50 border border-primary/25 text-sm font-semibold text-primary-dark">
+                    <span className="w-6 h-6 rounded-md bg-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                      {form.programa_id || currentPrograma || (user?.programa_id || '2')}
+                    </span>
+                    <span>
+                      {PROGRAMAS.find(p => p.id === String(form.programa_id || currentPrograma || user?.programa_id || '2'))?.label || 'Programa Asignado'}
+                    </span>
+                    <span className="ml-auto text-xs font-medium text-slate-500 italic">
+                      (Asignado automáticamente por su programa)
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    className="input-field py-2.5 text-sm"
+                    value={form.programa_id || (currentPrograma !== 'ALL' ? currentPrograma : '1')}
+                    onChange={e => setForm({ ...form, programa_id: e.target.value })}
+                  >
+                    {PROGRAMAS.filter(p => p.id !== 'ALL').map(p => (
+                      <option key={p.id} value={p.id}>{p.id} - {p.label}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -516,6 +554,14 @@ export function StudentMaster() {
                 </span>
                 <span className="block font-bold text-slate-900 break-words">{form.nombres} {form.apellidos}</span>
               </div>
+              <div className="sm:col-span-2 rounded-xl border border-primary/20 bg-primary-soft/30 p-3">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-primary-dark mb-1 flex items-center gap-1.5">
+                  <GraduationCap size={13} className="text-primary" /> Programa de Estudios
+                </span>
+                <span className="block font-bold text-primary-dark">
+                  {PROGRAMAS.find(p => p.id === String(form.programa_id || currentPrograma || (user?.programa_id || (user?.email === 'secretaria_prog@siga.edu' ? '2' : '1'))))?.label || 'Programa no asignado'}
+                </span>
+              </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Identidad</span>
                 <span className="block text-slate-700 break-words">DNI {form.dni || '—'} · {form.codigo_estudiante || 'Sin código'}</span>
@@ -590,7 +636,18 @@ export function StudentMaster() {
             )}
             <button
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white text-primary font-bold text-sm shadow-lg shadow-black/10 hover:bg-primary-soft active:scale-[0.98] transition-all duration-200 min-h-[44px] w-full sm:w-auto"
-              onClick={() => { setForm({...form, codigo_estudiante: 'EST-'+Date.now().toString().slice(-6)}); setShowModal(true); }}
+              onClick={() => {
+                const defaultProg = (currentPrograma && currentPrograma !== 'ALL')
+                  ? currentPrograma
+                  : (user?.programa_id ? String(user.programa_id) : (user?.email === 'secretaria_prog@siga.edu' ? '2' : '1'));
+                setForm({
+                  ...form,
+                  codigo_estudiante: 'EST-'+Date.now().toString().slice(-6),
+                  programa_id: defaultProg
+                });
+                setWizardStep(1);
+                setShowModal(true);
+              }}
             >
               <Plus size={18} className="shrink-0" />
               <span>Registrar Estudiante</span>
