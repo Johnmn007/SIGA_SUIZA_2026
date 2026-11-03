@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
@@ -17,7 +18,7 @@ export function DocentePlanning() {
   const [cargaLectiva, setCargaLectiva] = useState([]);
   const [mallaFlat, setMallaFlat] = useState([]);
   const [silabos, setSilabos] = useState([]);
-  const [planes, setPlanes] = useState([]);
+  const [_PLANES, setPlanes] = useState([]);
 
   // Fetch initial data
   useEffect(() => {
@@ -92,6 +93,16 @@ export function DocentePlanning() {
         const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`).catch(() => []);
         
         setPlanes(planesRes || []);
+      if (planesRes && planesRes.length > 0) {
+        setPlanActual(planesRes[0]);
+      } else {
+        setPlanActual(null);
+      }
+        if (planesRes && planesRes.length > 0) {
+          setPlanActual(planesRes[0]);
+        } else {
+          setPlanActual(null);
+        }
         setSilabos(silabosRes || []);
       } catch (e) {
         console.error('Error fetching planning data', e);
@@ -133,7 +144,7 @@ export function DocentePlanning() {
       // Refresh silabos
       const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`);
       setSilabos(silabosRes || []);
-    } catch (e) {
+    } catch {
       alert("Error al enviar el sílabo");
     } finally {
       e.target.value = ''; // reset input
@@ -170,7 +181,12 @@ export function DocentePlanning() {
       // Refresh planes
       const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`);
       setPlanes(planesRes || []);
-    } catch (e) {
+      if (planesRes && planesRes.length > 0) {
+        setPlanActual(planesRes[0]);
+      } else {
+        setPlanActual(null);
+      }
+    } catch {
       alert("Error al enviar el Plan de Trabajo");
     } finally {
       e.target.value = '';
@@ -190,7 +206,6 @@ export function DocentePlanning() {
     (!selectedPeriod || String(c.periodo_id) === String(selectedPeriod)) &&
     (!selectedProgram || String(c.programa_id) === String(selectedProgram))
   );
-  const planActivo = planes.length > 0 ? planes[0] : null;
 
   return (
     <div className="space-y-6">

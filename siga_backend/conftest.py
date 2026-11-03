@@ -52,15 +52,34 @@ TestingSessionLocal = async_sessionmaker(
 )
 
 
+from sqlalchemy.engine import make_url
+
 # ==============================================================================
 # 2. VALIDACIÓN DE URLs DE BASE DE DATOS Y MOTORES
 # ==============================================================================
 def assert_safe_database_url(url_or_engine, context_name: str = "Motor"):
-    """Verifica que la URL de un motor o conexión termine estrictamente en '/siga_test'."""
+    """Verifica formalmente que la URL o motor apunte estricta y exclusivamente a 'siga_test'."""
     url_str = str(getattr(url_or_engine, "url", url_or_engine))
-    if not url_str.endswith("/siga_test"):
+
+    # 1. Rechazo categórico si 'siga_local' aparece en cualquier parte de la URL
+    if "siga_local" in url_str.lower():
         raise RuntimeError(
-            f"VIOLACIÓN DE SEGURIDAD CRÍTICA en {context_name}: La URL '{url_str}' NO apunta a 'siga_test'."
+            f"VIOLACIÓN DE SEGURIDAD CRÍTICA en {context_name}: Se detectó 'siga_local' en la URL '{url_str}'."
+        )
+
+    # 2. Análisis sintáctico formal con make_url de SQLAlchemy
+    try:
+        parsed_url = make_url(url_str)
+        target_db = parsed_url.database
+    except Exception as e:
+        raise RuntimeError(
+            f"VIOLACIÓN DE SEGURIDAD CRÍTICA en {context_name}: Error al parsear URL '{url_str}': {e}"
+        )
+
+    # 3. Comprobación estricta de que la base de datos sea exactamente 'siga_test'
+    if target_db != "siga_test":
+        raise RuntimeError(
+            f"VIOLACIÓN DE SEGURIDAD CRÍTICA en {context_name}: La base de datos es '{target_db}', NO 'siga_test' (URL: '{url_str}')."
         )
 
 
@@ -172,7 +191,11 @@ async def clean_test_db():
 async def db_session(clean_test_db):
     """Sesión asíncrona apuntando a siga_test con base limpia garantizada."""
     async with TestingSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.rollback()
+            await session.close()
 
 
 # ==============================================================================

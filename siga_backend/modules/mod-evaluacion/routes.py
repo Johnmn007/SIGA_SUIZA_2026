@@ -1091,48 +1091,229 @@ async def reabrir_acta_carga(carga_id: int, data: ReabrirActaRequest, request: R
         "fecha_limite_notas": data.nueva_fecha_limite
     }
 
+def _validar_nota_vigesimal(valor) -> Optional[int]:
+    """Valida la escala vigesimal institucional [0, 20]. Rechaza valores fuera de rango o tipos inválidos con HTTP 422."""
+    if valor is None or valor == "":
+        return None
+    if isinstance(valor, bool):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Las notas deben estar entre 0 y 20"
+        )
+    try:
+        num = float(valor)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Las notas deben estar entre 0 y 20"
+        )
+    if num < 0 or num > 20:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Las notas deben estar entre 0 y 20"
+        )
+    return round(num)
+
 @router.post("/registros/batch")
 async def guardar_registros_batch(items: List[dict], request: Request, db: AsyncSession = Depends(get_db)):
-    """Guarda o actualiza múltiples registros de evaluación en una sola transacción."""
-    actualizados = []
-    for item in items:
-        registro_id = item.get("id") or item.get("registro_id")
-        db_obj = None
-        if registro_id:
-            result = await db.execute(select(RegistroEvaluacion).where(RegistroEvaluacion.id == registro_id))
-            db_obj = result.scalar_one_or_none()
-        
-        if not db_obj and item.get("matricula_detalle_id"):
-            result = await db.execute(select(RegistroEvaluacion).where(RegistroEvaluacion.matricula_detalle_id == item["matricula_detalle_id"]))
-            db_obj = result.scalar_one_or_none()
+    """Guarda o actualiza múltiples registros de evaluación en una sola transacción con validaciones de seguridad."""
+    # 1. Autenticación e Identidad (BUG-D02 / R1) - DEBE ejecutarse antes de validar el contenido del lote
+    user = await get_identity(request, db)
 
-        if not db_obj and item.get("matricula_detalle_id"):
-            db_obj = RegistroEvaluacion(
-                matricula_detalle_id=item["matricula_detalle_id"],
-                estudiante_id=item["estudiante_id"],
-                unidad_didactica_id=item["unidad_didactica_id"],
-                periodo_id=item["periodo_id"]
-            )
-            db.add(db_obj)
+    if not items:
+        return []
+
+    # 2. Precarga y resolución de registros para identificar (unidad_didactica_id, periodo_id)
+    reg_ids = [item.get("id") or item.get("registro_id") for item in items if (item.get("id") or item.get("registro_id"))]
+    mat_ids = [item.get("matricula_detalle_id") or item.get("matricula_id") for item in items if (item.get("matricula_detalle_id") or item.get("matricula_id"))]
+
+    existing_by_id = {}
+    if reg_ids:
+        res = await db.execute(select(RegistroEvaluacion).where(RegistroEvaluacion.id.in_(reg_ids)))
+        for r in res.scalars():
+            existing_by_id[r.id] = r
+
+    existing_by_mat = {}
+    if mat_ids:
+        res = await db.execute(select(RegistroEvaluacion).where(RegistroEvaluacion.matricula_detalle_id.in_(mat_ids)))
+        for r in res.scalars():
+            existing_by_mat[r.matricula_detalle_id] = r
+
+    pares_unidad_periodo = set()
+    for item in items:
+        rid = item.get("id") or item.get("registro_id")
+        mid = item.get("matricula_detalle_id") or item.get("matricula_id")
+        db_obj = existing_by_id.get(rid) if rid else (existing_by_mat.get(mid) if mid else None)
 
         if db_obj:
-            if "nota_c1" in item:
-                db_obj.nota_c1 = item["nota_c1"] if item["nota_c1"] != "" and item["nota_c1"] is not None else None
-            if "nota_c2" in item:
-                db_obj.nota_c2 = item["nota_c2"] if item["nota_c2"] != "" and item["nota_c2"] is not None else None
-            if "nota_c3" in item:
-                db_obj.nota_c3 = item["nota_c3"] if item["nota_c3"] != "" and item["nota_c3"] is not None else None
-            
-            nota_final_val = item.get("nota_final")
-            if nota_final_val == "":
-                nota_final_val = None
-            _aplicar_notas(db_obj, nota_final_solicitada=nota_final_val)
-            actualizados.append(db_obj)
+            # BLINDAJE CRÍTICO BOLA / IDOR: Si el registro ya existe en BD,
+            # la unidad y periodo autoritativos provienen ESTRICTAMENTE de db_obj.
+            u_id = db_obj.unidad_didactica_id
+            p_id = db_obj.periodo_id
 
-    await db.commit()
-    for obj in actualizados:
-        await db.refresh(obj)
-    return [RegistroEvaluacionResponse.model_validate(obj) for obj in actualizados]
+            # Validación de integridad: si el cliente envía unidad o periodo discrepante, rechazar
+            client_u = item.get("unidad_didactica_id") or item.get("unidad_id")
+            client_p = item.get("periodo_id")
+            if (client_u is not None and int(client_u) != u_id) or (client_p is not None and int(client_p) != p_id):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Inconsistencia de unidad didáctica o periodo en el registro"
+                )
+        else:
+            # Registro nuevo a insertar
+            u_id = item.get("unidad_didactica_id") or item.get("unidad_id")
+            p_id = item.get("periodo_id")
+
+            if (u_id is None or p_id is None) and mid:
+                md_res = await db.execute(
+                    text("SELECT md.unidad_didactica_id, m.periodo_id FROM matricula_detalles md JOIN matriculas m ON md.matricula_id = m.id WHERE md.id = :mid"),
+                    {"mid": mid}
+                )
+                md_row = md_res.fetchone()
+                if md_row:
+                    u_id = md_row[0]
+                    p_id = md_row[1]
+
+        if u_id is not None and p_id is not None:
+            pares_unidad_periodo.add((int(u_id), int(p_id)))
+
+    if not pares_unidad_periodo:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No se pudo determinar la unidad didáctica o periodo para los registros."
+        )
+
+    # 3. Verificación de permisos y estado para cada unidad/periodo
+    for u_id, p_id in sorted(pares_unidad_periodo):
+        # 3.a Titularidad docente o superadmin (403 antes que 409)
+        if not es_superadmin(user):
+            carga_res = await db.execute(
+                text("SELECT id, docente_id FROM carga_lectiva WHERE unidad_didactica_id = :u AND periodo_id = :p"),
+                {"u": u_id, "p": p_id}
+            )
+            cargas = carga_res.fetchall()
+            if not cargas:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="La unidad no tiene docente asignado. Solicite la asignación de carga lectiva al coordinador."
+                )
+            if not any(c[1] == user.user_id for c in cargas):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="No tiene permisos para esta operación"
+                )
+
+        # 3.b Validar que el periodo académico permita calificación (409)
+        per_res = await db.execute(
+            text("SELECT codigo, estado FROM periodos_academicos WHERE id = :p_id"),
+            {"p_id": p_id}
+        )
+        per_row = per_res.fetchone()
+        codigo_periodo = per_row[0] if per_row else str(p_id)
+        estado_periodo = per_row[1] if per_row else None
+
+        if estado_periodo not in ESTADOS_PERIODO_CALIFICABLES:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"El periodo académico {codigo_periodo} se encuentra en estado '{estado_periodo}'. No se permite modificar calificaciones."
+            )
+
+        # 3.c Validar reglas de cierre de acta y fecha límite en carga_lectiva (409)
+        await _validar_cierre_y_fecha_limite(db, u_id, p_id, codigo_periodo)
+
+    # 4. Validar escala vigesimal [0, 20] en todos los items (422)
+    for item in items:
+        for field in ("nota_c1", "nota_c2", "nota_c3", "nota_final"):
+            if field in item:
+                _validar_nota_vigesimal(item[field])
+
+    # 5. Aplicar actualizaciones / inserciones en la transacción
+    try:
+        actualizados = []
+        for item in items:
+            val_c1 = _validar_nota_vigesimal(item.get("nota_c1")) if "nota_c1" in item else None
+            val_c2 = _validar_nota_vigesimal(item.get("nota_c2")) if "nota_c2" in item else None
+            val_c3 = _validar_nota_vigesimal(item.get("nota_c3")) if "nota_c3" in item else None
+            val_final = _validar_nota_vigesimal(item.get("nota_final")) if "nota_final" in item else None
+
+            rid = item.get("id") or item.get("registro_id")
+            mid = item.get("matricula_detalle_id") or item.get("matricula_id")
+            est_id = item.get("estudiante_id")
+
+            db_obj = existing_by_id.get(rid) if rid else (existing_by_mat.get(mid) if mid else None)
+
+            if not db_obj and rid and not mid:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Registro de evaluación {rid} no encontrado"
+                )
+
+            if not db_obj and mid:
+                item_u = item.get("unidad_didactica_id") or item.get("unidad_id")
+                item_p = item.get("periodo_id")
+                if not item_u or not item_p:
+                    md_info = await db.execute(
+                        text("SELECT md.unidad_didactica_id, m.periodo_id FROM matricula_detalles md JOIN matriculas m ON md.matricula_id = m.id WHERE md.id = :mid"),
+                        {"mid": mid}
+                    )
+                    md_row = md_info.fetchone()
+                    if md_row:
+                        item_u = item_u or md_row[0]
+                        item_p = item_p or md_row[1]
+
+                db_obj = RegistroEvaluacion(
+                    matricula_detalle_id=mid,
+                    estudiante_id=est_id,
+                    unidad_didactica_id=item_u,
+                    periodo_id=item_p
+                )
+                db.add(db_obj)
+                existing_by_mat[mid] = db_obj
+
+            if db_obj:
+                if db_obj.estado in ["cerrado", "consolidado"]:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"El registro de evaluación se encuentra en estado '{db_obj.estado}'. No se permite modificar calificaciones."
+                    )
+
+                if "nota_c1" in item:
+                    db_obj.nota_c1 = val_c1
+                if "nota_c2" in item:
+                    db_obj.nota_c2 = val_c2
+                if "nota_c3" in item:
+                    db_obj.nota_c3 = val_c3
+
+                _aplicar_notas(db_obj, nota_final_solicitada=val_final)
+
+                # CRÍTICO: Preservar la condición académica del estudiante (nunca 'cerrado')
+                if db_obj.estado == "cerrado":
+                    db_obj.estado = "aprobado" if (db_obj.nota_final is not None and db_obj.nota_final >= 13) else "desaprobado"
+
+                actualizados.append(db_obj)
+
+        await db.flush()
+
+        req_id = request.headers.get("X-Request-ID", "unknown")
+        for obj in actualizados:
+            event = OutboxEvent(
+                event_type="evaluacion.nota.actualizada",
+                payload={
+                    "registro_id": obj.id,
+                    "matricula_detalle_id": obj.matricula_detalle_id,
+                    "estudiante_id": obj.estudiante_id,
+                    "nota_final": obj.nota_final,
+                    "estado": obj.estado,
+                    "metadata": {"request_id": req_id}
+                }
+            )
+            db.add(event)
+
+        await db.commit()
+        return [RegistroEvaluacionResponse.model_validate(obj) for obj in actualizados]
+    except Exception:
+        await db.rollback()
+        raise
 
 @router.post("/seccion/{unidad_id}/periodo/{periodo_id}/sincronizar")
 async def sincronizar_nomina_seccion(unidad_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):

@@ -21,12 +21,31 @@ async def test_failsafe_environment_variables():
 
 def test_failsafe_rejects_unsafe_database_urls():
     """Verifica que el validador de seguridad rechace categóricamente cualquier intento hacia siga_local o bases no autorizadas."""
+    # Rechazo directo a siga_local
     with pytest.raises(RuntimeError) as exc_info:
         assert_safe_database_url("postgresql+asyncpg://postgres:pass@localhost:5432/siga_local")
     assert "VIOLACIÓN DE SEGURIDAD CRÍTICA" in str(exc_info.value)
+    assert "siga_local" in str(exc_info.value)
 
-    with pytest.raises(RuntimeError):
+    # Rechazo a intento de engaño con query params (ej. siga_local?db=siga_test)
+    with pytest.raises(RuntimeError) as exc_info:
+        assert_safe_database_url("postgresql+asyncpg://postgres:pass@localhost:5432/siga_local?db=siga_test")
+    assert "VIOLACIÓN DE SEGURIDAD CRÍTICA" in str(exc_info.value)
+
+    # Rechazo a otra base de datos institucional
+    with pytest.raises(RuntimeError) as exc_info:
         assert_safe_database_url("postgresql+asyncpg://postgres:pass@localhost:5432/siga_core")
+    assert "VIOLACIÓN DE SEGURIDAD CRÍTICA" in str(exc_info.value)
 
-    # Verifica que siga_test sí sea permitida
+    # Rechazo a base de datos de producción
+    with pytest.raises(RuntimeError):
+        assert_safe_database_url("postgresql://postgres:pass@127.0.0.1:5432/siga_produccion")
+
+    # Verifica que siga_test sí sea permitida (URL estándar)
     assert_safe_database_url("postgresql+asyncpg://postgres:pass@localhost:5432/siga_test")
+
+    # Verifica que siga_test con query parameters (ej. sslmode, application_name) sea permitida
+    assert_safe_database_url("postgresql+asyncpg://postgres:pass@localhost:5432/siga_test?ssl=disable&application_name=pytest")
+
+    # Verifica que el motor activo pase la verificación
+    assert_safe_database_url(test_engine)

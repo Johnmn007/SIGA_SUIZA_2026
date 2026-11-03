@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
 import { CoordinatorReview } from './CoordinatorReview';
 import { CoordinatorTutorias } from './CoordinatorTutorias';
+import { CoordinatorActas } from './CoordinatorActas';
 import { ScheduleBuilder } from './ScheduleBuilder';
-import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle, KeyRound } from 'lucide-react';
+import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle, KeyRound, FileCheck } from 'lucide-react';
 import { AssignmentModal } from './AssignmentModal';
 
 export function CoordinatorAcademic() {
@@ -138,17 +140,7 @@ export function CoordinatorAcademic() {
     fetchMalla();
   }, [selectedProgram, personal]);
 
-  // 3. Load Carga & Horarios when Program AND Period change
-  useEffect(() => {
-    if (!selectedProgram || !selectedPeriod) {
-      setCargaLectiva([]);
-      setHorarios([]);
-      return;
-    }
-    fetchCargaYHorarios();
-  }, [selectedProgram, selectedPeriod]);
-
-  const fetchCargaYHorarios = async () => {
+  const fetchCargaYHorarios = useCallback(async () => {
     setLoading(true);
     try {
       const [cargaRes, horRes] = await Promise.all([
@@ -162,7 +154,17 @@ export function CoordinatorAcademic() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedProgram, selectedPeriod]);
+
+  // 3. Load Carga & Horarios when Program AND Period change
+  useEffect(() => {
+    if (!selectedProgram || !selectedPeriod) {
+      setCargaLectiva([]);
+      setHorarios([]);
+      return;
+    }
+    fetchCargaYHorarios();
+  }, [selectedProgram, selectedPeriod, fetchCargaYHorarios]);
 
   const handleCreateCarga = async (e) => {
     e.preventDefault();
@@ -441,6 +443,13 @@ export function CoordinatorAcademic() {
             >
               <Clock size={16} /> Horarios del Periodo
             </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'actas' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+              onClick={() => setActiveTab('actas')}
+              data-testid="tab-control-actas"
+            >
+              <FileCheck size={16} /> Control de Actas
+            </button>
           </div>
 
           {loading ? (
@@ -698,6 +707,15 @@ export function CoordinatorAcademic() {
               programId={selectedProgram}
               periodId={selectedPeriod}
               docentes={docentes}
+            />
+          )}
+
+          {!loading && activeTab === 'actas' && (
+            <CoordinatorActas 
+              programId={selectedProgram}
+              periodId={selectedPeriod}
+              programs={programs}
+              periods={periods}
             />
           )}
         </>
