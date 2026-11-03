@@ -16,8 +16,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # La tabla ya existe si proviene del dump de Railway
-    pass
+    # Idempotente: la tabla puede existir ya (volcado inicial o migraciones previas)
+    if sa.inspect(op.get_bind()).has_table('core_role_permissions'):
+        return
+    op.create_table('core_role_permissions',
+        sa.Column('role_id', sa.Integer(), nullable=True),
+        sa.Column('permission_id', sa.Integer(), nullable=True),
+        sa.ForeignKeyConstraint(['role_id'], ['core_roles.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['permission_id'], ['core_permissions.id'], ondelete='CASCADE')
+    )
 
 
 def downgrade() -> None:

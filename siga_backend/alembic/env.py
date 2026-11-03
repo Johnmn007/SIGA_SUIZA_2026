@@ -21,7 +21,7 @@ if db_url:
 # Convertir asyncpg a psycopg2 para migraciones síncronas
 url = config.get_main_option("sqlalchemy.url")
 if url and "asyncpg" in url:
-    url = url.replace("postgresql+asyncpg://", "postgresql://")
+    url = url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
     config.set_main_option("sqlalchemy.url", url)
 
 # Interpretar el archivo de config para logging
