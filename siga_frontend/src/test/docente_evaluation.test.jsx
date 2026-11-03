@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { EvaluationDashboard } from '../modules/evaluation/EvaluationDashboard';
 import { DocentePlanning } from '../modules/academic/DocentePlanning';
@@ -569,6 +569,138 @@ describe('Auditoría Frontend - Rol Docente (EvaluationDashboard & DocentePlanni
       expect(screen.getByText(/ACTA OFICIAL CONSOLIDADA \(CERRADA\)/i)).toBeInTheDocument();
       // En Lima UTC-5, 20:45 UTC es 15:45 (se renderiza en encabezado y pie de página del acta)
       expect(screen.getAllByText(/30\/10\/2026.*15:45/i).length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it('13. DocentePlanning permite subir sílabo enviando POST con carga_lectiva_id al backend', async () => {
+    window.alert = vi.fn();
+    apiClient.request.mockImplementation((endpoint, options) => {
+      if (options?.method === 'POST' && endpoint.includes('/silabos')) {
+        return Promise.resolve({
+          id: 10,
+          carga_lectiva_id: 1,
+          estado: 'presentado',
+          archivo_url: '/docs/silabos/mi_silabo.pdf'
+        });
+      }
+      if (endpoint.includes('/programas-estudio/programas') && !endpoint.includes('/malla')) {
+        return Promise.resolve([{ id: 1, nombre: 'DSI' }]);
+      }
+      if (endpoint.includes('/programas-estudio/periodos')) {
+        return Promise.resolve([{ id: 1, codigo: '2026-I', estado: 'abierto' }]);
+      }
+      if (endpoint.includes('/carga-lectiva')) {
+        return Promise.resolve([
+          { id: 1, programa_id: 1, periodo_id: 1, unidad_didactica_id: 101, unidad_nombre: 'Taller Web', seccion: 'A', turno: 'M' }
+        ]);
+      }
+      if (endpoint.includes('/malla')) {
+        return Promise.resolve([
+          { id: 1, nombre: 'Módulo 3', unidades: [{ id: 101, nombre: 'Taller Web' }] }
+        ]);
+      }
+      if (endpoint.includes('/planes-trabajo')) {
+        return Promise.resolve([]);
+      }
+      if (endpoint.includes('/silabos')) {
+        return Promise.resolve([]);
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<DocentePlanning />);
+    const subirSilaboBtn = await screen.findByRole('button', { name: /Subir Sílabo/i });
+    expect(subirSilaboBtn).toBeInTheDocument();
+
+    fireEvent.click(subirSilaboBtn);
+
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    const silaboInput = fileInputs[0];
+    const fakeFile = new File(['dummy content'], 'mi_silabo.pdf', { type: 'application/pdf' });
+
+    fireEvent.change(silaboInput, { target: { files: [fakeFile] } });
+
+    await waitFor(() => {
+      expect(apiClient.request).toHaveBeenCalledWith(
+        '/api/mod-programas-estudio/silabos',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            carga_lectiva_id: 1,
+            estado: 'presentado',
+            archivo_url: '/docs/silabos/mi_silabo.pdf'
+          })
+        })
+      );
+      expect(window.alert).toHaveBeenCalledWith('Sílabo enviado correctamente al Coordinador');
+    });
+  });
+
+  it('14. DocentePlanning permite subir plan de trabajo enviando POST con periodo_id y programa_id', async () => {
+    window.alert = vi.fn();
+    apiClient.request.mockImplementation((endpoint, options) => {
+      if (options?.method === 'POST' && endpoint.includes('/planes-trabajo')) {
+        return Promise.resolve({
+          id: 5,
+          periodo_id: 1,
+          programa_id: 1,
+          docente_id: 10,
+          estado: 'presentado',
+          archivo_url: '/docs/planes/plan_anual.pdf'
+        });
+      }
+      if (endpoint.includes('/programas-estudio/programas') && !endpoint.includes('/malla')) {
+        return Promise.resolve([{ id: 1, nombre: 'DSI' }]);
+      }
+      if (endpoint.includes('/programas-estudio/periodos')) {
+        return Promise.resolve([{ id: 1, codigo: '2026-I', estado: 'abierto' }]);
+      }
+      if (endpoint.includes('/carga-lectiva')) {
+        return Promise.resolve([
+          { id: 1, programa_id: 1, periodo_id: 1, unidad_didactica_id: 101, unidad_nombre: 'Taller Web', seccion: 'A', turno: 'M' }
+        ]);
+      }
+      if (endpoint.includes('/malla')) {
+        return Promise.resolve([
+          { id: 1, nombre: 'Módulo 3', unidades: [{ id: 101, nombre: 'Taller Web' }] }
+        ]);
+      }
+      if (endpoint.includes('/planes-trabajo')) {
+        return Promise.resolve([]);
+      }
+      if (endpoint.includes('/silabos')) {
+        return Promise.resolve([]);
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<DocentePlanning />);
+    const subirPlanBtn = await screen.findByRole('button', { name: /Subir Plan de Trabajo/i });
+    expect(subirPlanBtn).toBeInTheDocument();
+
+    fireEvent.click(subirPlanBtn);
+
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    const planInput = fileInputs[1];
+    const fakeFile = new File(['dummy plan'], 'plan_anual.pdf', { type: 'application/pdf' });
+
+    fireEvent.change(planInput, { target: { files: [fakeFile] } });
+
+    await waitFor(() => {
+      expect(apiClient.request).toHaveBeenCalledWith(
+        '/api/mod-programas-estudio/planes-trabajo',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            periodo_id: 1,
+            programa_id: 1,
+            docente_id: 10,
+            estado: 'presentado',
+            archivo_url: '/docs/planes/plan_anual.pdf'
+          })
+        })
+      );
+      expect(window.alert).toHaveBeenCalledWith('Plan de Trabajo enviado correctamente al Coordinador');
     });
   });
 });

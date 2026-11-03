@@ -298,6 +298,25 @@ async def test_creacion_silabos_y_planes_autorizacion(client_prog, fix_entorno_p
     )
     assert r_plan_ok.status_code == 201
 
+    # 5. [UPSERT] Docente A actualiza el sílabo ya existente (no debe fallar con 500 por restricción de unicidad)
+    r_sil_update = await client_prog.post(
+        "/silabos",
+        json={"carga_lectiva_id": cl_nueva, "archivo_url": "http://good_v2.pdf", "estado": "presentado"},
+        headers=auth_headers(doc_a)
+    )
+    assert r_sil_update.status_code == 201
+    assert r_sil_update.json()["archivo_url"] == "http://good_v2.pdf"
+
+    # 6. [UPSERT] Docente A actualiza su plan de trabajo para el mismo periodo y programa (no duplica registros)
+    r_plan_update = await client_prog.post(
+        "/planes-trabajo",
+        json={"periodo_id": p_id, "programa_id": prog_1, "docente_id": doc_a, "archivo_url": "http://good_v2.pdf", "estado": "presentado"},
+        headers=auth_headers(doc_a)
+    )
+    assert r_plan_update.status_code == 201
+    assert r_plan_update.json()["archivo_url"] == "http://good_v2.pdf"
+    assert r_plan_update.json()["id"] == r_plan_ok.json()["id"]
+
 
 # ==============================================================================
 # 4. REVISIÓN Y GESTIÓN DE COORDINADOR (SÍLABOS, PLANES, CARGA, TUTORÍAS)

@@ -843,8 +843,20 @@ async def crear_silabo(silabo: SilaboCreate, request: Request, db: AsyncSession 
             detail="No tiene permisos para registrar el sílabo de una carga lectiva que no le pertenece"
         )
 
-    db_silabo = Silabo(**silabo.model_dump())
-    db.add(db_silabo)
+    # 3. Upsert: Si ya existe sílabo para esta carga lectiva, actualizar datos en lugar de fallar
+    res_silabo = await db.execute(
+        select(Silabo).where(Silabo.carga_lectiva_id == silabo.carga_lectiva_id)
+    )
+    db_silabo = res_silabo.scalar_one_or_none()
+    if db_silabo:
+        db_silabo.archivo_url = silabo.archivo_url
+        db_silabo.estado = silabo.estado or "presentado"
+        if silabo.observaciones is not None:
+            db_silabo.observaciones = silabo.observaciones
+    else:
+        db_silabo = Silabo(**silabo.model_dump())
+        db.add(db_silabo)
+
     await db.commit()
     await db.refresh(db_silabo)
     return db_silabo
@@ -884,8 +896,24 @@ async def crear_plan_trabajo(plan: PlanTrabajoDocenteCreate, request: Request, d
             detail="El docente no tiene carga lectiva asignada en el programa y periodo seleccionados"
         )
 
-    db_plan = PlanTrabajoDocente(**plan.model_dump())
-    db.add(db_plan)
+    # Upsert: Si ya existe plan de trabajo para el docente, programa y periodo, actualizarlo
+    res_plan = await db.execute(
+        select(PlanTrabajoDocente).where(
+            PlanTrabajoDocente.docente_id == plan.docente_id,
+            PlanTrabajoDocente.periodo_id == plan.periodo_id,
+            PlanTrabajoDocente.programa_id == plan.programa_id
+        )
+    )
+    db_plan = res_plan.scalar_one_or_none()
+    if db_plan:
+        db_plan.archivo_url = plan.archivo_url
+        db_plan.estado = plan.estado or "presentado"
+        if plan.observaciones is not None:
+            db_plan.observaciones = plan.observaciones
+    else:
+        db_plan = PlanTrabajoDocente(**plan.model_dump())
+        db.add(db_plan)
+
     await db.commit()
     await db.refresh(db_plan)
     return db_plan

@@ -70,6 +70,12 @@ class SecurityMiddleware:
                         for p in user["permissions"]
                     )
 
+                    # Excepción legítima para docentes gestionando sílabos o planes de trabajo
+                    is_docente = "docente" in user.get("roles", []) or user.get("role") == "docente"
+                    is_docente_endpoint = path.startswith("/api/mod-programas-estudio/silabos") or path.startswith("/api/mod-programas-estudio/planes-trabajo")
+                    if is_docente and is_docente_endpoint:
+                        has_perm = True
+
                     if not user.get("is_superuser") and not has_perm:
                         raise HTTPException(status_code=403, detail=f"Permisos insuficientes. Se requiere {required_perm}")
 

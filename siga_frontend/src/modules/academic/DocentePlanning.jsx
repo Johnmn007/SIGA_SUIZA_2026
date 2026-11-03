@@ -93,11 +93,6 @@ export function DocentePlanning() {
         const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`).catch(() => []);
         
         setPlanes(planesRes || []);
-      if (planesRes && planesRes.length > 0) {
-        setPlanActual(planesRes[0]);
-      } else {
-        setPlanActual(null);
-      }
         if (planesRes && planesRes.length > 0) {
           setPlanActual(planesRes[0]);
         } else {
@@ -114,20 +109,24 @@ export function DocentePlanning() {
 
   const fileInputRefSilabo = useRef(null);
   const fileInputRefPlan = useRef(null);
+  const uploadingTargetRef = useRef(null);
   const [uploadingTarget, setUploadingTarget] = useState(null); // { type: 'silabo' | 'plan', id?: number }
 
   const triggerUploadSilabo = (cargaId) => {
-    setUploadingTarget({ type: 'silabo', id: cargaId });
+    const target = { type: 'silabo', id: cargaId };
+    uploadingTargetRef.current = target;
+    setUploadingTarget(target);
     if (fileInputRefSilabo.current) fileInputRefSilabo.current.click();
   };
 
   const handleUploadSilabo = async (e) => {
     const file = e.target.files[0];
-    if (!file || !uploadingTarget || uploadingTarget.type !== 'silabo') return;
+    const target = uploadingTargetRef.current || uploadingTarget;
+    if (!file || !target || target.type !== 'silabo') return;
     
     // Simular subida (en producción se subiría a S3/GCS y se obtendría la URL)
     const simulatedUrl = `/docs/silabos/${file.name.replace(/\s+/g, '_')}`;
-    const cargaId = uploadingTarget.id;
+    const cargaId = target.id;
     
     try {
       const payload = {
@@ -144,30 +143,39 @@ export function DocentePlanning() {
       // Refresh silabos
       const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`);
       setSilabos(silabosRes || []);
-    } catch {
-      alert("Error al enviar el sílabo");
+    } catch (err) {
+      alert(err.message || "Error al enviar el sílabo");
     } finally {
       e.target.value = ''; // reset input
+      uploadingTargetRef.current = null;
       setUploadingTarget(null);
     }
   };
 
   const triggerUploadPlan = () => {
-    setUploadingTarget({ type: 'plan' });
+    const target = { type: 'plan' };
+    uploadingTargetRef.current = target;
+    setUploadingTarget(target);
     if (fileInputRefPlan.current) fileInputRefPlan.current.click();
   };
 
   const handleUploadPlan = async (e) => {
     const file = e.target.files[0];
-    if (!file || !uploadingTarget || uploadingTarget.type !== 'plan') return;
+    const target = uploadingTargetRef.current || uploadingTarget;
+    if (!file || !target || target.type !== 'plan') return;
     
+    if (!selectedPeriod || !selectedProgram) {
+      alert("Por favor seleccione un programa y periodo académico antes de enviar el Plan de Trabajo.");
+      return;
+    }
+
     // Simular subida
     const simulatedUrl = `/docs/planes/${file.name.replace(/\s+/g, '_')}`;
     
     try {
       const payload = {
-        periodo_id: parseInt(selectedPeriod),
-        programa_id: parseInt(selectedProgram),
+        periodo_id: parseInt(selectedPeriod, 10),
+        programa_id: parseInt(selectedProgram, 10),
         docente_id: user.id,
         estado: "presentado",
         archivo_url: simulatedUrl
@@ -186,10 +194,11 @@ export function DocentePlanning() {
       } else {
         setPlanActual(null);
       }
-    } catch {
-      alert("Error al enviar el Plan de Trabajo");
+    } catch (err) {
+      alert(err.message || "Error al enviar el Plan de Trabajo");
     } finally {
       e.target.value = '';
+      uploadingTargetRef.current = null;
       setUploadingTarget(null);
     }
   };
