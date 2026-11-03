@@ -93,11 +93,8 @@ export function DocentePlanning() {
         const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`).catch(() => []);
         
         setPlanes(planesRes || []);
-        if (planesRes && planesRes.length > 0) {
-          setPlanActual(planesRes[0]);
-        } else {
-          setPlanActual(null);
-        }
+        const plan = (planesRes || []).find(p => String(p.programa_id) === String(selectedProgram)) || (planesRes && planesRes.length > 0 ? planesRes[0] : null);
+        setPlanActual(plan || null);
         setSilabos(silabosRes || []);
       } catch (e) {
         console.error('Error fetching planning data', e);
@@ -120,9 +117,18 @@ export function DocentePlanning() {
   };
 
   const handleUploadSilabo = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files && e.target.files[0];
     const target = uploadingTargetRef.current || uploadingTarget;
-    if (!file || !target || target.type !== 'silabo') return;
+    if (!file) {
+      uploadingTargetRef.current = null;
+      setUploadingTarget(null);
+      return;
+    }
+    if (!target || target.type !== 'silabo') return;
+    if (!user?.id) {
+      alert("No se pudo identificar la sesión del docente.");
+      return;
+    }
     
     // Simular subida (en producción se subiría a S3/GCS y se obtendría la URL)
     const simulatedUrl = `/docs/silabos/${file.name.replace(/\s+/g, '_')}`;
@@ -130,7 +136,7 @@ export function DocentePlanning() {
     
     try {
       const payload = {
-        carga_lectiva_id: cargaId,
+        carga_lectiva_id: parseInt(cargaId, 10),
         estado: "presentado",
         archivo_url: simulatedUrl
       };
@@ -140,9 +146,11 @@ export function DocentePlanning() {
       });
       alert("Sílabo enviado correctamente al Coordinador");
       
-      // Refresh silabos
-      const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`);
-      setSilabos(silabosRes || []);
+      // Refresh silabos con tolerancia a fallos
+      const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`).catch(() => []);
+      if (silabosRes) {
+        setSilabos(silabosRes);
+      }
     } catch (err) {
       alert(err.message || "Error al enviar el sílabo");
     } finally {
@@ -153,6 +161,10 @@ export function DocentePlanning() {
   };
 
   const triggerUploadPlan = () => {
+    if (!selectedPeriod || !selectedProgram) {
+      alert("Por favor seleccione un programa y periodo académico antes de enviar el Plan de Trabajo.");
+      return;
+    }
     const target = { type: 'plan' };
     uploadingTargetRef.current = target;
     setUploadingTarget(target);
@@ -160,12 +172,21 @@ export function DocentePlanning() {
   };
 
   const handleUploadPlan = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files && e.target.files[0];
     const target = uploadingTargetRef.current || uploadingTarget;
-    if (!file || !target || target.type !== 'plan') return;
+    if (!file) {
+      uploadingTargetRef.current = null;
+      setUploadingTarget(null);
+      return;
+    }
+    if (!target || target.type !== 'plan') return;
     
     if (!selectedPeriod || !selectedProgram) {
       alert("Por favor seleccione un programa y periodo académico antes de enviar el Plan de Trabajo.");
+      return;
+    }
+    if (!user?.id) {
+      alert("No se pudo identificar la sesión del docente.");
       return;
     }
 
@@ -176,7 +197,7 @@ export function DocentePlanning() {
       const payload = {
         periodo_id: parseInt(selectedPeriod, 10),
         programa_id: parseInt(selectedProgram, 10),
-        docente_id: user.id,
+        docente_id: parseInt(user.id, 10),
         estado: "presentado",
         archivo_url: simulatedUrl
       };
@@ -186,13 +207,12 @@ export function DocentePlanning() {
       });
       alert("Plan de Trabajo enviado correctamente al Coordinador");
       
-      // Refresh planes
-      const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`);
-      setPlanes(planesRes || []);
-      if (planesRes && planesRes.length > 0) {
-        setPlanActual(planesRes[0]);
-      } else {
-        setPlanActual(null);
+      // Refresh planes con tolerancia a fallos
+      const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`).catch(() => []);
+      if (planesRes) {
+        setPlanes(planesRes);
+        const plan = planesRes.find(p => String(p.programa_id) === String(selectedProgram)) || (planesRes.length > 0 ? planesRes[0] : null);
+        setPlanActual(plan || null);
       }
     } catch (err) {
       alert(err.message || "Error al enviar el Plan de Trabajo");

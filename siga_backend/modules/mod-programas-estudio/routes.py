@@ -819,7 +819,7 @@ class PlanTrabajoDocenteResponse(PlanTrabajoDocenteBase):
 from models import Silabo, PlanTrabajoDocente
 
 @router.get("/docente/{docente_id}/carga-lectiva", response_model=List[CargaLectivaResponse])
-async def obtener_carga_docente(docente_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def obtener_carga_docente(docente_id: int, request: Request, periodo_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
     ident = await get_identity(request, db)
     await _validar_acceso_docente(ident, docente_id, db)
     return await listar_carga_docente(docente_id=docente_id, request=request, periodo_id=periodo_id, db=db)
@@ -836,8 +836,8 @@ async def crear_silabo(silabo: SilaboCreate, request: Request, db: AsyncSession 
     if not db_cl:
         raise HTTPException(status_code=404, detail="Carga lectiva no encontrada")
 
-    # 2. El usuario debe ser el docente de la carga o superadmin
-    if not (es_superadmin(ident) or ident.user_id == db_cl.docente_id):
+    # 2. El usuario debe ser el docente de la carga, coordinador del programa o superadmin
+    if not (es_superadmin(ident) or ident.user_id == db_cl.docente_id or es_coordinador_de(ident, db_cl.programa_id)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tiene permisos para registrar el sílabo de una carga lectiva que no le pertenece"
@@ -847,7 +847,7 @@ async def crear_silabo(silabo: SilaboCreate, request: Request, db: AsyncSession 
     res_silabo = await db.execute(
         select(Silabo).where(Silabo.carga_lectiva_id == silabo.carga_lectiva_id)
     )
-    db_silabo = res_silabo.scalar_one_or_none()
+    db_silabo = res_silabo.scalars().first()
     if db_silabo:
         db_silabo.archivo_url = silabo.archivo_url
         db_silabo.estado = silabo.estado or "presentado"
@@ -878,8 +878,8 @@ async def listar_silabos_docente(docente_id: int, request: Request, db: AsyncSes
 async def crear_plan_trabajo(plan: PlanTrabajoDocenteCreate, request: Request, db: AsyncSession = Depends(get_db)):
     ident = await get_identity(request, db)
 
-    # El usuario autenticado debe ser el docente_id indicado en el plan o superadmin
-    if not (es_superadmin(ident) or ident.user_id == plan.docente_id):
+    # El usuario autenticado debe ser el docente_id indicado en el plan, coordinador del programa o superadmin
+    if not (es_superadmin(ident) or ident.user_id == plan.docente_id or es_coordinador_de(ident, plan.programa_id)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tiene permisos para crear un plan de trabajo asignado a otro docente"
@@ -904,7 +904,7 @@ async def crear_plan_trabajo(plan: PlanTrabajoDocenteCreate, request: Request, d
             PlanTrabajoDocente.programa_id == plan.programa_id
         )
     )
-    db_plan = res_plan.scalar_one_or_none()
+    db_plan = res_plan.scalars().first()
     if db_plan:
         db_plan.archivo_url = plan.archivo_url
         db_plan.estado = plan.estado or "presentado"
@@ -919,14 +919,17 @@ async def crear_plan_trabajo(plan: PlanTrabajoDocenteCreate, request: Request, d
     return db_plan
 
 @router.get("/docente/{docente_id}/planes-trabajo", response_model=List[PlanTrabajoDocenteResponse])
-async def listar_planes_trabajo(docente_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def listar_planes_trabajo(docente_id: int, periodo_id: int, request: Request, programa_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
     ident = await get_identity(request, db)
     await _validar_acceso_docente(ident, docente_id, db)
 
-    result = await db.execute(
-        select(PlanTrabajoDocente)
-        .where(PlanTrabajoDocente.docente_id == docente_id, PlanTrabajoDocente.periodo_id == periodo_id)
+    query = select(PlanTrabajoDocente).where(
+        PlanTrabajoDocente.docente_id == docente_id,
+        PlanTrabajoDocente.periodo_id == periodo_id
     )
+    if programa_id:
+        query = query.where(PlanTrabajoDocente.programa_id == programa_id)
+    result = await db.execute(query)
     return result.scalars().all()
 
 # --- Endpoints Coordinador (Revisión) ---

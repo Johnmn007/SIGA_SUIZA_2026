@@ -215,6 +215,8 @@ async def test_acceso_endpoints_docente(client_prog, fix_entorno_programas):
     assert r3.status_code == 200
     r4 = await client_prog.get(f"/docentes/{doc_a}/carga-lectiva", headers=auth_headers(doc_a))
     assert r4.status_code == 200
+    r5 = await client_prog.get(f"/docente/{doc_a}/carga-lectiva", headers=auth_headers(doc_a))
+    assert r5.status_code == 200
 
     # 2. Docente B intenta acceder a los datos de Docente A (403)
     r_bad1 = await client_prog.get(f"/docente/{doc_a}/carga-lectiva?periodo_id={p_id}", headers=auth_headers(doc_b))
@@ -316,6 +318,23 @@ async def test_creacion_silabos_y_planes_autorizacion(client_prog, fix_entorno_p
     assert r_plan_update.status_code == 201
     assert r_plan_update.json()["archivo_url"] == "http://good_v2.pdf"
     assert r_plan_update.json()["id"] == r_plan_ok.json()["id"]
+
+    # 7. Coordinador A del programa 1 puede registrar/actualizar plan o sílabo de la carga en su programa
+    r_coord_sil = await client_prog.post(
+        "/silabos",
+        json={"carga_lectiva_id": cl_nueva, "archivo_url": "http://coord_upload.pdf", "estado": "presentado"},
+        headers=auth_headers(env["coord_a"])
+    )
+    assert r_coord_sil.status_code == 201
+
+    # 8. Listar planes filtrando por programa_id opcional
+    r_planes_prog = await client_prog.get(
+        f"/docente/{doc_a}/planes-trabajo?periodo_id={p_id}&programa_id={prog_1}",
+        headers=auth_headers(doc_a)
+    )
+    assert r_planes_prog.status_code == 200
+    assert len(r_planes_prog.json()) >= 1
+    assert all(p["programa_id"] == prog_1 for p in r_planes_prog.json())
 
 
 # ==============================================================================

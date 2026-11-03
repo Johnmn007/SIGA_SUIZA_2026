@@ -70,9 +70,10 @@ class UserRepository:
         permissions = set(["core:access"])
         
         for role in user.roles:
-            if role.name == "superadmin":
+            rname = (role.name or "").lower().strip()
+            if rname == "superadmin":
                 permissions.update(["core:module:manage", "core:user:manage", "core:roles:manage"])
-            elif role.name == "docente":
+            elif rname == "docente":
                 permissions.update([
                     "mod-planes-estudio:read",
                     "mod-programas-estudio:read",
