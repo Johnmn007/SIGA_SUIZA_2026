@@ -78,7 +78,7 @@ function AppContent() {
       case 'report_card': return <StudentReportCard />;
       case 'tramites': return <TramitesDashboard />;
       case 'finanzas': return <FinancesDashboard />;
-      case 'admin': return <AdminDashboard />;
+      case 'admin': return <AdminDashboard onNavigate={setCurrentView} />;
       default: return <Dashboard onNavigate={setCurrentView} />;
     }
   };

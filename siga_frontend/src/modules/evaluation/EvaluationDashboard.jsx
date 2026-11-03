@@ -115,6 +115,8 @@ function mapSaveError(error) {
 
 export function EvaluationDashboard() {
   const { user } = useAuth();
+  const userRole = user?.role || (Array.isArray(user?.roles) ? user.roles[0]?.name || user.roles[0] : '');
+  const isAdmin = Boolean(user?.is_superuser || userRole === 'admin' || userRole === 'superadmin');
   const [activeTab, setActiveTab] = useState('notas'); // 'notas', 'planificacion'
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -151,8 +153,14 @@ export function EvaluationDashboard() {
         if (loadRes && loadRes.length > 0) {
           setSelectedProgram(loadRes[0].programa_id.toString());
           setSelectedPeriod(loadRes[0].periodo_id.toString());
-        } else if (perRes && perRes.length > 0) {
-          setSelectedPeriod(perRes[perRes.length - 1].id.toString());
+        } else {
+          if (progRes && progRes.length > 0) {
+            setSelectedProgram(progRes[0].id.toString());
+          }
+          if (perRes && perRes.length > 0) {
+            const active = perRes.find(p => ['ACTIVO', 'activo', 'matricula_abierta', 'en_curso'].includes(p.estado)) || perRes[perRes.length - 1];
+            setSelectedPeriod(active.id.toString());
+          }
         }
       } catch (e) {
         console.error('Error fetching initial data', e);
@@ -362,6 +370,11 @@ export function EvaluationDashboard() {
           <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-600 mb-2">
             <ClipboardList className="w-3.5 h-3.5 text-primary" />
             <span>Módulo de Evaluación y Calificaciones</span>
+            {isAdmin && (
+              <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                Vista Administrador
+              </span>
+            )}
           </div>
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
             Registro de Calificaciones
@@ -448,9 +461,21 @@ export function EvaluationDashboard() {
                 </div>
                 <div>
                   <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Programa Seleccionado</span>
-                  <span className="text-xs font-bold text-slate-900">
-                    {programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Seleccione un programa'}
-                  </span>
+                  {isAdmin && programs.length > 0 ? (
+                    <select
+                      className="bg-transparent font-bold text-slate-900 border-none p-0 focus:ring-0 cursor-pointer text-xs"
+                      value={selectedProgram}
+                      onChange={(e) => setSelectedProgram(e.target.value)}
+                    >
+                      {programs.map(p => (
+                        <option key={p.id} value={p.id.toString()}>{p.nombre}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs font-bold text-slate-900">
+                      {programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Seleccione un programa'}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -460,9 +485,21 @@ export function EvaluationDashboard() {
                 </div>
                 <div>
                   <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Periodo Lectivo</span>
-                  <span className="text-xs font-bold text-slate-900 font-mono">
-                    {periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}
-                  </span>
+                  {isAdmin && periods.length > 0 ? (
+                    <select
+                      className="bg-transparent font-bold text-slate-900 border-none p-0 focus:ring-0 cursor-pointer text-xs font-mono"
+                      value={selectedPeriod}
+                      onChange={(e) => setSelectedPeriod(e.target.value)}
+                    >
+                      {periods.map(p => (
+                        <option key={p.id} value={p.id.toString()}>{p.codigo}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs font-bold text-slate-900 font-mono">
+                      {periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -482,9 +519,12 @@ export function EvaluationDashboard() {
                 >
                   <option value="" className="text-slate-400">-- Seleccione el curso a evaluar --</option>
                   {malla.map(modulo => {
-                    const assignedUnits = modulo.unidades.filter(u => 
-                      teacherLoad.some(t => t.unidad_didactica_id === u.id && t.periodo_id === parseInt(selectedPeriod))
-                    );
+                    const hasLoad = teacherLoad.some(t => t.periodo_id === parseInt(selectedPeriod));
+                    const assignedUnits = (isAdmin || !hasLoad)
+                      ? modulo.unidades
+                      : modulo.unidades.filter(u => 
+                          teacherLoad.some(t => t.unidad_didactica_id === u.id && t.periodo_id === parseInt(selectedPeriod))
+                        );
                     
                     if (assignedUnits.length === 0) return null;
                     
