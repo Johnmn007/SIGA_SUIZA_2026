@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete, text
 from typing import List, Optional
 from datetime import datetime, date
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 from database import get_db, OutboxEvent
 from models import ProgramaEstudio, ProgramaConfiguracion, ProgramaModulo, ProgramaUnidad, ProgramaRequisito, PeriodoAcademico
 from shared.identity import (
@@ -48,7 +48,14 @@ class PeriodoResponse(PeriodoBase):
     id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    nombre: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def populate_nombre(self):
+        if not self.nombre:
+            self.nombre = self.codigo
+        return self
 
 # Health Check
 @router.get("/health")
@@ -480,6 +487,12 @@ class CargaLectivaResponse(CargaLectivaBase):
     acta_cerrada: bool = False
     acta_cerrada_at: Optional[datetime] = None
     acta_cerrada_por: Optional[int] = None
+    unidad_nombre: Optional[str] = None
+    programa_nombre: Optional[str] = None
+    modulo_nombre: Optional[str] = None
+    ciclo: Optional[int] = None
+    creditos: Optional[int] = None
+    horas: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 class HorarioPeriodoBase(BaseModel):
@@ -664,7 +677,43 @@ async def listar_carga_docente(docente_id: int, request: Request, periodo_id: Op
     if periodo_id:
         query = query.where(CargaLectiva.periodo_id == periodo_id)
     result = await db.execute(query)
-    return result.scalars().all()
+    cargas = result.scalars().all()
+
+    items = []
+    for c in cargas:
+        res_u = await db.execute(select(ProgramaUnidad).where(ProgramaUnidad.id == c.unidad_didactica_id))
+        u = res_u.scalar_one_or_none()
+        modulo_nombre = None
+        ciclo = None
+        if u and u.programa_modulo_id:
+            res_m = await db.execute(select(ProgramaModulo).where(ProgramaModulo.id == u.programa_modulo_id))
+            m = res_m.scalar_one_or_none()
+            if m:
+                modulo_nombre = m.nombre
+                ciclo = m.periodo
+
+        res_p = await db.execute(select(ProgramaEstudio).where(ProgramaEstudio.id == c.programa_id))
+        p = res_p.scalar_one_or_none()
+
+        item = CargaLectivaResponse(
+            id=c.id,
+            programa_id=c.programa_id,
+            periodo_id=c.periodo_id,
+            docente_id=c.docente_id,
+            unidad_didactica_id=c.unidad_didactica_id,
+            turno=c.turno,
+            seccion=c.seccion,
+            estado=c.estado,
+            created_at=c.created_at,
+            unidad_nombre=u.nombre if u else f"Unidad #{c.unidad_didactica_id}",
+            programa_nombre=p.nombre if p else None,
+            modulo_nombre=modulo_nombre,
+            ciclo=ciclo,
+            creditos=u.creditos if u else None,
+            horas=((u.horas_teoria or 0) + (u.horas_practica or 0)) if u else None
+        )
+        items.append(item)
+    return items
 
 @router.post("/programas/{programa_id}/horarios", response_model=HorarioPeriodoResponse, status_code=status.HTTP_201_CREATED)
 async def crear_horario(programa_id: int, horario: HorarioPeriodoCreate, request: Request, db: AsyncSession = Depends(get_db)):
@@ -773,12 +822,7 @@ from models import Silabo, PlanTrabajoDocente
 async def obtener_carga_docente(docente_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     ident = await get_identity(request, db)
     await _validar_acceso_docente(ident, docente_id, db)
-
-    result = await db.execute(
-        select(CargaLectiva)
-        .where(CargaLectiva.docente_id == docente_id, CargaLectiva.periodo_id == periodo_id)
-    )
-    return result.scalars().all()
+    return await listar_carga_docente(docente_id=docente_id, request=request, periodo_id=periodo_id, db=db)
 
 @router.post("/silabos", response_model=SilaboResponse, status_code=status.HTTP_201_CREATED)
 async def crear_silabo(silabo: SilaboCreate, request: Request, db: AsyncSession = Depends(get_db)):

@@ -10,8 +10,8 @@ async def test_postgres_connection():
         DB_HOST = os.getenv("DB_HOST", "localhost")
         DB_PORT = os.getenv("DB_PORT", "5432") 
         DB_USER = os.getenv("DB_USER", "postgres")
-        DB_PASSWORD = os.getenv("DB_PASSWORD", "john.007")
-        DB_NAME = os.getenv("DB_NAME", "mod_programas_estudio")
+        DB_PASSWORD = os.getenv("DB_PASSWORD", "dariana")
+        DB_NAME = os.getenv("DB_NAME", "siga_suiza_2026")
         
         print(f"📊 Configuración:")
         print(f"   Host: {DB_HOST}")

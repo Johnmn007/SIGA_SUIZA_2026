@@ -112,7 +112,7 @@ def main():
     
     try:
         process = subprocess.Popen(
-            ["docker", "exec", "-i", "siga-postgres-1", "psql", "-U", "postgres", "-d", "siga_core"],
+            ["docker", "exec", "-i", "siga-postgres-1", "psql", "-U", "postgres", "-d", "siga_suiza_2026"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

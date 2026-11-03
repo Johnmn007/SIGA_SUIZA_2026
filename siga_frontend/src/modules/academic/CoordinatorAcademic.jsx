@@ -4,11 +4,11 @@ import { apiClient } from '../../core/api/client';
 import { CoordinatorReview } from './CoordinatorReview';
 import { CoordinatorTutorias } from './CoordinatorTutorias';
 import { ScheduleBuilder } from './ScheduleBuilder';
-import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle } from 'lucide-react';
+import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle, KeyRound } from 'lucide-react';
 import { AssignmentModal } from './AssignmentModal';
 
 export function CoordinatorAcademic() {
-  const { user } = useAuth();
+  const { user, openPasswordModal } = useAuth();
   
   const [activeTab, setActiveTab] = useState('carga'); // 'carga', 'horarios'
   const [horariosSubTab, setHorariosSubTab] = useState('visual'); // 'excel', 'visual'
@@ -23,6 +23,7 @@ export function CoordinatorAcademic() {
   
   // Data
   const [personal, setPersonal] = useState([]);
+  const [allDocentes, setAllDocentes] = useState([]);
   const [docentes, setDocentes] = useState([]);
   const [unidadesFlat, setUnidadesFlat] = useState([]);
   const [cargaLectiva, setCargaLectiva] = useState([]);
@@ -37,19 +38,45 @@ export function CoordinatorAcademic() {
   useEffect(() => {
     const fetchInitial = async () => {
       try {
-        const [progRes, perRes, personalRes] = await Promise.all([
+        const [progRes, perRes, personalRes, usuariosRes] = await Promise.all([
           apiClient.request('/api/mod-programas-estudio/programas').catch(() => []),
           apiClient.request('/api/mod-programas-estudio/periodos').catch(() => []),
-          apiClient.request('/api/mod-usuarios/personal').catch(() => [])
+          apiClient.request('/api/mod-usuarios/personal').catch(() => []),
+          apiClient.request('/api/mod-usuarios/usuarios').catch(() => [])
         ]);
         
-        setPrograms(progRes);
-        setPeriods(perRes);
-        setPersonal(personalRes || []);
+        setPrograms(progRes || []);
+        setPeriods(perRes || []);
+        
+        // Combinar personal institucional y usuarios con rol docente
+        const staffList = Array.isArray(personalRes) ? [...personalRes] : [];
+        const existingUserIds = new Set(staffList.map(p => p?.usuario?.id).filter(Boolean));
+        
+        (usuariosRes || []).forEach(u => {
+          const isDocente = u.roles?.some(r => r.name === 'docente');
+          if (isDocente && !existingUserIds.has(u.id)) {
+            staffList.push({
+              usuario: u,
+              perfil: {
+                cargo_funcional: 'DOCENTE_AULA',
+                programa_estudio_id: null,
+                condicion_laboral: 'CONTRATADO'
+              }
+            });
+            existingUserIds.add(u.id);
+          }
+        });
+        
+        setPersonal(staffList);
+        
+        const allDocs = staffList
+          .filter(p => p?.usuario && p?.perfil?.cargo_funcional !== 'SECRETARIA_PROGRAMA')
+          .map(p => p.usuario);
+        setAllDocentes(allDocs);
         
         let hasProgram = false;
-        if (personalRes && user) {
-          const myProfile = personalRes.find(p => p?.usuario?.id === user.id);
+        if (staffList.length > 0 && user) {
+          const myProfile = staffList.find(p => p?.usuario?.id === user.id);
           if (myProfile?.perfil?.programa_estudio_id) {
             setSelectedProgram(myProfile.perfil.programa_estudio_id.toString());
             hasProgram = true;
@@ -81,10 +108,10 @@ export function CoordinatorAcademic() {
       return;
     }
     
-    // Filter personal for the selected program and exclude secretaries
+    // Filter personal for the selected program (or unassigned/global) and exclude secretaries
     const filteredStaff = personal.filter(p => 
       p?.perfil && 
-      (p.perfil.programa_estudio_id === parseInt(selectedProgram) || p.perfil.programa_estudio_id == selectedProgram) &&
+      (!p.perfil.programa_estudio_id || p.perfil.programa_estudio_id === parseInt(selectedProgram) || p.perfil.programa_estudio_id == selectedProgram) &&
       p.perfil.cargo_funcional !== 'SECRETARIA_PROGRAMA' &&
       p?.usuario
     );
@@ -222,8 +249,8 @@ export function CoordinatorAcademic() {
   };
 
   const getDocenteName = (id) => {
-    const doc = docentes.find(d => d.id === id);
-    return doc ? doc.full_name || doc.email : `ID: ${id}`;
+    const doc = (allDocentes.length > 0 ? allDocentes : docentes).find(d => d.id === id) || docentes.find(d => d.id === id);
+    return doc ? doc.full_name || doc.email : `Docente #${id}`;
   };
 
   const getUDName = (id) => {
@@ -290,6 +317,17 @@ export function CoordinatorAcademic() {
           <p className="text-slate-500 text-sm mt-1">
             Gestión de Carga Lectiva y Horarios del Programa de Estudios
           </p>
+        </div>
+        <div>
+          <button
+            type="button"
+            onClick={openPasswordModal}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-primary hover:bg-slate-50 text-xs font-bold shadow-sm transition-all cursor-pointer"
+            title="Configuración de seguridad y cambio de contraseña"
+          >
+            <KeyRound size={15} className="text-primary" />
+            <span>Seguridad / Clave</span>
+          </button>
         </div>
       </div>
 

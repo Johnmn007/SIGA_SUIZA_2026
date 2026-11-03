@@ -53,6 +53,10 @@ const INSTITUTIONAL_KB = {
   ]
 };
 
+// Generador de ids de mensajes fuera del render (Date.now es impuro en render)
+let messageIdSeq = 0;
+const nextMessageId = () => `${Date.now()}-${(messageIdSeq += 1)}`;
+
 // Generador de respuestas con inteligencia contextual institucional
 function generateAIResponse(userInput) {
   const query = (userInput || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -232,7 +236,7 @@ Estoy preparado para resolver tus dudas sobre el catálogo de carreras, la regla
     if (!query.trim()) return;
 
     const userMsg = {
-      id: Date.now(),
+      id: nextMessageId(),
       sender: 'user',
       content: query.trim(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -246,7 +250,7 @@ Estoy preparado para resolver tus dudas sobre el catálogo de carreras, la regla
     setTimeout(() => {
       const response = generateAIResponse(query);
       const aiMsg = {
-        id: Date.now() + 1,
+        id: nextMessageId(),
         sender: 'ai',
         title: response.title,
         badge: response.badge,
@@ -261,7 +265,7 @@ Estoy preparado para resolver tus dudas sobre el catálogo de carreras, la regla
   const clearChat = () => {
     setMessages([
       {
-        id: Date.now(),
+        id: nextMessageId(),
         sender: 'ai',
         title: 'Chat Reiniciado',
         badge: 'SIGA AI · Listo',

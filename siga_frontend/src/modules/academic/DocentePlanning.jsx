@@ -12,6 +12,7 @@ export function DocentePlanning() {
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
   
+  const [planActual, setPlanActual] = useState(null);
   
   const [cargaLectiva, setCargaLectiva] = useState([]);
   const [mallaFlat, setMallaFlat] = useState([]);
@@ -31,12 +32,21 @@ export function DocentePlanning() {
         setPeriods(perRes || []);
         setCargaLectiva(loadRes || []);
 
+        let initProg = '';
+        let initPer = '';
         if (loadRes && loadRes.length > 0) {
-          setSelectedProgram(loadRes[0].programa_id.toString());
-          setSelectedPeriod(loadRes[0].periodo_id.toString());
-        } else if (perRes && perRes.length > 0) {
-          setSelectedPeriod(perRes[perRes.length - 1].id.toString());
+          initProg = loadRes[0].programa_id.toString();
+          initPer = loadRes[0].periodo_id.toString();
         }
+        if (!initProg && progRes && progRes.length > 0) {
+          initProg = progRes[0].id.toString();
+        }
+        if (!initPer && perRes && perRes.length > 0) {
+          const active = perRes.find(p => p.estado === 'matricula_abierta' || p.estado === 'abierto' || p.estado === 'ACTIVO');
+          initPer = active ? active.id.toString() : perRes[perRes.length - 1].id.toString();
+        }
+        if (initProg) setSelectedProgram(initProg);
+        if (initPer) setSelectedPeriod(initPer);
       } catch (e) {
         console.error('Error fetching initial data', e);
       }
@@ -123,7 +133,7 @@ export function DocentePlanning() {
       // Refresh silabos
       const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`);
       setSilabos(silabosRes || []);
-    } catch {
+    } catch (e) {
       alert("Error al enviar el sílabo");
     } finally {
       e.target.value = ''; // reset input
@@ -160,7 +170,7 @@ export function DocentePlanning() {
       // Refresh planes
       const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`);
       setPlanes(planesRes || []);
-    } catch {
+    } catch (e) {
       alert("Error al enviar el Plan de Trabajo");
     } finally {
       e.target.value = '';
@@ -168,40 +178,63 @@ export function DocentePlanning() {
     }
   };
 
-  const getUnidadNombre = (udId) => {
+  const getUnidadNombre = (carga) => {
+    if (carga?.unidad_nombre) return carga.unidad_nombre;
+    const udId = typeof carga === 'object' ? carga?.unidad_didactica_id : carga;
     const ud = mallaFlat.find(u => u.id === udId);
     return ud ? ud.nombre : `Unidad #${udId}`;
   };
 
-  // Filtrar carga lectiva del periodo activo
-  const cargaActiva = selectedPeriod ? cargaLectiva.filter(c => c.periodo_id === parseInt(selectedPeriod)) : cargaLectiva;
-  const planActual = planes.length > 0 ? planes[0] : null;
+  // Filtrar carga lectiva del periodo activo y programa
+  const cargaActiva = cargaLectiva.filter(c => 
+    (!selectedPeriod || String(c.periodo_id) === String(selectedPeriod)) &&
+    (!selectedProgram || String(c.programa_id) === String(selectedProgram))
+  );
+  const planActivo = planes.length > 0 ? planes[0] : null;
 
   return (
     <div className="space-y-6">
-      {/* Cabecera Informativa del Docente */}
-      {selectedProgram && selectedPeriod && (
-        <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-l-4 border-l-primary mb-6 bg-gradient-to-r from-white to-slate-50">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary"><GraduationCap className="w-5 h-5" /></div>
-            <div>
-              <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Programa de Estudios</p>
-              <p className="font-bold text-slate-text">{programs.find(p => p.id.toString() === selectedProgram)?.nombre || 'Cargando...'}</p>
-            </div>
+      {/* Cabecera Informativa y Filtros del Docente */}
+      <div className="glass-card p-4 grid grid-cols-1 md:grid-cols-2 gap-4 border-l-4 border-l-primary mb-6 bg-gradient-to-r from-white to-slate-50">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary flex-shrink-0">
+            <GraduationCap className="w-5 h-5" />
           </div>
-          <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary"><Calendar className="w-5 h-5" /></div>
-            <div>
-              <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Periodo Activo</p>
-              <p className="font-bold text-slate-text">{periods.find(p => p.id.toString() === selectedPeriod)?.codigo || 'Cargando...'}</p>
-            </div>
+          <div className="flex-1">
+            <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider mb-1">Programa de Estudios</p>
+            <select
+              className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+              value={selectedProgram}
+              onChange={(e) => setSelectedProgram(e.target.value)}
+            >
+              <option value="">-- Seleccione Programa --</option>
+              {programs.map((p) => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </select>
           </div>
         </div>
-      )}
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-full bg-primary-soft flex items-center justify-center text-primary flex-shrink-0">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider mb-1">Periodo Activo</p>
+            <select
+              className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+            >
+              <option value="">-- Seleccione Periodo --</option>
+              {periods.map((p) => (
+                <option key={p.id} value={p.id}>{p.codigo} {p.estado ? `— ${p.estado.replace(/_/g, ' ')}` : ''}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
-      {selectedProgram && selectedPeriod && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Plan de Trabajo Global */}
           <div className="lg:col-span-1">
             <div className="glass-card p-6 h-full">
@@ -289,7 +322,7 @@ export function DocentePlanning() {
               ) : (
                 <div className="space-y-4">
                   {cargaActiva.map(carga => {
-                    const udNombre = getUnidadNombre(carga.unidad_didactica_id);
+                    const udNombre = getUnidadNombre(carga);
                     const silabo = silabos.find(s => s.carga_lectiva_id === carga.id);
                     
                     return (
@@ -352,7 +385,6 @@ export function DocentePlanning() {
             </div>
           </div>
         </div>
-      )}
     </div>
   );
 }
