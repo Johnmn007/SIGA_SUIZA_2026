@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
+import { useConfirm } from '../../core/ui/ConfirmModal';
 import { CoordinatorReview } from './CoordinatorReview';
 import { CoordinatorTutorias } from './CoordinatorTutorias';
 import { CoordinatorActas } from './CoordinatorActas';
@@ -9,8 +11,45 @@ import { ScheduleBuilder } from './ScheduleBuilder';
 import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle, KeyRound, FileCheck } from 'lucide-react';
 import { AssignmentModal } from './AssignmentModal';
 
+function useSafeToast() {
+  try {
+    return useToast();
+  } catch {
+    const noop = () => {};
+    return {
+      toast: { success: noop, error: noop, warning: noop, info: noop, dismiss: noop, clear: noop },
+      success: noop,
+      error: noop,
+      warning: noop,
+      info: noop,
+      showSuccess: noop,
+      showError: noop,
+      showWarning: noop,
+      showInfo: noop,
+      dismiss: noop,
+      clear: noop,
+      toasts: [],
+    };
+  }
+}
+
+function useSafeConfirm() {
+  try {
+    return useConfirm();
+  } catch {
+    const fn = async () => true;
+    return Object.assign(fn, {
+      confirm: async () => true,
+      promptModal: async () => '',
+      prompt: async () => '',
+    });
+  }
+}
+
 export function CoordinatorAcademic() {
   const { user, openPasswordModal } = useAuth();
+  const { toast } = useSafeToast();
+  const { confirm, promptModal } = useSafeConfirm();
   
   const [activeTab, setActiveTab] = useState('carga'); // 'carga', 'horarios'
   const [horariosSubTab, setHorariosSubTab] = useState('visual'); // 'excel', 'visual'
@@ -168,9 +207,18 @@ export function CoordinatorAcademic() {
 
   const handleCreateCarga = async (e) => {
     e.preventDefault();
-    if (!selectedProgram || !selectedPeriod) return alert("Seleccione Programa y Periodo primero");
-    if (!cargaForm.unidades_didacticas_ids || cargaForm.unidades_didacticas_ids.length === 0) return alert("Seleccione al menos una unidad didáctica");
-    if (!cargaForm.docente_id) return alert("Seleccione un docente");
+    if (!selectedProgram || !selectedPeriod) {
+      toast.warning("Seleccione Programa y Periodo primero");
+      return;
+    }
+    if (!cargaForm.unidades_didacticas_ids || cargaForm.unidades_didacticas_ids.length === 0) {
+      toast.warning("Seleccione al menos una unidad didáctica");
+      return;
+    }
+    if (!cargaForm.docente_id) {
+      toast.warning("Seleccione un docente");
+      return;
+    }
     
     setSaving(true);
     try {
@@ -193,10 +241,10 @@ export function CoordinatorAcademic() {
       setCargaForm({ ...cargaForm, unidades_didacticas_ids: [] });
       setIsModalOpen(false);
       fetchCargaYHorarios();
-      alert("Docente asignado correctamente a los cursos seleccionados.");
+      toast.success("Docente asignado correctamente a los cursos seleccionados.");
     } catch (error) {
       console.error("Error saving carga", error);
-      alert("Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
+      toast.error("Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
     } finally {
       setSaving(false);
     }
@@ -204,7 +252,10 @@ export function CoordinatorAcademic() {
 
   const handleUploadHorario = async (e) => {
     e.preventDefault();
-    if (!selectedProgram || !selectedPeriod) return alert("Seleccione Programa y Periodo primero");
+    if (!selectedProgram || !selectedPeriod) {
+      toast.warning("Seleccione Programa y Periodo primero");
+      return;
+    }
     
     setSaving(true);
     try {
@@ -222,31 +273,41 @@ export function CoordinatorAcademic() {
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error saving horario", error);
-      alert("Error al subir el horario");
+      toast.error("Error al subir el horario");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteCarga = async (id) => {
-    if (!window.confirm("¿Seguro que desea eliminar esta asignación?")) return;
+    const ok = await confirm({
+      title: "Eliminar asignación",
+      message: "¿Seguro que desea eliminar esta asignación?",
+      isDestructive: true
+    });
+    if (!ok) return;
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva/${id}`, { method: 'DELETE' });
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error deleting carga", error);
-      alert("No se pudo eliminar la carga");
+      toast.error("No se pudo eliminar la carga");
     }
   };
 
   const handleDeleteHorario = async (id) => {
-    if (!window.confirm("¿Seguro que desea eliminar este horario?")) return;
+    const ok = await confirm({
+      title: "Eliminar horario",
+      message: "¿Seguro que desea eliminar este horario?",
+      isDestructive: true
+    });
+    if (!ok) return;
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/horarios/${id}`, { method: 'DELETE' });
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error deleting horario", error);
-      alert("No se pudo eliminar el horario");
+      toast.error("No se pudo eliminar el horario");
     }
   };
 
@@ -274,7 +335,12 @@ export function CoordinatorAcademic() {
   };
 
   const handleCloneCarga = async () => {
-    const prevPeriodId = prompt("Ingrese el ID del periodo anterior desde el cual desea clonar (Ej. 1):");
+    const prevPeriodId = await promptModal({
+      title: "Clonar Periodo",
+      message: "Ingrese el ID del periodo anterior desde el cual desea clonar:",
+      placeholder: "Ej. 1",
+      required: true
+    });
     if (!prevPeriodId) return;
     setLoading(true);
     try {
@@ -282,10 +348,10 @@ export function CoordinatorAcademic() {
         method: 'POST',
         body: JSON.stringify({ from_periodo_id: parseInt(prevPeriodId), to_periodo_id: parseInt(selectedPeriod) })
       });
-      alert(res.message);
+      toast.success(res.message || "Carga lectiva clonada exitosamente");
       fetchCargaYHorarios();
     } catch {
-      alert("Error al clonar la carga lectiva. Verifique que el periodo origen tenga registros.");
+      toast.error("Error al clonar la carga lectiva. Verifique que el periodo origen tenga registros.");
     } finally {
       setLoading(false);
     }

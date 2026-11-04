@@ -1,8 +1,48 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
+import { useConfirm } from '../../core/ui/ConfirmModal';
 import { UserCog, Users, Trash2 } from 'lucide-react';
 
+function useSafeToast() {
+  try {
+    return useToast();
+  } catch {
+    const noop = () => {};
+    return {
+      toast: { success: noop, error: noop, warning: noop, info: noop, dismiss: noop, clear: noop },
+      success: noop,
+      error: noop,
+      warning: noop,
+      info: noop,
+      showSuccess: noop,
+      showError: noop,
+      showWarning: noop,
+      showInfo: noop,
+      dismiss: noop,
+      clear: noop,
+      toasts: [],
+    };
+  }
+}
+
+function useSafeConfirm() {
+  try {
+    return useConfirm();
+  } catch {
+    const fn = async () => true;
+    return Object.assign(fn, {
+      confirm: async () => true,
+      promptModal: async () => '',
+      prompt: async () => '',
+    });
+  }
+}
+
 export function CoordinatorTutorias({ programId, periodId, docentes }) {
+  const { toast } = useSafeToast();
+  const confirm = useSafeConfirm();
   const [tutorias, setTutorias] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -27,7 +67,10 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
 
   const handleAssign = async (e) => {
     e.preventDefault();
-    if (!form.ciclo || !form.docente_id) return alert("Seleccione ciclo y docente");
+    if (!form.ciclo || !form.docente_id) {
+      toast.warning("Seleccione ciclo y docente");
+      return;
+    }
     
     setSaving(true);
     try {
@@ -42,21 +85,26 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
       });
       setForm({ ciclo: '', docente_id: '', observaciones: '' });
       fetchData();
-      alert("Tutor asignado correctamente");
+      toast.success("Tutor asignado correctamente");
     } catch {
-      alert("Error al asignar tutor");
+      toast.error("Error al asignar tutor");
     }
     setSaving(false);
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("¿Seguro que desea eliminar esta tutoría?")) return;
+    const ok = await confirm({
+      title: "Eliminar Tutoría",
+      message: "¿Seguro que desea eliminar esta tutoría?",
+      isDestructive: true
+    });
+    if (!ok) return;
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${programId}/tutorias/${id}`, { method: 'DELETE' });
       fetchData();
     } catch (error) {
       console.error("Error deleting tutoria", error);
-      alert("No se pudo eliminar la tutoría");
+      toast.error("No se pudo eliminar la tutoría");
     }
   };
 

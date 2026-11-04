@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+import { ToastProvider } from '../core/ui/ToastContext';
 import { EvaluationDashboard } from '../modules/evaluation/EvaluationDashboard';
 import { DocentePlanning } from '../modules/academic/DocentePlanning';
 import { apiClient } from '../core/api/client';
@@ -608,7 +609,11 @@ describe('Auditoría Frontend - Rol Docente (EvaluationDashboard & DocentePlanni
       return Promise.resolve([]);
     });
 
-    render(<DocentePlanning />);
+    render(
+      <ToastProvider>
+        <DocentePlanning />
+      </ToastProvider>
+    );
     const subirSilaboBtn = await screen.findByRole('button', { name: /Subir Sílabo/i });
     expect(subirSilaboBtn).toBeInTheDocument();
 
@@ -632,8 +637,9 @@ describe('Auditoría Frontend - Rol Docente (EvaluationDashboard & DocentePlanni
           })
         })
       );
-      expect(window.alert).toHaveBeenCalledWith('Sílabo enviado correctamente al Coordinador');
     });
+    expect(await screen.findByTestId('toast-success')).toBeInTheDocument();
+    expect(screen.getByText('Sílabo enviado correctamente al Coordinador')).toBeInTheDocument();
   });
 
   it('14. DocentePlanning permite subir plan de trabajo enviando POST con periodo_id y programa_id', async () => {
@@ -674,7 +680,11 @@ describe('Auditoría Frontend - Rol Docente (EvaluationDashboard & DocentePlanni
       return Promise.resolve([]);
     });
 
-    render(<DocentePlanning />);
+    render(
+      <ToastProvider>
+        <DocentePlanning />
+      </ToastProvider>
+    );
     const subirPlanBtn = await screen.findByRole('button', { name: /Subir Plan de Trabajo/i });
     expect(subirPlanBtn).toBeInTheDocument();
 
@@ -700,7 +710,8 @@ describe('Auditoría Frontend - Rol Docente (EvaluationDashboard & DocentePlanni
           })
         })
       );
-      expect(window.alert).toHaveBeenCalledWith('Plan de Trabajo enviado correctamente al Coordinador');
     });
+    expect(await screen.findByTestId('toast-success')).toBeInTheDocument();
+    expect(screen.getByText('Plan de Trabajo enviado correctamente al Coordinador')).toBeInTheDocument();
   });
 });

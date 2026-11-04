@@ -2,10 +2,34 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { GraduationCap, Calendar, ClipboardList, BookOpen, FileText, Upload, ExternalLink, CheckCircle2, RefreshCw } from 'lucide-react';
+
+function useSafeToast() {
+  try {
+    return useToast();
+  } catch {
+    const noop = () => {};
+    return {
+      toast: { success: noop, error: noop, warning: noop, info: noop, dismiss: noop, clear: noop },
+      success: noop,
+      error: noop,
+      warning: noop,
+      info: noop,
+      showSuccess: noop,
+      showError: noop,
+      showWarning: noop,
+      showInfo: noop,
+      dismiss: noop,
+      clear: noop,
+      toasts: [],
+    };
+  }
+}
 
 export function DocentePlanning() {
   const { user } = useAuth();
+  const { toast } = useSafeToast();
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
@@ -126,7 +150,7 @@ export function DocentePlanning() {
     }
     if (!target || target.type !== 'silabo') return;
     if (!user?.id) {
-      alert("No se pudo identificar la sesión del docente.");
+      toast.error("No se pudo identificar la sesión del docente.");
       return;
     }
     
@@ -144,7 +168,7 @@ export function DocentePlanning() {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      alert("Sílabo enviado correctamente al Coordinador");
+      toast.success("Sílabo enviado correctamente al Coordinador");
       
       // Refresh silabos con tolerancia a fallos
       const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`).catch(() => []);
@@ -152,7 +176,7 @@ export function DocentePlanning() {
         setSilabos(silabosRes);
       }
     } catch (err) {
-      alert(err.message || "Error al enviar el sílabo");
+      toast.error(err.message || "Error al enviar el sílabo");
     } finally {
       e.target.value = ''; // reset input
       uploadingTargetRef.current = null;
@@ -162,7 +186,7 @@ export function DocentePlanning() {
 
   const triggerUploadPlan = () => {
     if (!selectedPeriod || !selectedProgram) {
-      alert("Por favor seleccione un programa y periodo académico antes de enviar el Plan de Trabajo.");
+      toast.warning("Por favor seleccione un programa y periodo académico antes de enviar el Plan de Trabajo.");
       return;
     }
     const target = { type: 'plan' };
@@ -182,11 +206,11 @@ export function DocentePlanning() {
     if (!target || target.type !== 'plan') return;
     
     if (!selectedPeriod || !selectedProgram) {
-      alert("Por favor seleccione un programa y periodo académico antes de enviar el Plan de Trabajo.");
+      toast.warning("Por favor seleccione un programa y periodo académico antes de enviar el Plan de Trabajo.");
       return;
     }
     if (!user?.id) {
-      alert("No se pudo identificar la sesión del docente.");
+      toast.error("No se pudo identificar la sesión del docente.");
       return;
     }
 
@@ -205,7 +229,7 @@ export function DocentePlanning() {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      alert("Plan de Trabajo enviado correctamente al Coordinador");
+      toast.success("Plan de Trabajo enviado correctamente al Coordinador");
       
       // Refresh planes con tolerancia a fallos
       const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`).catch(() => []);
@@ -215,7 +239,7 @@ export function DocentePlanning() {
         setPlanActual(plan || null);
       }
     } catch (err) {
-      alert(err.message || "Error al enviar el Plan de Trabajo");
+      toast.error(err.message || "Error al enviar el Plan de Trabajo");
     } finally {
       e.target.value = '';
       uploadingTargetRef.current = null;
