@@ -8,19 +8,16 @@ from httpx import AsyncClient, ASGITransport
 from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import date, timedelta
+from datetime import datetime, date, timedelta
 
 from tests.helpers.module_loader import load_module_component
 from tests.helpers.jwt_helper import auth_headers
 
 
 @pytest_asyncio.fixture
-async def app_eval(db_session: AsyncSession):
+async def app_eval():
     routes_mod = load_module_component("mod-evaluacion", "routes")
-    db_mod = load_module_component("mod-evaluacion", "database")
     app = FastAPI()
-    app.dependency_overrides[routes_mod.get_db] = lambda: db_session
-    app.dependency_overrides[db_mod.get_db] = lambda: db_session
     app.include_router(routes_mod.router)
     return app
 
@@ -32,39 +29,189 @@ async def client_eval(app_eval):
         base_url="http://test-eval"
     ) as client:
         yield client
-    app_eval.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture
-async def fix_batch_entorno(db_session: AsyncSession, fixture_evaluacion, fixture_carga_lectiva_y_plan):
+async def fix_batch_entorno(db_session: AsyncSession):
     """
-    Configura un entorno completo con unidad 101, periodo 1, docente titular 10,
-    docente no asignado 11, y registro de evaluación ID 200.
+    Configura un entorno completo relacional en siga_test para las pruebas batch:
+    - planes_estudio, programas_estudio, programa_modulos, programa_unidades (101)
+    - periodos_academicos (1, '2026-I', 'en_curso')
+    - core_roles, core_users (1: superadmin, 10: docente_titular, 11: docente_ajeno, 30: inactivo)
+    - estudiantes (100), matriculas (50), matricula_detalles (80)
+    - carga_lectiva (1, unidad 101, periodo 1, docente 10, acta_cerrada=false)
+    - evaluacion_registros (200, detalle 80, estudiante 100, unidad 101, periodo 1)
     """
+    prog_1 = 1
+    periodo_id = 1
+    modulo_1 = 1
+    unidad_101 = 101
+    carga_id = 1
+    evaluacion_id = 200
+    estudiante_id = 100
+    matricula_id = 50
+    detalle_id = 80
+    doc_titular = 10
+    doc_ajeno = 11
+    superadmin = 1
+    inactivo = 30
+
+    # 1. planes_estudio
     await db_session.execute(text("""
-        UPDATE carga_lectiva 
-        SET unidad_didactica_id = 101, 
-            periodo_id = 1, 
-            programa_id = 1, 
-            docente_id = 10,
-            acta_cerrada = false, 
-            fecha_limite_notas = NULL, 
-            acta_cerrada_at = NULL, 
-            acta_cerrada_por = NULL 
-        WHERE id = 1;
+        INSERT INTO planes_estudio (id, codigo, nombre, estado, creditos_totales, horas_totales, created_at, updated_at)
+        VALUES (1, 'DSI-2026', 'Desarrollo de Sistemas de Información', 'activo', 120, 2400, NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET estado = 'activo';
     """))
+
+    # 2. programas_estudio
+    await db_session.execute(text("""
+        INSERT INTO programas_estudio (id, codigo, nombre, creditos_totales, duracion_periodos, modalidad, estado, plan_estudio_id, created_at, updated_at)
+        VALUES (:p1, '0584722', 'Desarrollo de Sistemas de Información', 120, 6, 'presencial', 'activo', 1, NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET estado = 'activo', nombre = EXCLUDED.nombre;
+    """), {"p1": prog_1})
+
+    # 3. programa_modulos
+    await db_session.execute(text("""
+        INSERT INTO programa_modulos (id, programa_id, periodo, nombre, creditos, horas_totales)
+        VALUES (:m_id, :prog_id, 3, 'Módulo 3: Sistemas Web', 30, 600)
+        ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre;
+    """), {"m_id": modulo_1, "prog_id": prog_1})
+
+    # 4. programa_unidades
+    await db_session.execute(text("""
+        INSERT INTO programa_unidades (id, programa_modulo_id, nombre, horas_teoria, horas_practica, creditos, orden)
+        VALUES (:u1, :m_id, 'Taller de Programación Web', 2, 4, 4, 1)
+        ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, programa_modulo_id = EXCLUDED.programa_modulo_id;
+    """), {"u1": unidad_101, "m_id": modulo_1})
+
+    # 5. periodos_academicos
+    now = datetime.utcnow()
+    await db_session.execute(text("""
+        INSERT INTO periodos_academicos (id, codigo, fecha_inicio, fecha_fin, estado, created_at, updated_at)
+        VALUES (:p_id, '2026-I', :ini, :fin, 'en_curso', NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET estado = 'en_curso';
+    """), {"p_id": periodo_id, "ini": now - timedelta(days=10), "fin": now + timedelta(days=90)})
+
+    # 6. Identidades
+    await db_session.execute(text("""
+        INSERT INTO core_roles (id, name, description, created_at) VALUES
+            (1, 'superadmin', 'Super Administrador del Sistema', NOW()),
+            (2, 'coordinador_programa', 'Coordinador de Programa de Estudios', NOW()),
+            (3, 'docente', 'Docente de Unidades Didácticas', NOW()),
+            (4, 'estudiante', 'Estudiante de la Institución', NOW())
+        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+    """))
+
+    await db_session.execute(text("""
+        INSERT INTO core_users (id, email, full_name, hashed_password, is_active, is_superuser, created_at) VALUES
+            (1, 'superadmin.test@siga.edu', 'Super Admin Test', 'hash_test_123', true, true, NOW()),
+            (10, 'docente.test@siga.edu', 'Prof. Docente Asignado', 'hash_test_123', true, false, NOW()),
+            (11, 'docente.noasig@siga.edu', 'Prof. Docente No Asignado', 'hash_test_123', true, false, NOW()),
+            (20, 'estudiante.test@siga.edu', 'Estudiante Test', 'hash_test_123', true, false, NOW()),
+            (30, 'usuario.inactivo@siga.edu', 'Usuario Inactivo', 'hash_test_123', false, false, NOW())
+        ON CONFLICT (id) DO UPDATE SET 
+            is_active = EXCLUDED.is_active, 
+            is_superuser = EXCLUDED.is_superuser,
+            email = EXCLUDED.email;
+    """))
+
+    await db_session.execute(text("""
+        INSERT INTO core_user_roles (user_id, role_id) VALUES
+            (1, 1),
+            (10, 3),
+            (11, 3),
+            (20, 4),
+            (30, 3)
+        ON CONFLICT DO NOTHING;
+    """))
+
+    await db_session.execute(text("""
+        INSERT INTO perfiles_personal (id, user_id, condicion_laboral, cargo_funcional, programa_estudio_id) VALUES
+            (10, 10, 'CONTRATADO', 'Docente Asignado', 1),
+            (11, 11, 'CONTRATADO', 'Docente No Asignado', 1)
+        ON CONFLICT (id) DO UPDATE SET 
+            programa_estudio_id = EXCLUDED.programa_estudio_id,
+            user_id = EXCLUDED.user_id;
+    """))
+
+    # 7. Estudiantes, Matrícula y Detalle
+    await db_session.execute(text("""
+        INSERT INTO estudiantes (id, codigo_estudiante, dni, nombres, apellidos, programa_id, estado_academico, pago_matricula, documentos_completos, created_at, updated_at)
+        VALUES (:e_id, 'TEST-00000001', '00000001', 'Estudiante', 'Prueba SIGA', :prog_id, 'regular', true, true, NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET estado_academico = 'regular';
+    """), {"e_id": estudiante_id, "prog_id": prog_1})
+
+    await db_session.execute(text("""
+        INSERT INTO matriculas (id, estudiante_id, programa_id, periodo_id, estado_matricula, tipo_ingreso, observaciones, created_at, updated_at)
+        VALUES (:m_id, :e_id, :prog_id, :per_id, 'confirmada', 'Ordinario', NULL, NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET estado_matricula = 'confirmada';
+    """), {"m_id": matricula_id, "e_id": estudiante_id, "prog_id": prog_1, "per_id": periodo_id})
+
+    await db_session.execute(text("""
+        INSERT INTO matricula_detalles (id, matricula_id, unidad_didactica_id, creditos, estado_curso, created_at, updated_at)
+        VALUES (:d_id, :m_id, :u_id, 4, 'cursando', NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET estado_curso = 'cursando';
+    """), {"d_id": detalle_id, "m_id": matricula_id, "u_id": unidad_101})
+
+    # 8. Carga lectiva
+    await db_session.execute(text("""
+        INSERT INTO carga_lectiva (id, periodo_id, programa_id, docente_id, unidad_didactica_id, turno, seccion, estado, acta_cerrada, acta_cerrada_por, acta_cerrada_at, fecha_limite_notas, created_at, updated_at)
+        VALUES (:c_id, :p_id, :prog1, :doc_a, :u101, 'MAÑANA', 'A', 'activo', false, NULL, NULL, NULL, NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET 
+            periodo_id = EXCLUDED.periodo_id,
+            programa_id = EXCLUDED.programa_id,
+            docente_id = EXCLUDED.docente_id,
+            unidad_didactica_id = EXCLUDED.unidad_didactica_id,
+            turno = EXCLUDED.turno,
+            seccion = EXCLUDED.seccion,
+            estado = 'activo',
+            acta_cerrada = false,
+            acta_cerrada_por = NULL,
+            acta_cerrada_at = NULL,
+            fecha_limite_notas = NULL;
+    """), {
+        "c_id": carga_id,
+        "p_id": periodo_id,
+        "prog1": prog_1,
+        "doc_a": doc_titular,
+        "u101": unidad_101
+    })
+
+    # 9. Registro de Evaluación 200
+    await db_session.execute(text("""
+        INSERT INTO evaluacion_registros (id, matricula_detalle_id, estudiante_id, unidad_didactica_id, periodo_id, nota_final, estado, created_at, updated_at)
+        VALUES (:ev_id, :d_id, :e_id, :u_id, :p_id, 16, 'aprobado', NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET 
+            matricula_detalle_id = EXCLUDED.matricula_detalle_id,
+            estudiante_id = EXCLUDED.estudiante_id,
+            unidad_didactica_id = EXCLUDED.unidad_didactica_id,
+            periodo_id = EXCLUDED.periodo_id,
+            nota_final = EXCLUDED.nota_final,
+            estado = EXCLUDED.estado;
+    """), {
+        "ev_id": evaluacion_id,
+        "d_id": detalle_id,
+        "e_id": estudiante_id,
+        "u_id": unidad_101,
+        "p_id": periodo_id
+    })
+
+    await db_session.execute(text("SELECT setval('carga_lectiva_id_seq', (SELECT COALESCE(MAX(id), 1) + 10 FROM carga_lectiva))"))
+    await db_session.execute(text("SELECT setval('evaluacion_registros_id_seq', (SELECT COALESCE(MAX(id), 1) + 10 FROM evaluacion_registros))"))
+
     await db_session.commit()
+
     return {
-        "carga_id": 1,
-        "unidad_id": 101,
-        "periodo_id": 1,
-        "evaluacion_id": 200,
-        "matricula_detalle_id": 80,
-        "estudiante_id": 100,
-        "docente_titular_id": 10,
-        "docente_ajeno_id": 11,
-        "superadmin_id": 1,
-        "inactivo_id": 30
+        "carga_id": carga_id,
+        "unidad_id": unidad_101,
+        "periodo_id": periodo_id,
+        "evaluacion_id": evaluacion_id,
+        "matricula_detalle_id": detalle_id,
+        "estudiante_id": estudiante_id,
+        "docente_titular_id": doc_titular,
+        "docente_ajeno_id": doc_ajeno,
+        "superadmin_id": superadmin,
+        "inactivo_id": inactivo
     }
 
 
@@ -182,6 +329,7 @@ async def test_batch_docente_asignado_guarda_exito(client_eval, db_session: Asyn
     assert data[0]["estado"] == "aprobado"
 
     # Verificar en base de datos
+    await db_session.commit()
     db_res = await db_session.execute(text("SELECT nota_final, estado FROM evaluacion_registros WHERE id = :id"), {"id": eval_id})
     row = db_res.fetchone()
     assert row[0] == 15
@@ -376,6 +524,7 @@ async def test_batch_nunca_pone_estado_cerrado(client_eval, db_session: AsyncSes
     assert data[0]["estado"] != "cerrado"
 
     # Comprobación directa en BD
+    await db_session.commit()
     db_res = await db_session.execute(text("SELECT estado FROM evaluacion_registros WHERE id = :id"), {"id": eval_id})
     estado_db = db_res.scalar()
     assert estado_db == "aprobado"

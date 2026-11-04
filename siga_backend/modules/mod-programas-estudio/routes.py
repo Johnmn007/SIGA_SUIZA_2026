@@ -943,9 +943,8 @@ async def actualizar_carga_lectiva(
     )
     db.add(event)
 
-    # 12. Commit asíncrono y refresco
+    # 12. Commit asíncrono (sin db.refresh)
     await db.commit()
-    await db.refresh(db_carga)
 
     # 13. Enriquecer metadatos para CargaLectivaResponse
     res_u = await db.execute(
@@ -1080,10 +1079,9 @@ async def actualizar_horario(
     )
     db.add(event)
 
-    # 8. Commit asíncrono y refresco
+    # 8. Commit asíncrono y respuesta directa
     await db.commit()
-    await db.refresh(db_horario)
-    return db_horario
+    return HorarioPeriodoResponse.model_validate(db_horario)
 
 # --- Schemas Docente (Sílabo y Plan de Trabajo) ---
 class SilaboBase(BaseModel):
@@ -1327,10 +1325,9 @@ async def actualizar_silabo(
 
     db_silabo.updated_at = datetime.utcnow()
 
-    # 5. Persistencia y refresco
+    # 5. Persistencia y respuesta directa (sin db.refresh para evitar InvalidRequestError en NullPool/joins)
     await db.commit()
-    await db.refresh(db_silabo)
-    return db_silabo
+    return SilaboResponse.model_validate(db_silabo)
 
 @router.put("/silabos/{silabo_id}/estado", response_model=SilaboResponse)
 async def actualizar_estado_silabo(silabo_id: int, estado: str, request: Request, observaciones: str = None, db: AsyncSession = Depends(get_db)):
@@ -1360,8 +1357,7 @@ async def actualizar_estado_silabo(silabo_id: int, estado: str, request: Request
     db_silabo.updated_at = datetime.utcnow()
         
     await db.commit()
-    await db.refresh(db_silabo)
-    return db_silabo
+    return SilaboResponse.model_validate(db_silabo)
 
 @router.put("/planes-trabajo/{plan_id}", response_model=PlanTrabajoDocenteResponse)
 async def actualizar_plan_trabajo(
@@ -1419,10 +1415,9 @@ async def actualizar_plan_trabajo(
 
     db_plan.updated_at = datetime.utcnow()
 
-    # 5. Persistencia y refresco
+    # 5. Persistencia y respuesta directa (sin db.refresh para evitar InvalidRequestError)
     await db.commit()
-    await db.refresh(db_plan)
-    return db_plan
+    return PlanTrabajoDocenteResponse.model_validate(db_plan)
 
 @router.put("/planes-trabajo/{plan_id}/estado", response_model=PlanTrabajoDocenteResponse)
 async def actualizar_estado_plan(plan_id: int, estado: str, request: Request, observaciones: str = None, db: AsyncSession = Depends(get_db)):
@@ -1445,8 +1440,7 @@ async def actualizar_estado_plan(plan_id: int, estado: str, request: Request, ob
     db_plan.updated_at = datetime.utcnow()
         
     await db.commit()
-    await db.refresh(db_plan)
-    return db_plan
+    return PlanTrabajoDocenteResponse.model_validate(db_plan)
 
 # --- Schemas y Endpoints (Tutorías) ---
 class TutoriaBase(BaseModel):

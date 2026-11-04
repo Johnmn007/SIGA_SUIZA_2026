@@ -402,15 +402,22 @@ async def guardar_registros_batch(items: List[dict], request: Request, db: Async
             u_id = item.get("unidad_didactica_id") or item.get("unidad_id")
             p_id = item.get("periodo_id")
 
-            if (u_id is None or p_id is None) and mid:
+            if mid:
                 md_res = await db.execute(
                     text("SELECT md.unidad_didactica_id, m.periodo_id FROM matricula_detalles md JOIN matriculas m ON md.matricula_id = m.id WHERE md.id = :mid"),
                     {"mid": mid}
                 )
                 md_row = md_res.fetchone()
                 if md_row:
-                    u_id = md_row[0]
-                    p_id = md_row[1]
+                    real_u = md_row[0]
+                    real_p = md_row[1]
+                    if (u_id is not None and int(u_id) != real_u) or (p_id is not None and int(p_id) != real_p):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Inconsistencia de unidad didáctica o periodo en el registro"
+                        )
+                    u_id = real_u
+                    p_id = real_p
 
         if u_id is not None and p_id is not None:
             pares_unidad_periodo.add((int(u_id), int(p_id)))
@@ -941,8 +948,15 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
             detail="No tiene permisos para esta operación"
         )
 
+    # 1. Normalización canónica de fecha límite
+    fecha_limite = data.fecha_limite_notas
+    if isinstance(fecha_limite, str):
+        fecha_limite = date.fromisoformat(fecha_limite)
+    elif isinstance(fecha_limite, datetime):
+        fecha_limite = fecha_limite.date()
+
     hoy = get_hoy_lima()
-    if data.fecha_limite_notas < hoy:
+    if fecha_limite < hoy:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="La fecha límite debe ser igual o posterior a la fecha actual."
@@ -967,7 +981,7 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
     valor_ant = carga[5]
     await db.execute(
         text("UPDATE carga_lectiva SET fecha_limite_notas = :f, updated_at = NOW() WHERE id = :id"),
-        {"f": data.fecha_limite_notas, "id": carga_id}
+        {"f": fecha_limite, "id": carga_id}
     )
 
     req_id = request.headers.get("X-Request-ID", "unknown")
@@ -980,7 +994,7 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
             "unidad_didactica_id": carga[3],
             "periodo_id": carga[1],
             "valores_anteriores": {"fecha_limite_notas": str(valor_ant) if valor_ant else None},
-            "valores_nuevos": {"fecha_limite_notas": str(data.fecha_limite_notas)},
+            "valores_nuevos": {"fecha_limite_notas": str(fecha_limite)},
             "motivo": "Actualización de fecha límite de acta",
             "user_id": ident.user_id,
             "timestamp": now_utc.isoformat(),
@@ -993,7 +1007,7 @@ async def actualizar_fecha_limite_carga(carga_id: int, data: FechaLimiteRequest,
     return {
         "message": "Fecha límite actualizada exitosamente",
         "carga_id": carga_id,
-        "fecha_limite_notas": data.fecha_limite_notas
+        "fecha_limite_notas": str(fecha_limite)
     }
 
 @router.post("/actas/programa/{programa_id}/periodo/{periodo_id}/fecha-limite")
@@ -1007,8 +1021,14 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
             detail="No tiene permisos para esta operación"
         )
 
+    fecha_limite = data.fecha_limite_notas
+    if isinstance(fecha_limite, str):
+        fecha_limite = date.fromisoformat(fecha_limite)
+    elif isinstance(fecha_limite, datetime):
+        fecha_limite = fecha_limite.date()
+
     hoy = get_hoy_lima()
-    if data.fecha_limite_notas < hoy:
+    if fecha_limite < hoy:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="La fecha límite debe ser igual o posterior a la fecha actual."
@@ -1036,7 +1056,7 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
     if cargas_ids:
         await db.execute(
             text("UPDATE carga_lectiva SET fecha_limite_notas = :f, updated_at = NOW() WHERE id = ANY(:ids)"),
-            {"f": data.fecha_limite_notas, "ids": cargas_ids}
+            {"f": fecha_limite, "ids": cargas_ids}
         )
 
     req_id = request.headers.get("X-Request-ID", "unknown")
@@ -1048,7 +1068,7 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
             "programa_id": programa_id,
             "periodo_id": periodo_id,
             "cargas_afectadas": cargas_ids,
-            "nueva_fecha_limite": str(data.fecha_limite_notas),
+            "nueva_fecha_limite": str(fecha_limite),
             "user_id": ident.user_id,
             "timestamp": now_utc.isoformat(),
             "metadata": {"request_id": req_id, "user_id": ident.user_id}
@@ -1060,7 +1080,7 @@ async def actualizar_fecha_limite_masiva(programa_id: int, periodo_id: int, data
     return {
         "message": f"Se actualizó la fecha límite para {len(cargas_ids)} carga(s) lectiva(s) abiertas.",
         "actualizadas": len(cargas_ids),
-        "fecha_limite_notas": data.fecha_limite_notas
+        "fecha_limite_notas": str(fecha_limite)
     }
 
 @router.post("/actas/carga/{carga_id}/cerrar", response_model=CerrarActaResponse)

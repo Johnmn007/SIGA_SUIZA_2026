@@ -148,11 +148,15 @@ def pytest_sessionstart(session):
 # ==============================================================================
 # 4. LIMPIEZA CON SEGURO RE-VERIFICADO
 # ==============================================================================
+SIGA_TEST_ADVISORY_LOCK_ID = 889922
+
 @pytest.fixture
 async def clean_test_db():
     """
     Limpia las tablas en siga_test antes de cada prueba de integración.
-    Re-verifica con SELECT current_database() antes de ejecutar cualquier comando TRUNCATE.
+    Re-verifica con SELECT current_database() antes de ejecutar cualquier comando.
+    Utiliza pg_advisory_lock y DELETE FROM en orden topológico inverso para
+    eliminar deadlocks por AccessExclusiveLock de TRUNCATE.
     """
     async with test_engine.connect() as conn:
         current_db = await conn.scalar(text("SELECT current_database();"))
@@ -162,29 +166,44 @@ async def clean_test_db():
                 returncode=1
             )
 
-        await conn.execute(text("""
-            TRUNCATE TABLE 
-                evaluacion_registros,
-                matricula_detalles,
-                matriculas,
-                estudiantes,
-                silabos,
-                carga_lectiva,
-                planes_trabajo_docente,
-                horarios_periodo,
-                tutorias,
-                perfiles_personal,
-                core_user_roles,
-                core_users,
-                programa_modulos,
-                programas_estudio,
-                periodos_academicos,
-                planes_estudio,
-                outbox_events
-            CASCADE;
-        """))
-        await conn.commit()
-    yield
+        await conn.execute(
+            text("SELECT pg_advisory_lock(:lock_id);"),
+            {"lock_id": SIGA_TEST_ADVISORY_LOCK_ID}
+        )
+        try:
+            delete_tables = [
+                "evaluacion_registros",
+                "matricula_detalles",
+                "matriculas",
+                "estudiantes",
+                "silabos",
+                "planes_trabajo_docente",
+                "horarios_periodo",
+                "tutorias",
+                "carga_lectiva",
+                "perfiles_personal",
+                "core_user_roles",
+                "core_users",
+                "core_roles",
+                "programa_unidades",
+                "programa_modulos",
+                "programas_estudio",
+                "periodos_academicos",
+                "planes_estudio",
+                "outbox_events",
+            ]
+            for tbl in delete_tables:
+                await conn.execute(text(f"DELETE FROM {tbl};"))
+            await conn.commit()
+            yield conn
+        finally:
+            try:
+                await conn.execute(
+                    text("SELECT pg_advisory_unlock(:lock_id);"),
+                    {"lock_id": SIGA_TEST_ADVISORY_LOCK_ID}
+                )
+            except Exception:
+                pass
 
 
 @pytest.fixture
@@ -196,6 +215,36 @@ async def db_session(clean_test_db):
         finally:
             await session.rollback()
             await session.close()
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_module_engines():
+    """
+    Garantiza que después de cada prueba, todos los motores de base de datos de los
+    microservicios cierren y descarten sus conexiones de pool, evitando conexiones
+    'idle in transaction' que bloqueen el siguiente ciclo de pruebas.
+    """
+    yield
+    module_names = [
+        "mod-evaluacion",
+        "mod-programas-estudio",
+        "mod-gestion-academica",
+        "mod-usuarios",
+        "mod-planes-estudio",
+    ]
+    for mod_name in module_names:
+        for key in list(sys.modules.keys()):
+            if mod_name in key and key.endswith("database"):
+                mod = sys.modules.get(key)
+                if mod and hasattr(mod, "engine"):
+                    engine = getattr(mod, "engine")
+                    if hasattr(engine, "dispose"):
+                        try:
+                            res = engine.dispose()
+                            if asyncio.iscoroutine(res):
+                                await res
+                        except Exception:
+                            pass
 
 
 # ==============================================================================
