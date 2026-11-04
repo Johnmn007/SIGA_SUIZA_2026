@@ -1,6 +1,55 @@
-﻿# INFORME DE ESTADO - SIGA
+# INFORME DE ESTADO - SIGA
 
-> **Última actualización:** 30 Oct 2026 | **Sesión:** 9 (Maestro de Estudiantes: carrera en tabla, filtro y ordenamiento)
+> **Última actualización:** 04 Nov 2026 | **Sesión:** 10 (Persistencia de Datos en Registro de Estudiantes + metadata_admision)
+
+---
+
+## 0. SESIÓN 10 — PERSISTENCIA TOTAL DEL REGISTRO DE ESTUDIANTES
+
+Trabajo fullstack (`StudentMaster.jsx`, `StudentDetail.jsx`, `routes.py`).
+
+### 0.1 Empaquetado estructurado en `metadata_admision`
+- **Problema previo:** El wizard de 5 pasos solicitaba Ubigeo, Género, Estado Civil, Nacionalidad, Trabajo/Ingresos, Tipo de Vivienda, Internet, Colegio, Año de Egreso, Tipo de Sangre, Seguro Médico y Contactos de Emergencia, pero el backend los descartaba silenciosamente porque `EstudianteBase` y la tabla `estudiantes` no tenían columnas nativas para ellos.
+- **Solución implementada:** En `StudentMaster.jsx` (`handleCreate`), se agrupan ordenadamente todos esos campos en `metadata_admision` (con estructura jerárquica y aliases directos compatibles con la ingesta masiva de `cargar_admitidos_2026.py`).
+- **Limpieza de Payload:** El objeto raíz enviado a `POST /api/mod-gestion-academica/estudiantes/` se envía saneado, pasando exclusivamente campos nativos válidos del esquema Pydantic + el diccionario `metadata_admision`.
+
+### 0.2 Backend: Respuestas enriquecidas y validación de duplicados
+- `routes.py`:
+  - `crear_estudiante`: Persiste `metadata_admision` en PostgreSQL y valida duplicados con mensajes diferenciados ("El DNI ya se encuentra registrado" vs "El código de estudiante ya existe").
+  - `obtener_estudiantes`: Ahora incluye `foto_url`, `email_personal`, `email_institucional`, `celular`, `direccion_domicilio`, `fecha_nacimiento`, `documentos_completos`, `pago_matricula` y `metadata_admision`. Con esto se soluciona el problema de la lista que mostraba siempre "Sin correo" y sin foto.
+
+### 0.3 Rediseño y Expansión de la Ficha Integral del Estudiante (`StudentDetail.jsx`)
+- **Ampliación del Modal:** El diálogo pasó de `max-w-2xl` a un formato amplio y cómodo (`max-w-4xl lg:max-w-5xl`) con cabecera estilizada con `tech-bg` y degradado institucional.
+- **Pestaña Principal "Expediente & Censo":** Establecida como pestaña por defecto al abrir la ficha ("Ver Ficha"), evitando que abra en una lista vacía de matrículas.
+- **Integración de todos los campos del Registro:**
+  - **Tarjetas Bento de Trámite:** Estado de pago de matrícula, expediente documental físico (con fecha límite de subsanación si aplica), modalidad de ingreso y ciclo.
+  - **Identidad & Ubicación:** DNI, código, fecha de nacimiento, edad calculada automáticamente, género, estado civil, nacionalidad, condición de discapacidad, dirección exacta y Ubigeo jerárquico (Distrito · Provincia · Departamento), teléfono celular y correos.
+  - **Perfil Socioeconómico (Sector 3):** Situación laboral (trabajador/no trabaja), ingreso mensual en soles (S/.), tipo de vivienda (propia/alquilada) y disponibilidad de internet en el domicilio.
+  - **Salud, Procedencia y Emergencias (Sector 4):** Colegio secundario de procedencia, año de egreso, tipo de sangre (con badge destacado), seguro de salud (SIS/EsSalud), contacto de emergencia con teléfono y nombres de los padres.
+  - **Observaciones del Expediente:** Bloque condicional para notas administrativas.
+- **Historial Completo:** Conserva las pestañas de Matrículas, Becas & Beneficios, Convalidaciones y Trámites con contadores numéricos.
+
+### 0.4 Rediseño Visual de la Tabla de Estudiantes (`StudentMaster.jsx`)
+- **Cabecera Sticky & Jerarquía:** Header con `sticky top-0 bg-slate-100/95 backdrop-blur-md` y tipografía `font-black uppercase tracking-wider text-slate-600`.
+- **Identidad del Alumno:** Avatar con foto real (`ProtectedImage`) o iniciales sobre gradiente institucional, nombre completo en negrita con hover animado, badge para el Código institucional (`2026-000XXX`), y correo con truncado seguro.
+- **Carrera:** Badge truncado con icono `GraduationCap` y tooltip completo.
+- **DNI y Contacto:** Pill monospace `DNI XXXXXXXX` y número celular visible.
+- **Estado Académico:** Badges semánticos con punto indicador de color (ámbar pulsante para postulantes, esmeralda para matriculados, azul/gris según aplique).
+- **Expediente & Pago (Nuevo):** Indicadores visuales de estado de pago de matrícula (`Pagado` / `Pendiente`) y expediente documental (`Exp. Completo` / `Exp. Incompleto`).
+- **Acciones y Navegabilidad:** Botones explícitos "Ver Ficha" (abre ficha completa del estudiante) y "Editar" (abre corrección rápida). Además, toda la fila es clickeable.
+- **Paginación Integrada:** Selector de registros por página (15, 25, 50, 100), rango dinámico de visualización ("Mostrando X a Y de Z estudiantes") y botones Anterior / Siguiente, eliminando cuelgues del navegador al renderizar grandes volúmenes.
+- **Fix Pantalla Blanca:** Se corrigió un `ReferenceError` en el renderizado condicional de la tabla vacía (`currentStudents` -> `paginatedStudents`).
+
+### 0.5 Modal de Edición de Datos Personales (`EditStudentModal.jsx`)
+- **Restricción a Datos Personales:** Se bloquearon los campos institucionales (Código de Estudiante, Programa y Estado Académico) en modo Solo Lectura con icono de candado. Únicamente se permite modificar datos personales de identidad, contacto, domicilio, ubigeo y persona de emergencia.
+- **Confirmación Centrada:** Al presionar "Guardar Cambios", se despliega un diálogo centrado sobre el modal con el mensaje: `¿Está seguro de cambiar los datos personales del estudiante "[Nombre Completo]"?` con botones "Cancelar" y "Sí, Confirmar".
+- **Empaquetado de Cambios en Metadata:** Las modificaciones a campos extendidos (género, estado civil, nacionalidad, ubigeo, contacto de emergencia) se actualizan en `metadata_admision` antes de enviar el `PUT`.
+- **Diseño Moderno:** Cabecera con `tech-bg`, banner explicativo de alcance de edición, inputs estructurados con validación de solo dígitos (DNI y celular) y estética unificada.
+
+### 0.6 Verificación
+- `npm run build` OK (0 errores, `✓ built in 29.04s`).
+- Sintaxis Python compilada sin errores (`py_compile`).
+- Contenedores Docker activos y con live-reload funcional.
 
 ---
 

@@ -7,7 +7,7 @@ import { EditStudentModal } from './EditStudentModal';
 import { StudentDetail } from './StudentDetail';
 import { ProtectedImage } from './ProtectedImage';
 import { DEPARTAMENTOS, getProvincias, getDistritos } from './ubigeoPeru';
-import { GraduationCap, Search, CloudDownload, Plus, Users, Pencil, ChevronRight, ChevronDown, Check, LayoutGrid, Info, X, Mail, Phone, MapPin, CheckCircle2, FileCheck2, UserPlus, Sparkles, Camera, Trash2, AlertTriangle } from 'lucide-react';
+import { GraduationCap, Search, CloudDownload, Plus, Users, Pencil, ChevronRight, ChevronLeft, ChevronDown, Check, LayoutGrid, Info, X, Mail, Phone, MapPin, CheckCircle2, FileCheck2, UserPlus, Sparkles, Camera, Trash2, AlertTriangle, Eye, CreditCard } from 'lucide-react';
 
 // Puente entre sectores: Línea con puntitos unida a cada extremo con degradé dinámico según el estado
 const SectorBridge = ({ fromStepId, currentStep }) => {
@@ -86,8 +86,22 @@ const InputGroup = ({
   required = false,
   showMissing = false,
   disabled = false,
+  onlyDigits = false,
+  maxLength,
+  inputMode,
 }) => {
   const isMissing = required && (!value || String(value).trim() === '');
+
+  const handleChange = (event) => {
+    if (!onChange) return;
+    if (!onlyDigits) {
+      onChange(event);
+      return;
+    }
+    const digits = event.target.value.replace(/\D/g, '');
+    const nextValue = maxLength ? digits.slice(0, maxLength) : digits;
+    onChange({ target: { value: nextValue } });
+  };
 
   return (
     <div className="flex flex-col space-y-1.5 relative">
@@ -130,14 +144,17 @@ const InputGroup = ({
         ) : (
           <input
             type={type}
-            className={`w-full px-3.5 py-2.5 bg-white border-2 rounded-xl text-slate-950 font-bold text-sm placeholder:text-slate-400 placeholder:font-normal focus:bg-white focus:ring-4 focus:outline-none transition-all duration-200 shadow-sm ${
+            className={`w-full px-3.5 py-2.5 bg-white border-2 rounded-xl text-slate-950 font-bold text-sm placeholder:text-slate-400 placeholder:font-normal focus:bg-white focus:ring-4 focus:outline-none transition-all duration-200 shadow-sm disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed disabled:border-slate-200 disabled:shadow-none disabled:hover:border-slate-200 ${
               isMissing && showMissing
                 ? 'border-amber-400 ring-2 ring-amber-400/20 focus:border-amber-500 focus:ring-amber-400/25'
                 : 'border-slate-300 hover:border-slate-400 focus:border-primary focus:ring-primary/20'
             }`}
             value={value}
-            onChange={onChange}
+            onChange={handleChange}
             placeholder={placeholder}
+            disabled={disabled}
+            maxLength={maxLength}
+            inputMode={inputMode}
           />
         )}
 
@@ -378,7 +395,7 @@ const SECTOR_REQUIRED = {
 };
 
 const createEmptyStudentForm = (programaId = '') => ({
-  codigo_estudiante: '2026-' + Date.now().toString().slice(-6).padStart(6, '0'),
+  codigo_estudiante: `${new Date().getFullYear()}-` + Date.now().toString().slice(-6).padStart(6, '0'),
   dni: '', nombres: '', apellidos: '', programa_id: programaId ? String(programaId) : '',
   fecha_nacimiento: '', genero: 'Masculino', estado_civil: 'Soltero', nacionalidad: 'Peruana',
   foto_url: '',
@@ -414,6 +431,8 @@ const PROGRAMAS_OPTIONS = [
     label: programa.label,
   })),
 ];
+
+const TIPOS_SANGRE = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
 
 const getProgramaLabel = (programaId) => {
   const programa = PROGRAMAS.find(item => item.id === String(programaId));
@@ -526,10 +545,13 @@ export function StudentMaster() {
   const [currentPrograma, setCurrentPrograma] = useState('ALL');
   const [stepDir, setStepDir] = useState('forward');
   const [loadError, setLoadError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const wizardBodyRef = useRef(null);
 
   const [form, setForm] = useState(() => createEmptyStudentForm());
   const [submitting, setSubmitting] = useState(false);
+  const [codeLoading, setCodeLoading] = useState(false);
 
   const [showMissing, setShowMissing] = useState(false);
 
@@ -554,6 +576,42 @@ export function StudentMaster() {
     if (currentPrograma !== 'ALL') return currentPrograma;
     if (form.programa_id) return form.programa_id;
     return user?.programa_id ? String(user.programa_id) : '';
+  };
+
+  const generarCodigoLocalUnico = () => {
+    const year = new Date().getFullYear();
+    const prefix = `${year}-`;
+    let maxSeq = 0;
+    students.forEach((s) => {
+      const codigo = String(s.codigo_estudiante ?? '');
+      if (codigo.startsWith(prefix)) {
+        const suffix = codigo.slice(prefix.length);
+        if (/^\d+$/.test(suffix)) maxSeq = Math.max(maxSeq, parseInt(suffix, 10));
+      }
+    });
+    return `${prefix}${String(maxSeq + 1).padStart(6, '0')}`;
+  };
+
+  const generarCodigoUnico = async () => {
+    setCodeLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/siguiente-codigo`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.codigo_estudiante) {
+          setForm(prev => ({ ...prev, codigo_estudiante: data.codigo_estudiante }));
+          return;
+        }
+      }
+      setForm(prev => ({ ...prev, codigo_estudiante: generarCodigoLocalUnico() }));
+    } catch (err) {
+      console.error('No se pudo generar el código único:', err);
+      setForm(prev => ({ ...prev, codigo_estudiante: generarCodigoLocalUnico() }));
+    } finally {
+      setCodeLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -581,6 +639,7 @@ export function StudentMaster() {
 
   const handleSearch = async (val = '') => {
     setSearchTerm(val);
+    setCurrentPage(1);
     setLoading(true);
     setLoadError(null);
     try {
@@ -706,20 +765,74 @@ export function StudentMaster() {
 
     setSubmitting(true);
     try {
-      const payload = { ...form };
-      if (payload.foto_url === '') payload.foto_url = null;
-      if (payload.fecha_nacimiento === '') payload.fecha_nacimiento = null;
-      if (payload.email_institucional === '') payload.email_institucional = null;
-      if (payload.email_personal === '') payload.email_personal = null;
-
-      payload.celular = payload.telefono_movil;
-      payload.direccion_domicilio = payload.direccion_residencia;
-      if (payload.fecha_limite_documentos === '') payload.fecha_limite_documentos = null;
-
       const programaId = form.programa_id
         || (currentPrograma !== 'ALL' ? currentPrograma : (user?.programa_id ? String(user.programa_id) : ''));
-      if (programaId) payload.programa_id = Number(programaId);
-      else delete payload.programa_id;
+
+      const metadata_admision = {
+        departamento: form.departamento || null,
+        provincia: form.provincia || null,
+        distrito: form.distrito || null,
+        ubigeo: {
+          departamento: form.departamento || null,
+          provincia: form.provincia || null,
+          distrito: form.distrito || null,
+        },
+        sexo: form.genero || null,
+        genero: form.genero || null,
+        estado_civil: form.estado_civil || null,
+        nacionalidad: form.nacionalidad || 'Peruana',
+        discapacidad: form.discapacidad ? 'SI' : 'NO',
+        socioeconomico: {
+          trabaja: Boolean(form.trabaja),
+          ingreso_mensual: form.trabaja ? (Number(form.ingreso_mensual) || 0) : 0,
+          tipo_vivienda: form.tipo_vivienda || null,
+          tiene_internet_en_casa: Boolean(form.tiene_internet_en_casa),
+        },
+        tipo_sangre: form.tipo_sangre || null,
+        seguro_salud: form.seguro_salud || null,
+        anio_termino_secundaria: form.año_egreso_colegio ? String(form.año_egreso_colegio) : null,
+        institucion_educativa: {
+          nombre: form.colegio_procedencia || null,
+          anio_egreso: form.año_egreso_colegio ? Number(form.año_egreso_colegio) : null,
+        },
+        salud_procedencia: {
+          colegio_procedencia: form.colegio_procedencia || null,
+          año_egreso_colegio: form.año_egreso_colegio ? Number(form.año_egreso_colegio) : null,
+          tipo_sangre: form.tipo_sangre || null,
+          seguro_salud: form.seguro_salud || null,
+        },
+        apoderado: {
+          nombre: form.contacto_emergencia_nombre || null,
+          celular: form.contacto_emergencia_telefono || null,
+          nombre_padre: form.nombre_padre || null,
+          nombre_madre: form.nombre_madre || null,
+        },
+        emergencia: {
+          contacto_nombre: form.contacto_emergencia_nombre || null,
+          contacto_telefono: form.contacto_emergencia_telefono || null,
+        },
+        origen: 'registro_manual_maestro',
+        fecha_registro: new Date().toISOString(),
+      };
+
+      const payload = {
+        codigo_estudiante: String(form.codigo_estudiante || '').trim(),
+        dni: String(form.dni || '').trim(),
+        nombres: String(form.nombres || '').trim(),
+        apellidos: String(form.apellidos || '').trim(),
+        fecha_nacimiento: form.fecha_nacimiento || null,
+        programa_id: programaId ? Number(programaId) : null,
+        email_institucional: form.email_institucional?.trim() || null,
+        email_personal: form.email_personal?.trim() || null,
+        celular: form.telefono_movil?.trim() || null,
+        direccion_domicilio: form.direccion_residencia?.trim() || null,
+        foto_url: form.foto_url || null,
+        pago_matricula: Boolean(form.pago_matricula),
+        documentos_completos: Boolean(form.documentos_completos),
+        fecha_limite_documentos: form.documentos_completos ? null : (form.fecha_limite_documentos || null),
+        modalidad_admision: form.modalidad_admision || 'ORDINARIO',
+        metadata_admision,
+      };
 
       const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/`, {
         method: 'POST',
@@ -899,8 +1012,8 @@ export function StudentMaster() {
                 <InputGroup label="Nombres" required showMissing={showMissing} value={form.nombres} onChange={e=>setForm({...form, nombres: e.target.value})} placeholder="Nombres completos" />
               </div>
               <InputGroup label="Apellidos" required showMissing={showMissing} value={form.apellidos} onChange={e=>setForm({...form, apellidos: e.target.value})} placeholder="Apellidos paterno y materno" />
-              <InputGroup label="Código de Estudiante" icon={GraduationCap} required showMissing={showMissing} value={form.codigo_estudiante} onChange={e=>setForm({...form, codigo_estudiante: e.target.value})} placeholder="2026-000123" />
-              <InputGroup label="DNI / Documento" required showMissing={showMissing} value={form.dni} onChange={e=>setForm({...form, dni: e.target.value})} placeholder="8 dígitos" />
+              <InputGroup label="Código de Estudiante" icon={GraduationCap} required showMissing={showMissing} value={form.codigo_estudiante} disabled placeholder={codeLoading ? 'Generando código…' : '2026-000123'} />
+              <InputGroup label="DNI / Documento" required showMissing={showMissing} value={form.dni} onChange={e=>setForm({...form, dni: e.target.value})} placeholder="8 dígitos" onlyDigits maxLength={8} inputMode="numeric" />
               <InputGroup label="Fecha de Nacimiento" type="date" required showMissing={showMissing} value={form.fecha_nacimiento} onChange={e=>setForm({...form, fecha_nacimiento: e.target.value})} />
               <InputGroup label="Género" options={['Masculino', 'Femenino', 'Otro']} required showMissing={showMissing} value={form.genero} onChange={e=>setForm({...form, genero: e.target.value})} />
               <InputGroup label="Estado Civil" options={['Soltero', 'Casado', 'Conviviente', 'Viudo', 'Divorciado']} required showMissing={showMissing} value={form.estado_civil} onChange={e=>setForm({...form, estado_civil: e.target.value})} />
@@ -963,7 +1076,7 @@ export function StudentMaster() {
               placeholder={form.provincia ? 'Buscar distrito...' : 'Elija provincia'}
               disabled={!form.provincia}
             />
-            <InputGroup label="Celular / Móvil" icon={Phone} required showMissing={showMissing} value={form.telefono_movil} onChange={e=>setForm({...form, telefono_movil: e.target.value})} placeholder="9## ### ###" />
+            <InputGroup label="Celular / Móvil" icon={Phone} required showMissing={showMissing} value={form.telefono_movil} onChange={e=>setForm({...form, telefono_movil: e.target.value})} placeholder="9 dígitos" onlyDigits maxLength={9} inputMode="numeric" />
             <div className="sm:col-span-2 lg:col-span-2">
               <InputGroup label="Email Personal" icon={Mail} type="email" required showMissing={showMissing} value={form.email_personal} onChange={e=>setForm({...form, email_personal: e.target.value})} placeholder="correo.estudiante@gmail.com" />
             </div>
@@ -1024,9 +1137,9 @@ export function StudentMaster() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/90 border-2 border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm">
             <InputGroup label="Colegio de Procedencia" required showMissing={showMissing} value={form.colegio_procedencia} onChange={e=>setForm({...form, colegio_procedencia: e.target.value})} placeholder="Nombre del colegio secundario" />
             <InputGroup label="Año de Egreso" type="number" required showMissing={showMissing} value={form.año_egreso_colegio} onChange={e=>setForm({...form, año_egreso_colegio: e.target.value})} />
-            <InputGroup label="Tipo de Sangre" required showMissing={showMissing} value={form.tipo_sangre} onChange={e=>setForm({...form, tipo_sangre: e.target.value})} placeholder="Ej. O+, A+" />
+            <SearchSelect label="Tipo de Sangre" required showMissing={showMissing} options={TIPOS_SANGRE} value={form.tipo_sangre} onChange={(tipo) => setForm({ ...form, tipo_sangre: tipo })} placeholder="Buscar tipo de sangre..." />
             <InputGroup label="Seguro de Salud" options={['Ninguno', 'SIS', 'EsSalud', 'Privado']} required showMissing={showMissing} value={form.seguro_salud} onChange={e=>setForm({...form, seguro_salud: e.target.value})} />
-            <InputGroup label="Teléfono de Emergencia" icon={Phone} required showMissing={showMissing} value={form.contacto_emergencia_telefono} onChange={e=>setForm({...form, contacto_emergencia_telefono: e.target.value})} placeholder="9## ### ###" />
+            <InputGroup label="Teléfono de Emergencia" icon={Phone} required showMissing={showMissing} value={form.contacto_emergencia_telefono} onChange={e=>setForm({...form, contacto_emergencia_telefono: e.target.value})} placeholder="9 dígitos" onlyDigits maxLength={9} inputMode="numeric" />
             <InputGroup label="Contacto de Emergencia (Nombre)" required showMissing={showMissing} value={form.contacto_emergencia_nombre} onChange={e=>setForm({...form, contacto_emergencia_nombre: e.target.value})} placeholder="Familiar o apoderado" />
 
             <div className="sm:col-span-2 lg:col-span-3 pt-4 border-t-2 border-slate-200 mt-2">
@@ -1114,6 +1227,13 @@ export function StudentMaster() {
     }
   };
 
+  const totalStudents = students.length;
+  const totalPages = Math.ceil(totalStudents / pageSize) || 1;
+  const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+  const startIndex = totalStudents === 0 ? 0 : (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalStudents);
+  const paginatedStudents = students.slice(startIndex, endIndex);
+
   return (
     <div className="animate-fade-in lg:flex lg:flex-col lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary-dark to-secondary p-5 sm:p-6 mb-6 shadow-xl shadow-primary/25 lg:shrink-0">
@@ -1162,6 +1282,7 @@ export function StudentMaster() {
                 setStepDir('forward');
                 setShowMissing(false);
                 setShowModal(true);
+                generarCodigoUnico();
               }}
             >
               <Plus size={18} className="shrink-0" />
@@ -1226,93 +1347,252 @@ export function StudentMaster() {
         </div>
       )}
 
-      <div className="glass-card overflow-hidden lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
-        <div className="overflow-x-auto overflow-y-auto custom-scrollbar max-h-[70vh] lg:max-h-none lg:flex-1 lg:min-h-0">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Estudiante</th>
-                <th>Carrera</th>
-                <th>DNI</th>
-                <th>Estado</th>
-                <th className="text-right">Acciones</th>
+      {/* Contenedor Principal de la Tabla Rediseñada */}
+      <div className="rounded-2xl border-2 border-slate-200/90 bg-white shadow-xl shadow-slate-200/50 overflow-hidden lg:flex-1 lg:min-h-0 lg:flex lg:flex-col relative z-0">
+        
+        {/* Barra de cabecera de la tabla */}
+        <div className="px-5 py-3.5 bg-gradient-to-r from-slate-50 via-white to-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="font-black text-slate-900 tracking-tight text-sm flex items-center gap-2">
+              <Users size={16} className="text-primary" />
+              Padrón de Estudiantes
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-black text-xs border border-primary/20">
+              {totalStudents} {totalStudents === 1 ? 'registrado' : 'registrados'}
+            </span>
+            {currentPrograma !== 'ALL' && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 truncate max-w-[260px]">
+                <GraduationCap size={13} className="text-primary shrink-0" />
+                <span className="truncate">{getProgramaLabel(currentPrograma)}</span>
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+            <span className="hidden sm:inline text-slate-500 font-semibold">Mostrar:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-white border-2 border-slate-200 hover:border-slate-300 rounded-xl px-2.5 py-1 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer transition-colors shadow-xs"
+            >
+              <option value={15}>15 por pág.</option>
+              <option value={25}>25 por pág.</option>
+              <option value={50}>50 por pág.</option>
+              <option value={100}>100 por pág.</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Tabla con scroll independiente y cabecera fija */}
+        <div className="overflow-x-auto overflow-y-auto custom-scrollbar max-h-[65vh] lg:max-h-none lg:flex-1 lg:min-h-0">
+          <table className="w-full text-left border-collapse">
+            <thead className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-md border-b-2 border-slate-200 shadow-xs">
+              <tr className="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                <th className="py-3.5 px-5">Estudiante / Identidad</th>
+                <th className="py-3.5 px-4">Carrera / Programa</th>
+                <th className="py-3.5 px-4">DNI / Contacto</th>
+                <th className="py-3.5 px-4 text-center">Estado Académico</th>
+                <th className="py-3.5 px-4 text-center">Expediente / Pago</th>
+                <th className="py-3.5 px-5 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {students.length === 0 ? (
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {loading ? (
                 <tr>
-                  <td colSpan="5" className="py-16 text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-soft text-primary flex items-center justify-center">
-                      <Users size={30} />
+                  <td colSpan="6" className="py-24 text-center">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      <p className="font-extrabold text-slate-700 text-sm">Cargando nómina de estudiantes...</p>
                     </div>
-                    <p className="text-slate-500 font-medium">
-                      {loadError
-                        ? 'Datos no disponibles'
-                        : 'No se encontraron estudiantes registrados'}
+                  </td>
+                </tr>
+              ) : paginatedStudents.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="py-20 text-center">
+                    <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-primary-soft text-primary flex items-center justify-center shadow-inner">
+                      <Users size={32} />
+                    </div>
+                    <p className="text-slate-900 font-black text-base">
+                      {loadError ? 'Datos no disponibles' : 'No se encontraron estudiantes'}
+                    </p>
+                    <p className="text-slate-500 text-xs mt-1 max-w-md mx-auto">
+                      {loadError || 'No hay estudiantes que coincidan con los criterios de búsqueda o el programa seleccionado.'}
                     </p>
                   </td>
                 </tr>
               ) : (
-                students.map(s => (
-                  <tr key={s.id} className="hover:bg-primary/5 transition-colors group">
-                    <td className="py-4 px-6">
-                      <div className="flex items-center">
-                        <ProtectedImage
-                          src={s.foto_url}
-                          alt={`${s.nombres} ${s.apellidos}`}
-                          className="w-9 h-9 rounded-full border border-primary/20 mr-3 flex-shrink-0 overflow-hidden bg-white"
-                          lazy
-                          fallback={
-                            <div className="w-full h-full rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                              {s.nombres[0]}{s.apellidos[0]}
+                paginatedStudents.map(s => {
+                  const initials = `${(s.nombres || '')[0] || ''}${(s.apellidos || '')[0] || ''}`.toUpperCase();
+                  const isPostulante = s.estado_academico === 'postulante';
+                  const isMatriculado = s.estado_academico === 'matriculado' || s.estado_academico === 'ingresante';
+
+                  return (
+                    <tr
+                      key={s.id}
+                      onClick={() => setSelectedStudent(s)}
+                      className="hover:bg-primary/[0.04] transition-colors group cursor-pointer border-b border-slate-100 last:border-none"
+                    >
+                      {/* Columna Estudiante */}
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center gap-3.5 min-w-[240px]">
+                          <ProtectedImage
+                            src={s.foto_url}
+                            alt={`${s.nombres} ${s.apellidos}`}
+                            className="w-11 h-11 rounded-xl object-cover border-2 border-slate-200/90 shadow-xs shrink-0 bg-white group-hover:border-primary/50 group-hover:shadow transition-all"
+                            lazy
+                            fallback={
+                              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-primary-dark text-white flex items-center justify-center font-black text-xs shadow-xs shrink-0">
+                                {initials || 'ST'}
+                              </div>
+                            }
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-extrabold text-slate-950 text-sm leading-snug group-hover:text-primary transition-colors truncate">
+                              {s.nombres} {s.apellidos}
+                            </p>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span className="font-mono text-[10px] font-black px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200 leading-none">
+                                {s.codigo_estudiante || 'Sin código'}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-500 truncate max-w-[170px]" title={s.email_personal || s.email_institucional || 'Sin correo'}>
+                                {s.email_personal || s.email_institucional || 'Sin correo'}
+                              </span>
                             </div>
-                          }
-                        />
-                        <div>
-                          <p className="font-bold text-slate-text text-sm">{s.nombres} {s.apellidos}</p>
-                          <p className="text-xs text-slate-500">{s.email_personal || s.email_institucional || 'Sin correo'}</p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span
-                        className="inline-block max-w-[220px] truncate align-middle rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-sm font-semibold text-primary-dark"
-                        title={s.programa_id ? getProgramaLabel(s.programa_id) : 'Sin carrera'}
-                      >
-                        {s.programa_id ? getProgramaLabel(s.programa_id) : 'Sin carrera'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-sm text-slate-600">{s.dni}</span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className={`badge ${s.estado_academico === 'postulante' ? 'badge-amber' : 'badge-green'}`}>
-                        {s.estado_academico}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-right">
-                      <div className="flex justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => setEditingStudent(s)}
-                          className="text-amber-600 hover:text-amber-800 text-sm font-semibold flex items-center gap-1"
-                          title="Corregir Errores de Tipeo"
+                      </td>
+
+                      {/* Columna Carrera */}
+                      <td className="py-3.5 px-4">
+                        <span
+                          className="inline-flex items-center gap-1.5 max-w-[240px] truncate rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-extrabold text-primary-dark shadow-xs"
+                          title={s.programa_id ? getProgramaLabel(s.programa_id) : 'Sin carrera'}
                         >
-                          <Pencil size={14} /> Editar
-                        </button>
-                        <button
-                          onClick={() => setSelectedStudent(s)}
-                          className="text-primary hover:text-primary-dark text-sm font-semibold flex items-center gap-1"
-                        >
-                          Ver Detalle <ChevronRight size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          <GraduationCap size={13} className="shrink-0 text-primary" />
+                          <span className="truncate">
+                            {s.programa_id ? getProgramaLabel(s.programa_id) : 'Sin carrera'}
+                          </span>
+                        </span>
+                      </td>
+
+                      {/* Columna DNI y Contacto */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className="font-mono text-xs font-extrabold text-slate-900 bg-slate-100/90 px-2.5 py-1 rounded-md border border-slate-200 shadow-xs inline-block">
+                          DNI {s.dni}
+                        </span>
+                        {s.celular && (
+                          <span className="block text-[11px] font-bold text-slate-500 mt-1 pl-0.5">
+                            {s.celular}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Columna Estado Académico */}
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wide border shadow-xs ${
+                          isPostulante
+                            ? 'bg-amber-50 text-amber-900 border-amber-300'
+                            : isMatriculado
+                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                            : 'bg-slate-100 text-slate-900 border-slate-300'
+                        }`}>
+                          <span className={`w-2 h-2 rounded-full ${
+                            isPostulante ? 'bg-amber-500 animate-pulse' : isMatriculado ? 'bg-emerald-500' : 'bg-slate-500'
+                          }`} />
+                          {s.estado_academico || 'postulante'}
+                        </span>
+                      </td>
+
+                      {/* Columna Expediente / Trámites */}
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <div className="inline-flex flex-col items-center gap-1">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border shadow-xs ${
+                            s.pago_matricula
+                              ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}>
+                            <CreditCard size={11} className={s.pago_matricula ? 'text-emerald-700' : 'text-slate-400'} />
+                            {s.pago_matricula ? 'Pago OK' : 'Pendiente'}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border shadow-xs ${
+                            s.documentos_completos
+                              ? 'bg-blue-50 text-blue-900 border-blue-200'
+                              : 'bg-rose-50 text-rose-900 border-rose-200'
+                          }`}>
+                            <FileCheck2 size={11} className={s.documentos_completos ? 'text-blue-700' : 'text-rose-600'} />
+                            {s.documentos_completos ? 'Exp. Completo' : 'Exp. Incompleto'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Columna Acciones */}
+                      <td className="py-3.5 px-5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStudent(s)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold text-primary bg-primary/10 hover:bg-primary hover:text-white transition-all shadow-xs"
+                            title="Ver Ficha Institucional y Expediente"
+                          >
+                            <Eye size={14} />
+                            <span>Ver Ficha</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingStudent(s)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold text-amber-900 bg-amber-100/80 hover:bg-amber-200/90 border border-amber-300 transition-all shadow-xs"
+                            title="Corregir Datos del Estudiante"
+                          >
+                            <Pencil size={13} />
+                            <span>Editar</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Barra de Paginación Integrada */}
+        {totalStudents > 0 && (
+          <div className="px-5 py-3.5 bg-slate-50/90 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shrink-0">
+            <span className="font-semibold text-slate-600 text-center sm:text-left">
+              Mostrando <strong className="text-slate-950 font-black">{startIndex + 1}</strong> a <strong className="text-slate-950 font-black">{endIndex}</strong> de <strong className="text-slate-950 font-black">{totalStudents}</strong> estudiantes
+            </span>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={safeCurrentPage <= 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white font-extrabold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors flex items-center gap-1"
+              >
+                <ChevronLeft size={14} /> Anterior
+              </button>
+
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-slate-200 shadow-xs">
+                <span className="font-black text-slate-900">Pág. {safeCurrentPage}</span>
+                <span className="text-slate-400">/</span>
+                <span className="font-bold text-slate-600">{totalPages}</span>
+              </div>
+
+              <button
+                type="button"
+                disabled={safeCurrentPage >= totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white font-extrabold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors flex items-center gap-1"
+              >
+                Siguiente <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modern Multi-Step Wizard Modal */}
