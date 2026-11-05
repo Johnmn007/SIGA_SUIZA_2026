@@ -486,6 +486,12 @@ export function AcademicDashboard() {
 
       const formData = new FormData();
       formData.append('file', importFile);
+      if (previewData.codigo) {
+        formData.append('codigo', previewData.codigo);
+      }
+      if (previewData.nombre) {
+        formData.append('nombre', previewData.nombre);
+      }
       const token = localStorage.getItem('token');
       const response = await fetch(`${apiClient.baseURL}/api/mod-planes-estudio/planes/importar-minedu`, {
         method: 'POST',
@@ -1664,25 +1670,55 @@ export function AcademicDashboard() {
 
               {previewData && (
                 <div className="space-y-4 animate-fade-in">
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex justify-between items-center">
-                    <div>
-                      <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase tracking-wider mb-1">
-                        <CheckCircle2 size={11} /> Plan Validado
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase tracking-wider">
+                        <CheckCircle2 size={11} /> Plan Validado MINEDU
                       </div>
-                      <h4 className="font-bold text-base text-slate-900">{previewData.nombre}</h4>
-                      <p className="text-slate-500 text-xs mt-0.5">Código: <span className="font-mono font-semibold text-slate-700">{previewData.codigo}</span></p>
-                    </div>
-                    <div className="flex gap-4 text-right">
-                      <div>
-                        <div className="text-xl font-black text-slate-900">{previewData.creditos_totales}</div>
-                        <div className="text-[10px] font-semibold text-slate-400 uppercase">Créditos</div>
-                      </div>
-                      <div className="w-px bg-slate-200"></div>
-                      <div>
-                        <div className="text-xl font-black text-slate-900">{previewData.horas_totales}</div>
-                        <div className="text-[10px] font-semibold text-slate-400 uppercase">Horas</div>
+                      <div className="flex gap-4 text-right">
+                        <div>
+                          <span className="text-base font-black text-slate-900">{previewData.creditos_totales}</span>
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase ml-1">CR</span>
+                        </div>
+                        <div className="w-px bg-slate-200"></div>
+                        <div>
+                          <span className="text-base font-black text-slate-900">{previewData.horas_totales}</span>
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase ml-1">HRS</span>
+                        </div>
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                      <div className="md:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Denominación de la Carrera / Programa:
+                        </label>
+                        <input
+                          type="text"
+                          value={previewData.nombre || ''}
+                          onChange={(e) => setPreviewData({ ...previewData, nombre: e.target.value })}
+                          className="w-full text-xs font-semibold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                          placeholder="Nombre del programa de estudios"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Código Carrera (CNOF):
+                        </label>
+                        <input
+                          type="text"
+                          value={previewData.codigo || ''}
+                          onChange={(e) => setPreviewData({ ...previewData, codigo: e.target.value })}
+                          className="w-full text-xs font-mono font-semibold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                          placeholder="Ej: J2662-3-001"
+                        />
+                      </div>
+                    </div>
+                    {previewData.codigo_modular && (
+                      <p className="text-[10px] text-slate-400">
+                        Código Modular Institucional: <span className="font-mono font-medium text-slate-600">{previewData.codigo_modular}</span> (se conserva como referencia y no colisiona entre carreras)
+                      </p>
+                    )}
                   </div>
 
                   <div>
