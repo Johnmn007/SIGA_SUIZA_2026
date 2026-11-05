@@ -1,0 +1,26 @@
+TABLA: estudiantes
+(siga_backend/modules/mod-gestion-academica/models.py)
+
+id: Identificador interno único del registro (usado por FKs de matrícula, historial, etc.).
+created_at: Fecha/hora de creación del registro (auditoría).
+updated_at: Fecha/hora de la última modificación (auditoría).
+codigo_estudiante: Código institucional del alumno (2026-000123), clave visible para trámites y matrícula.
+dni: Documento de identidad; identifica a la persona y evita duplicados.
+nombres: Nombres del estudiante.
+apellidos: Apellidos; base del ordenamiento del maestro.
+fecha_nacimiento: Edad y validación de requisitos; usada en reportes MINEDU.
+programa_id: Carrera/programa al que pertenece; filtro principal del maestro.
+email_institucional: Correo institucional para credenciales y notificaciones.
+email_personal: Contacto alternativo del alumno.
+celular: Contacto telefónico.
+direccion_domicilio: Domicilio declarado del estudiante.
+estado_academico: Situación actual: postulante, matriculado, egresado, etc.
+foto_url: Foto del alumno (data-URL base64), mostrada en listados y revisión.
+observaciones: Notas libres sobre el estudiante.
+pago_matricula: Indica si pagó la matrícula.
+documentos_completos: Marca si el expediente documental está completo.
+fecha_limite_documentos: Fecha límite para regularizar documentos pendientes.
+modalidad_admision: Vía de ingreso (ORDINARIO, EXTRANJERIA, etc.).
+metadata_admision: Datos extra del Excel de admisión (sexo, colegio, apoderado, alertas...).
+plan_estudios_id: Plan de estudios de origen (alumnos históricos/traslados).
+ciclo_actual: Ciclo en el que está el alumno; guía matrícula y carga de cursos.
