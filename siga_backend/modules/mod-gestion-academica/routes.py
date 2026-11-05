@@ -173,8 +173,12 @@ async def crear_estudiante(request: Request, data: EstudianteCreate, db: AsyncSe
     existing = await db.execute(select(Estudiante).where(
         or_(Estudiante.dni == data.dni, Estudiante.codigo_estudiante == data.codigo_estudiante)
     ))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="DNI o Codigo ya existen")
+    existing_student = existing.scalar_one_or_none()
+    if existing_student:
+        if existing_student.dni == data.dni:
+            raise HTTPException(status_code=400, detail="El DNI ya se encuentra registrado en el sistema.")
+        else:
+            raise HTTPException(status_code=400, detail="El código de estudiante ya existe. Genere uno nuevo.")
 
     db_estudiante = Estudiante(**data.model_dump())
     db.add(db_estudiante)
@@ -205,22 +209,48 @@ async def obtener_estudiantes(programa_id: Optional[int] = None, db: AsyncSessio
         result = await db.execute(query)
         rows = result.scalars().all()
         print(f"[DEBUG] Estudiantes encontrados: {len(rows)}")
-        return [{
-            "id": r.id,
-            "codigo_estudiante": r.codigo_estudiante,
-            "dni": r.dni,
-            "nombres": r.nombres,
-            "apellidos": r.apellidos,
-            "estado_academico": r.estado_academico,
-            "programa_id": r.programa_id,
-            "pago_matricula": bool(r.pago_matricula),
-            "modalidad_admision": r.modalidad_admision,
-            "metadata_admision": r.metadata_admision or {},
-        } for r in rows]
+        return [
+            {
+                "id": r.id,
+                "codigo_estudiante": r.codigo_estudiante,
+                "dni": r.dni,
+                "nombres": r.nombres,
+                "apellidos": r.apellidos,
+                "estado_academico": r.estado_academico,
+                "programa_id": r.programa_id,
+                "foto_url": r.foto_url,
+                "email_personal": r.email_personal,
+                "email_institucional": r.email_institucional,
+                "celular": r.celular,
+                "direccion_domicilio": r.direccion_domicilio,
+                "fecha_nacimiento": r.fecha_nacimiento.isoformat() if r.fecha_nacimiento else None,
+                "pago_matricula": r.pago_matricula,
+                "documentos_completos": r.documentos_completos,
+                "fecha_limite_documentos": r.fecha_limite_documentos.isoformat() if r.fecha_limite_documentos else None,
+                "modalidad_admision": r.modalidad_admision,
+                "metadata_admision": r.metadata_admision or {},
+            }
+            for r in rows
+        ]
     except Exception as e:
         tb = traceback.format_exc()
         print(f"[ERROR] obtener_estudiantes: {e}\n{tb}")
         return {"error": str(e), "type": type(e).__name__, "traceback": tb}
+
+@router.get("/estudiantes/siguiente-codigo")
+async def obtener_siguiente_codigo(db: AsyncSession = Depends(get_db)):
+    """Devuelve el siguiente código de estudiante único del año actual (formato AAAA-000000)."""
+    year = datetime.now().year
+    prefix = f"{year}-"
+    result = await db.execute(
+        select(Estudiante.codigo_estudiante).where(Estudiante.codigo_estudiante.like(f"{prefix}%"))
+    )
+    max_seq = 0
+    for codigo in result.scalars().all():
+        suffix = str(codigo)[len(prefix):]
+        if suffix.isdigit():
+            max_seq = max(max_seq, int(suffix))
+    return {"codigo_estudiante": f"{prefix}{max_seq + 1:06d}"}
 
 @router.put("/estudiantes/{estudiante_id}/pago_matricula", response_model=EstudianteResponse)
 async def actualizar_pago_matricula(estudiante_id: int, request: Request, pagado: bool = True, db: AsyncSession = Depends(get_db)):

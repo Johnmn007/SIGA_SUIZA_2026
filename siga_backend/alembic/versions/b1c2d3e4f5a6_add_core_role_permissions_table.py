@@ -16,9 +16,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # La tabla ya existe si proviene del dump de Railway
-    pass
+    conn = op.get_bind()
+    conn.execute(sa.text("""
+        CREATE TABLE IF NOT EXISTS core_role_permissions (
+            role_id INTEGER NOT NULL REFERENCES core_roles(id) ON DELETE CASCADE,
+            permission_id INTEGER NOT NULL REFERENCES core_permissions(id) ON DELETE CASCADE,
+            PRIMARY KEY (role_id, permission_id)
+        );
+    """))
 
 
 def downgrade() -> None:
-    pass
+    op.drop_table('core_role_permissions')
