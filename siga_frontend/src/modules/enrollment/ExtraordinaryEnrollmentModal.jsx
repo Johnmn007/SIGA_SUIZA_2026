@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { apiClient, API_BASE } from '../../core/api/client';
+import { usePrograms } from '../../core/api/usePrograms';
 
 export default function ExtraordinaryEnrollmentModal({ isOpen, onClose, onSuccess, currentPrograma, userRole }) {
+  const programas = usePrograms();
   const [formData, setFormData] = useState({
     dni: '',
     nombres: '',
     apellidos: '',
     codigo_estudiante: '',
-    programa_id: currentPrograma === 'ALL' ? '1' : currentPrograma
+    programa_id: currentPrograma === 'ALL' ? '' : currentPrograma
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -151,12 +153,10 @@ export default function ExtraordinaryEnrollmentModal({ isOpen, onClose, onSucces
                 value={formData.programa_id}
                 onChange={e => setFormData({...formData, programa_id: e.target.value})}
               >
-                <option value="1">Arquitectura de Plataformas y Servicios T.I.</option>
-                <option value="2">Enfermería Técnica</option>
-                <option value="3">Diseño Gráfico</option>
-                <option value="4">Administración</option>
-                <option value="5">Contabilidad</option>
-                <option value="6">Mecatrónica</option>
+                <option value="" disabled>Selecciona el programa</option>
+                {programas.map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
               </select>
             </div>
           )}

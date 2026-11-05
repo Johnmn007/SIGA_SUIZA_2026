@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../core/auth/useAuth';
 import { API_BASE } from '../../core/api/client';
+import { usePrograms } from '../../core/api/usePrograms';
 import techBg from '../../assets/tech-bg.jpg';
 import { EditStudentModal } from './EditStudentModal';
 import { StudentDetail } from './StudentDetail';
@@ -46,22 +47,14 @@ const WIZARD_STEPS = [
   { id: 5, label: 'Revisión', icon: CheckCircle2 },
 ];
 
-const PROGRAMAS = [
-  { id: 'ALL', label: 'Todos los Programas' },
-  { id: '1', label: 'Administración de Operaciones Turísticas' },
-  { id: '2', label: 'Asistencia Administrativa' },
-  { id: '3', label: 'Contabilidad' },
-  { id: '4', label: 'Construcción Civil' },
-  { id: '5', label: 'Gestión Administrativa' },
-  { id: '6', label: 'Desarrollo de Sistemas de Información' },
-  { id: '7', label: 'Electricidad Industrial' },
-  { id: '8', label: 'Enfermería Técnica' },
-  { id: '9', label: 'Manejo Forestal' },
-  { id: '10', label: 'Mecatrónica Automotriz' },
-  { id: '11', label: 'Producción Agropecuaria' },
-];
+/** "Todos" + las carreras registradas en Gestión Académica. */
+function useProgramaOptions() {
+  const programas = usePrograms();
+  return [{ id: 'ALL', label: 'Todos los Programas' }, ...programas.map(p => ({ id: String(p.id), label: p.nombre }))];
+}
 
 function ProgramaFilter({ value, onChange }) {
+  const PROGRAMAS = useProgramaOptions();
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
   const selected = PROGRAMAS.find(p => p.id === value) || PROGRAMAS[0];
@@ -143,6 +136,7 @@ function ProgramaFilter({ value, onChange }) {
 
 export function StudentMaster() {
   const { user } = useAuth();
+  const PROGRAMAS = useProgramaOptions();
   const userRoles = user?.roles ? user.roles.map(r => typeof r === 'string' ? r : r.nombre || r.name) : [];
   const primaryRole = user?.is_superuser ? 'superadmin' : (userRoles.length > 0 ? userRoles[0] : (user?.role || 'invitado'));
   const userRole = primaryRole;
