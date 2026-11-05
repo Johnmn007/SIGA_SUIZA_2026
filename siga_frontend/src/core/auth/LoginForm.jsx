@@ -144,8 +144,8 @@ export function LoginForm() {
                 </>
               ) : (
                 <>
-                  Ingresar al Sistema
-                  <ArrowRight size={18} />
+                <div className='flex items-center gap-2 justify-center'><ArrowRight size={18}  />  Ingresar al Sistema</div>
+                  
                 </>
               )}
             </button>

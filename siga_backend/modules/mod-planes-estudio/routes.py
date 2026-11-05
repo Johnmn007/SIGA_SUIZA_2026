@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, Request, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, status, Request, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
@@ -181,7 +181,13 @@ async def preview_plan_minedu(file: UploadFile = File(...)):
     }
 
 @router.post("/planes/importar-minedu")
-async def importar_plan_minedu(request: Request, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+async def importar_plan_minedu(
+    request: Request, 
+    file: UploadFile = File(...), 
+    codigo: Optional[str] = Form(None),
+    nombre: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db)
+):
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="Formato de archivo inválido. Debe ser Excel (.xlsx o .xls)")
         
@@ -191,13 +197,20 @@ async def importar_plan_minedu(request: Request, file: UploadFile = File(...), d
     if not success:
         raise HTTPException(status_code=400, detail=message)
         
+    # Si se especificó código o nombre explícito desde el frontend (edición previa), sobreescribir:
+    if codigo and codigo.strip():
+        data["codigo"] = codigo.strip()
+    if nombre and nombre.strip():
+        data["nombre"] = nombre.strip()
+
     # Verificar si el código ya existe
     result = await db.execute(select(PlanEstudio).where(PlanEstudio.codigo == data["codigo"]))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail=f"Ya existe un plan con el código {data['codigo']}")
         
-    # Crear el plan
-    plan_data = {k: v for k, v in data.items() if k != "modulos"}
+    # Crear el plan (solo campos válidos del modelo)
+    valid_plan_fields = {"codigo", "nombre", "descripcion", "nivel_formativo", "creditos_totales", "horas_totales", "fecha_aprobacion", "resolucion_aprobacion", "estado"}
+    plan_data = {k: v for k, v in data.items() if k in valid_plan_fields}
     db_plan = PlanEstudio(**plan_data)
     db.add(db_plan)
     await db.flush()

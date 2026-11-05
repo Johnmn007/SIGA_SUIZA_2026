@@ -12,15 +12,18 @@ class ExcelMineduParser:
     """
 
     @staticmethod
-    def _find_anchor_value(df: pd.DataFrame, anchor_keywords: List[str]) -> Optional[Any]:
+    def _find_anchor_value(df: pd.DataFrame, anchor_keywords: List[str], exclude_keywords: Optional[List[str]] = None) -> Optional[Any]:
         """
         Busca un 'ancla' (keyword) en todo el DataFrame y retorna el valor de la celda adyacente (a su derecha o abajo).
+        Permite excluir celdas que contengan términos no deseados (ej. 'modular', 'instituto').
         """
         for i, row in df.iterrows():
             for j, val in enumerate(row.values):
                 if pd.notna(val) and isinstance(val, str):
                     val_lower = val.lower().strip()
-                    if any(kw in val_lower for kw in anchor_keywords):
+                    if exclude_keywords and any(ex.lower() in val_lower for ex in exclude_keywords):
+                        continue
+                    if any(kw.lower() in val_lower for kw in anchor_keywords):
                         # Encontramos el ancla. Buscar a la derecha.
                         for k in range(j + 1, len(row.values)):
                             if pd.notna(row.values[k]) and str(row.values[k]).strip() != "":
@@ -37,7 +40,9 @@ class ExcelMineduParser:
         for i, row in df.iterrows():
             found_cols = {}
             for j, val in enumerate(row.values):
-                if pd.notna(val) and isinstance(val, str):
+                # Los encabezados son textos cortos; un párrafo (ej. "Unidad de competencia N.° 1: ... horas")
+                # no debe confundirse con la fila de títulos de la tabla.
+                if pd.notna(val) and isinstance(val, str) and len(val.strip()) <= 60:
                     val_lower = val.lower().strip()
                     for kw in required_keywords:
                         if kw in val_lower:
@@ -59,6 +64,7 @@ class ExcelMineduParser:
             
             plan_data = {
                 "codigo": "",
+                "codigo_modular": "",
                 "nombre": "",
                 "descripcion": "Importado desde archivo MINEDU",
                 "nivel_formativo": "Técnico Profesional",
@@ -71,15 +77,47 @@ class ExcelMineduParser:
             general_sheet = next((n for n in sheet_names if any(k in n.lower() for k in ["programa", "dato", "general"])), None)
             if general_sheet:
                 df_gen = pd.read_excel(excel_file, sheet_name=general_sheet)
-                codigo = ExcelMineduParser._find_anchor_value(df_gen, ["código", "codigo"])
-                if codigo: plan_data["codigo"] = str(codigo).strip()
-                nombre = ExcelMineduParser._find_anchor_value(df_gen, ["denominación del programa", "programa de estudio", "carrera"])
-                if nombre: plan_data["nombre"] = str(nombre).strip()
-                horas = ExcelMineduParser._find_anchor_value(df_gen, ["horas"])
+                
+                # 1. Extraer código único de la carrera / programa CNOF (excluyendo modular/instituto)
+                codigo_carrera = ExcelMineduParser._find_anchor_value(
+                    df_gen,
+                    ["código *", "codigo *", "código del programa", "codigo del programa", "código de la carrera", "codigo de la carrera", "código programa", "codigo programa", "código cnof", "codigo cnof"],
+                    exclude_keywords=["modular", "instituto", "institución", "institucion"]
+                )
+                if not codigo_carrera:
+                    codigo_carrera = ExcelMineduParser._find_anchor_value(
+                        df_gen,
+                        ["código", "codigo"],
+                        exclude_keywords=["modular", "instituto", "institución", "institucion"]
+                    )
+                if codigo_carrera:
+                    plan_data["codigo"] = str(codigo_carrera).strip()
+                
+                # 2. Extraer código modular del instituto (informativo)
+                cod_mod = ExcelMineduParser._find_anchor_value(df_gen, ["código modular", "codigo modular"])
+                if cod_mod:
+                    plan_data["codigo_modular"] = str(cod_mod).strip()
+
+                # 3. Denominación de la carrera
+                nombre = ExcelMineduParser._find_anchor_value(
+                    df_gen, 
+                    ["denominación del programa", "denominacion del programa", "programa de estudio", "carrera"],
+                    exclude_keywords=["institución", "institucion"]
+                )
+                if nombre:
+                    plan_data["nombre"] = str(nombre).strip()
+                
+                # 4. Nivel formativo
+                nivel = ExcelMineduParser._find_anchor_value(df_gen, ["nivel formativo", "nivel"])
+                if nivel:
+                    plan_data["nivel_formativo"] = str(nivel).strip()
+
+                # 5. Horas y Créditos
+                horas = ExcelMineduParser._find_anchor_value(df_gen, ["n°. horas", "no. horas", "n° horas", "horas"])
                 if horas: 
                     try: plan_data["horas_totales"] = int(float(str(horas).strip()))
                     except: pass
-                creditos = ExcelMineduParser._find_anchor_value(df_gen, ["crédito", "credito"])
+                creditos = ExcelMineduParser._find_anchor_value(df_gen, ["n° créditos", "no créditos", "n° creditos", "crédito", "credito"])
                 if creditos:
                     try: plan_data["creditos_totales"] = int(float(str(creditos).strip()))
                     except: pass
@@ -186,8 +224,8 @@ class ExcelMineduParser:
                 
                 orden_modulo_idx += 1
             
-            # --- ESTANDARIZACIÓN EFSRT ---
-            # Inyectar EFSRT I al VI (1 por cada ciclo), de 2 créditos cada uno.
+            # --- ESTANDARIZACION EFSRT ---
+            # Inyectar EFSRT I al VI (1 por cada ciclo), de 2 creditos cada uno.
             roman_numerals = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V", 6: "VI"}
             for p in range(1, 7):
                 if p not in modulos_procesados_dict:

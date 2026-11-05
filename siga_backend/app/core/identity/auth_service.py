@@ -1,6 +1,7 @@
 from datetime import timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from .repositories.user_repository import UserRepository
 from .tokens import token_service
@@ -58,6 +59,14 @@ class AuthService:
         # Obtener permisos del usuario
         permissions = await self.user_repo.get_user_permissions(user.id)
         
+        # Obtener programa_id si tiene perfil personal
+        res_prog = await self.user_repo.db.execute(
+            text("SELECT programa_estudio_id FROM perfiles_personal WHERE user_id = :uid LIMIT 1"),
+            {"uid": user.id}
+        )
+        row_prog = res_prog.fetchone()
+        programa_id = row_prog[0] if row_prog and row_prog[0] else None
+
         # Obtener rol primario
         primary_role = user.roles[0].name if user.roles else "estudiante"
         role_list = [r.name for r in user.roles] if user.roles else ["estudiante"]
@@ -79,7 +88,8 @@ class AuthService:
                 "full_name": user.full_name,
                 "role": primary_role,
                 "roles": role_list,
-                "permissions": permissions
+                "permissions": permissions,
+                "programa_id": programa_id
             }
         }
     
@@ -107,6 +117,14 @@ class AuthService:
         
         permissions = await self.user_repo.get_user_permissions(user.id)
         
+        # Obtener programa_id si tiene perfil personal
+        res_prog = await self.user_repo.db.execute(
+            text("SELECT programa_estudio_id FROM perfiles_personal WHERE user_id = :uid LIMIT 1"),
+            {"uid": user.id}
+        )
+        row_prog = res_prog.fetchone()
+        programa_id = row_prog[0] if row_prog and row_prog[0] else None
+        
         primary_role = user.roles[0].name if user.roles else "estudiante"
         role_list = [r.name for r in user.roles] if user.roles else ["estudiante"]
         
@@ -117,7 +135,8 @@ class AuthService:
             "role": primary_role,
             "roles": role_list,
             "permissions": permissions,
-            "is_superuser": user.is_superuser
+            "is_superuser": user.is_superuser,
+            "programa_id": programa_id
         }
 
     async def change_password(self, user_id: int, old_password: str, new_password: str) -> Dict[str, Any]:

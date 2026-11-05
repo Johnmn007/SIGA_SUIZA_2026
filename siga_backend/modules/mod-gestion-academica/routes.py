@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, text
 from sqlalchemy.orm import selectinload
 from database import get_db, OutboxEvent
 from models import Estudiante, Matricula, MatriculaDetalle
@@ -732,6 +732,75 @@ async def obtener_estudiantes_por_unidad(unidad_id: int, periodo_id: int, db: As
         response.append(est_dict)
         
     return response
+
+@router.post("/matriculas/unidad/{unidad_id}/periodo/{periodo_id}/sincronizar")
+async def sincronizar_estudiantes_seccion(unidad_id: int, periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Sincroniza y matricula a los estudiantes activos del programa y ciclo que corresponda a esta unidad didáctica
+    para que el docente disponga inmediatamente de la nómina completa en su registro de calificaciones.
+    """
+    query_ud = text("""
+        SELECT u.id, u.creditos, m.programa_id, m.periodo as ciclo
+        FROM programa_unidades u
+        JOIN programa_modulos m ON u.programa_modulo_id = m.id
+        WHERE u.id = :uid
+    """)
+    res_ud = await db.execute(query_ud, {"uid": unidad_id})
+    row_ud = res_ud.fetchone()
+    
+    prog_id = row_ud[2] if row_ud else None
+    creds = row_ud[1] if row_ud and row_ud[1] else 2
+    ciclo = row_ud[3] if row_ud and row_ud[3] else 1
+    
+    # Buscar estudiantes que pertenezcan estrictamente al programa Y al ciclo de la unidad
+    if prog_id:
+        res_est = await db.execute(
+            select(Estudiante)
+            .where(Estudiante.programa_id == prog_id)
+            .where(Estudiante.ciclo_actual == ciclo)
+        )
+        estudiantes = res_est.scalars().all()
+    else:
+        estudiantes = []
+        
+    if not estudiantes:
+        return []
+        
+    for est in estudiantes:
+        res_mat = await db.execute(
+            select(Matricula).where(Matricula.estudiante_id == est.id).where(Matricula.periodo_id == periodo_id)
+        )
+        db_mat = res_mat.scalar_one_or_none()
+        if not db_mat:
+            db_mat = Matricula(
+                estudiante_id=est.id,
+                programa_id=prog_id or est.programa_id or 1,
+                periodo_id=periodo_id,
+                estado_matricula="confirmada",
+                ciclo=ciclo,
+                tipo_ingreso="regular",
+                casuistica="regular"
+            )
+            db.add(db_mat)
+            await db.flush()
+            
+        res_det = await db.execute(
+            select(MatriculaDetalle)
+            .where(MatriculaDetalle.matricula_id == db_mat.id)
+            .where(MatriculaDetalle.unidad_didactica_id == unidad_id)
+        )
+        db_det = res_det.scalar_one_or_none()
+        if not db_det:
+            db_det = MatriculaDetalle(
+                matricula_id=db_mat.id,
+                unidad_didactica_id=unidad_id,
+                estado_curso="cursando",
+                creditos=creds
+            )
+            db.add(db_det)
+            
+    await db.commit()
+    return await obtener_estudiantes_por_unidad(unidad_id, periodo_id, db)
 
 @router.delete("/matriculas/{matricula_id}")
 async def anular_matricula(matricula_id: int, request: Request, db: AsyncSession = Depends(get_db)):
