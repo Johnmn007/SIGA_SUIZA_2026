@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import json
 import os
+import unicodedata
 import uvicorn
 from contextlib import asynccontextmanager
 from io import BytesIO
@@ -11,7 +12,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 
 from database import engine, Base, get_db
 from models import PostulanteAdmitido
@@ -219,28 +220,22 @@ async def get_admitidos(db: AsyncSession = Depends(get_db)):
     # Formateamos para el core
     formatted = []
     
-    # Mapping simplificado para el programa_id temporal (el core deberia mapear, pero para MVP enviamos un fallback id)
-    # Mapeo exacto alineado con los IDs del frontend (1=Arquitectura/Sistemas, 2=Enfermeria, 4=Administracion, 5=Contabilidad, 6=Mecatronica)
-    program_mapping = {
-        "DESARROLLO DE SISTEMAS DE INFORMACIÓN": 1,
-        "ENFERMERÍA TÉCNICA": 2,
-        "GESTIÓN ADMINISTRATIVA": 4,
-        "ASISTENCIA ADMINISTRATIVA": 4,
-        "CONTABILIDAD": 5,
-        "MECATRÓNICA AUTOMOTRIZ": 6,
-        "ELECTRICIDAD INDUSTRIAL": 7,
-        "ADMINISTRACIÓN DE OPERACIONES TURÍSTICAS": 8,
-        "CONSTRUCCIÓN CIVIL": 9,
-        "PRODUCCIÓN AGROPECUARIA": 10,
-        "MANEJO FORESTAL": 11
-    }
-    
+    # programa_id según las carreras registradas en Gestión Académica (programas_estudio), comparando por nombre
+    def normalizar(texto):
+        return unicodedata.normalize("NFD", str(texto or "")).encode("ascii", "ignore").decode().upper().strip()
+
+    filas = (await db.execute(text("SELECT id, nombre FROM programas_estudio"))).all()
+    program_mapping = {normalizar(nombre): id_ for id_, nombre in filas}
+    # Nombre anterior de la carrera en las fichas de admisión
+    if "GESTION ADMINISTRATIVA" in program_mapping:
+        program_mapping.setdefault("ASISTENCIA ADMINISTRATIVA", program_mapping["GESTION ADMINISTRATIVA"])
+
     for r in records:
-        prog_name_upper = r.programa_nombre.upper()
+        prog_name_upper = normalizar(r.programa_nombre)
         # Fallback a 99 (Desconocido) en lugar de 1, para no mezclar con Sistemas
         prog_id = 99
         for k,v in program_mapping.items():
-            if k in prog_name_upper or prog_name_upper in k:
+            if prog_name_upper and (k in prog_name_upper or prog_name_upper in k):
                 prog_id = v
                 break
                 

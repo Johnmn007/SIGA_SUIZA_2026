@@ -1,26 +1,13 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { API_BASE } from '../../core/api/client';
+import { usePrograms } from '../../core/api/usePrograms';
 import { ProtectedImage } from './ProtectedImage';
 import {
   X, Mail, Phone, MapPin, Calendar, BookOpen,
   FileText, CreditCard, Award, BadgeCheck, User, Building2,
   GraduationCap, Clock
 } from 'lucide-react';
-
-const PROGRAMAS = {
-  1: 'Administracion de Operaciones Turisticas',
-  2: 'Asistencia Administrativa',
-  3: 'Contabilidad',
-  4: 'Construccion Civil',
-  5: 'Gestion Administrativa',
-  6: 'Desarrollo de Sistemas de Informacion',
-  7: 'Electricidad Industrial',
-  8: 'Enfermeria Tecnica',
-  9: 'Manejo Forestal',
-  10: 'Mecatronica Automotriz',
-  11: 'Produccion Agropecuaria',
-};
 
 const ESTADO_COLORS = {
   postulante: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -93,6 +80,7 @@ function EmptyState({ icon: Icon, title, description }) {
 }
 
 export function StudentDetail({ student, onClose }) {
+  const PROGRAMAS = Object.fromEntries(usePrograms().map(p => [p.id, p.nombre]));
   const [detail, setDetail] = useState(null);
   const [matriculas, setMatriculas] = useState([]);
   const [beneficios, setBeneficios] = useState([]);

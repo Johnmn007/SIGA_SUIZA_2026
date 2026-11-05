@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { API_BASE } from '../../core/api/client';
+import { usePrograms } from '../../core/api/usePrograms';
 import { Pencil, X, Fingerprint, GraduationCap, Mail, Phone, MapPin, ShieldAlert } from 'lucide-react';
 
 const SectionLabel = ({ label, icon: Icon }) => (
@@ -11,20 +12,6 @@ const SectionLabel = ({ label, icon: Icon }) => (
     <p className="text-xs font-bold uppercase tracking-wider text-primary-dark">{label}</p>
   </div>
 );
-
-const PROGRAMAS_LIST = [
-  { id: 1, label: 'Administración de Operaciones Turísticas' },
-  { id: 2, label: 'Asistencia Administrativa' },
-  { id: 3, label: 'Contabilidad' },
-  { id: 4, label: 'Construcción Civil' },
-  { id: 5, label: 'Gestión Administrativa' },
-  { id: 6, label: 'Desarrollo de Sistemas de Información' },
-  { id: 7, label: 'Electricidad Industrial' },
-  { id: 8, label: 'Enfermería Técnica' },
-  { id: 9, label: 'Manejo Forestal' },
-  { id: 10, label: 'Mecatrónica Automotriz' },
-  { id: 11, label: 'Producción Agropecuaria' },
-];
 
 const Field = ({ label, value, onChange, type = "text", required = false, placeholder = "" }) => (
   <div className="flex flex-col space-y-1">
@@ -41,6 +28,7 @@ const Field = ({ label, value, onChange, type = "text", required = false, placeh
 );
 
 export function EditStudentModal({ student, onClose, onUpdated }) {
+  const programas = usePrograms();
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -220,8 +208,8 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
                     onChange={e => handleChange('programa_id', e.target.value ? parseInt(e.target.value, 10) : null)}
                   >
                     <option value="">-- Sin Programa --</option>
-                    {PROGRAMAS_LIST.map(p => (
-                      <option key={p.id} value={p.id}>{p.id} - {p.label}</option>
+                    {programas.map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
                     ))}
                   </select>
                 </div>
