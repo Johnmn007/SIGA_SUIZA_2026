@@ -450,6 +450,12 @@ const compareStudentsByCarrera = (a, b) => {
   return String(a.nombres ?? '').localeCompare(String(b.nombres ?? ''), 'es', { sensitivity: 'base' });
 };
 
+const normalizeText = (value) =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
 function ProgramaFilter({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
@@ -536,8 +542,10 @@ export function StudentMaster() {
   const primaryRole = user?.is_superuser ? 'superadmin' : (userRoles.length > 0 ? userRoles[0] : (user?.role || 'invitado'));
   const userRole = primaryRole;
   const [students, setStudents] = useState([]);
+  const [allStudents, setAllStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [wizardStep, setWizardStep] = useState(1);
@@ -620,7 +628,7 @@ export function StudentMaster() {
         const fallbackId = user?.email === 'secretaria_prog@siga.edu' ? '2' : '1';
         setCurrentPrograma(user?.programa_id ? String(user.programa_id) : fallbackId);
       } else {
-        handleSearch(searchTerm);
+        loadStudents();
       }
     }
   }, [currentPrograma, userRole]);
@@ -637,9 +645,7 @@ export function StudentMaster() {
     };
   }, [showModal]);
 
-  const handleSearch = async (val = '') => {
-    setSearchTerm(val);
-    setCurrentPage(1);
+  const loadStudents = async () => {
     setLoading(true);
     setLoadError(null);
     try {
@@ -660,9 +666,8 @@ export function StudentMaster() {
           detalle = cuerpo.detail || cuerpo.message || detalle;
         } catch { /* cuerpo no-JSON */ }
         console.error('API Error:', detalle);
-        setStudents([]);
+        setAllStudents([]);
         setLoadError(detalle);
-        setLoading(false);
         return;
       }
 
@@ -670,40 +675,50 @@ export function StudentMaster() {
         const detalle = res.headers.get('X-Fallback-Message')
           || 'El servicio de estudiantes respondio con datos degradados.';
         console.error('Respuesta degradada:', detalle);
-        setStudents([]);
+        setAllStudents([]);
         setLoadError(detalle);
-        setLoading(false);
         return;
       }
 
       const data = await res.json();
       const dataArray = Array.isArray(data) ? data : [];
-      const sorted = [...dataArray].sort(compareStudentsByCarrera);
-
-      const term = String(val || '').trim();
-      if (term.length >= 3) {
-        const lowerTerm = term.toLowerCase();
-        const filtered = sorted.filter(s => {
-          const dni = String(s.dni ?? '');
-          const nombres = String(s.nombres ?? '').toLowerCase();
-          const apellidos = String(s.apellidos ?? '').toLowerCase();
-          const codigo = String(s.codigo_estudiante ?? '');
-          return dni.includes(term)
-            || nombres.includes(lowerTerm)
-            || apellidos.includes(lowerTerm)
-            || codigo.includes(term);
-        });
-        setStudents(filtered);
-      } else {
-        setStudents(sorted);
-      }
+      setAllStudents([...dataArray].sort(compareStudentsByCarrera));
     } catch (e) {
       console.error(e);
-      setStudents([]);
+      setAllStudents([]);
       setLoadError('No se pudo conectar con el servidor. Verifique que el backend este levantado.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
+  const handleSearch = (val = '') => {
+    setSearchTerm(val);
+    if (String(val).trim() === '') setDebouncedSearch('');
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const term = String(debouncedSearch || '').trim();
+    if (term.length < 3) {
+      setStudents(allStudents);
+      setCurrentPage(1);
+      return;
+    }
+    const tokens = normalizeText(term).split(/\s+/).filter(Boolean);
+    const filtered = allStudents.filter((s) => {
+      const haystack = normalizeText(
+        `${s.nombres ?? ''} ${s.apellidos ?? ''} ${s.dni ?? ''} ${s.codigo_estudiante ?? ''}`
+      );
+      return tokens.every((token) => haystack.includes(token));
+    });
+    setStudents(filtered);
+    setCurrentPage(1);
+  }, [debouncedSearch, allStudents]);
 
   const handleFotoChange = (e) => {
     const file = e.target.files?.[0];
@@ -855,6 +870,7 @@ export function StudentMaster() {
         setWizardStep(1);
         setShowMissing(false);
         handleSearch('');
+        loadStudents();
         return;
       }
 
@@ -928,6 +944,7 @@ export function StudentMaster() {
         const result = await resIngesta.json();
         alert(`Sincronización exitosa. ${result.estudiantes_creados} nuevos estudiantes ingresados al Core.`);
         handleSearch('');
+        loadStudents();
       } else {
         const err = await resIngesta.text();
         alert(`Error en la ingesta: ${err}`);
@@ -1349,7 +1366,7 @@ export function StudentMaster() {
             <p className="mt-0.5 text-red-700">{loadError}</p>
           </div>
           <button
-            onClick={() => handleSearch(searchTerm)}
+            onClick={() => loadStudents()}
             className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 font-medium hover:bg-red-100"
           >
             Reintentar
@@ -1753,6 +1770,7 @@ export function StudentMaster() {
           onUpdated={() => {
             setEditingStudent(null);
             handleSearch('');
+            loadStudents();
           }}
         />
       )}
