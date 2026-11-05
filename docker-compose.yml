@@ -1,14 +1,22 @@
 services:
-  # Base de datos: La aplicacion utiliza PostgreSQL local en el host (puerto 5432)
-  # accesible desde los contenedores via host.docker.internal:5432 con usuario postgres y credenciales de .env.
-  # postgres:
-  #   image: postgres:16-alpine
-  #   environment:
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: "admin123"
-  #     POSTGRES_DB: siga_core
-  #   ports:
-  #     - "5433:5432"
+  # Base de datos: PostgreSQL dentro de Docker (autocontenido).
+  # Se publica en el host en 5433 para no chocar con un PostgreSQL local en 5432.
+  # Los contenedores se conectan internamente usando DB_HOST=postgres.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:-siga_core}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-siga_core}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   nats:
     image: nats:2.9-alpine
@@ -44,7 +52,7 @@ services:
     environment:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
@@ -52,6 +60,8 @@ services:
     volumes:
       - ./siga_backend:/app
     depends_on:
+      postgres:
+        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -70,7 +80,7 @@ services:
     environment:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
@@ -78,6 +88,9 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-planes-estudio:
     build: 
@@ -91,7 +104,7 @@ services:
     environment:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
@@ -99,6 +112,9 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-programas-estudio:
     build: 
@@ -112,7 +128,7 @@ services:
     environment:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
@@ -120,6 +136,9 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-gestion-academica:
     build: 
@@ -133,7 +152,7 @@ services:
     environment:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
@@ -141,6 +160,9 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-auditoria:
     build: 
@@ -154,7 +176,7 @@ services:
     environment:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
@@ -162,6 +184,9 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-evaluacion:
     build: 
@@ -175,7 +200,7 @@ services:
     environment:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
@@ -183,6 +208,9 @@ services:
       - SKIP_MIGRATIONS=true
     volumes:
       - ./siga_backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mod-admision:
     build: 
@@ -196,7 +224,7 @@ services:
     environment:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
@@ -205,6 +233,9 @@ services:
     volumes:
       - ./siga_backend:/app
       - ./docs:/app/docs
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # ====== FRONTEND ======
   siga-frontend:
@@ -227,5 +258,5 @@ services:
       - siga-core
 
 volumes:
-  # postgres_data:
+  postgres_data:
   frontend_node_modules:
