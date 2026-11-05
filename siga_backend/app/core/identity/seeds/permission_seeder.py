@@ -93,19 +93,20 @@ class PermissionSeeder(BaseSeeder):
 
     async def should_run(self) -> bool:
         result = await self.db.execute(select(CorePermission))
-        existing = result.scalars().all()
-        return len(existing) == 0
+        existing = {p.name for p in result.scalars().all()}
+        all_permission_names = {
+            perm
+            for perms in self.ROLE_PERMISSIONS.values()
+            for perm in perms
+        }
+        return not all_permission_names.issubset(existing)
 
     async def run(self) -> List[CorePermission]:
-        if not await self.should_run():
-            self.log_warning("Permisos ya existen, saltando...")
-            return []
-
         # Obtener roles existentes
         result = await self.db.execute(select(CoreRole))
         roles = {role.name: role for role in result.scalars().all()}
 
-        # Crear todos los permisos (único por nombre)
+        # Crear o recuperar todos los permisos (único por nombre)
         all_permission_names = {
             perm
             for perms in self.ROLE_PERMISSIONS.values()
@@ -117,21 +118,30 @@ class PermissionSeeder(BaseSeeder):
             ":write": "Escritura",
         }
 
-        permissions: Dict[str, CorePermission] = {}
+        res_p = await self.db.execute(select(CorePermission))
+        permissions: Dict[str, CorePermission] = {p.name: p for p in res_p.scalars().all()}
+
+        new_count = 0
         for perm_name in sorted(all_permission_names):
-            modulo = perm_name.rsplit(":", 1)[0]
-            accion = perm_name.rsplit(":", 1)[1]
-            perm = CorePermission(
-                name=perm_name,
-                description=f"{description_map.get(':' + accion, 'Acceso')} - {modulo}"
-            )
-            permissions[perm_name] = perm
-            self.db.add(perm)
+            if perm_name not in permissions:
+                modulo = perm_name.rsplit(":", 1)[0]
+                accion = perm_name.rsplit(":", 1)[1]
+                perm = CorePermission(
+                    name=perm_name,
+                    description=f"{description_map.get(':' + accion, 'Acceso')} - {modulo}"
+                )
+                permissions[perm_name] = perm
+                self.db.add(perm)
+                new_count += 1
 
-        await self.db.flush()  # Obtener IDs
+        if new_count > 0:
+            await self.db.flush()  # Obtener IDs de nuevos permisos
 
-        # Asignar permisos a cada rol usando la tabla de asociación
-        # (evita acceder a relaciones lazy, incompatible con AsyncSession)
+        # Obtener asociaciones existentes en role_permissions
+        res_rp = await self.db.execute(select(role_permissions))
+        existing_assoc = {(row.role_id, row.permission_id) for row in res_rp.fetchall()}
+
+        # Asignar permisos faltantes a cada rol usando la tabla de asociación
         associations = []
         for role_name, perm_names in self.ROLE_PERMISSIONS.items():
             role = roles.get(role_name)
@@ -139,15 +149,18 @@ class PermissionSeeder(BaseSeeder):
                 self.log_warning(f"Rol '{role_name}' no encontrado, saltando asignación")
                 continue
             for perm_name in perm_names:
-                associations.append({
-                    "role_id": role.id,
-                    "permission_id": permissions[perm_name].id
-                })
+                perm_obj = permissions.get(perm_name)
+                if perm_obj and (role.id, perm_obj.id) not in existing_assoc:
+                    associations.append({
+                        "role_id": role.id,
+                        "permission_id": perm_obj.id
+                    })
+                    existing_assoc.add((role.id, perm_obj.id))
 
         if associations:
             await self.db.execute(insert(role_permissions), associations)
 
         await self.db.commit()
 
-        self.log_success(f"Creados {len(permissions)} permisos para {len(self.ROLE_PERMISSIONS)} roles")
+        self.log_success(f"Permisos sincronizados: {new_count} nuevos creados, {len(associations)} nuevas asociaciones asignadas.")
         return list(permissions.values())

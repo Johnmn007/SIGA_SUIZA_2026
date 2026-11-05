@@ -5,9 +5,9 @@ import { UserManagement } from './UserManagement';
 import { AuditLogs } from './AuditLogs';
 import { StaffManagement } from './StaffManagement';
 import { AdmissionModule } from './AdmissionModule';
-import { Lock, Info, Grid, Users, UserCog, GraduationCap, FileText, Settings, LayoutDashboard, HeartPulse, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Lock, Info, Grid, Users, UserCog, GraduationCap, FileText, Settings, LayoutDashboard, HeartPulse, ShieldCheck, AlertTriangle, ClipboardCheck, ArrowRight } from 'lucide-react';
 
-export function AdminDashboard() {
+export function AdminDashboard({ onNavigate }) {
   const { user, permissions } = useAuth();
   const [systemStatus, setSystemStatus] = useState(null);
   const [modules, setModules] = useState([]);
@@ -84,6 +84,56 @@ export function AdminDashboard() {
             <Settings className="w-6 h-6 text-slate-500 mr-2" />
             <h1 className="text-2xl font-extrabold text-slate-text capitalize">{systemStatus?.environment || 'N/A'}</h1>
           </div>
+        </div>
+      </div>
+
+      {/* Accesos directos a módulos para el Administrador */}
+      <div className="glass-card p-6">
+        <h5 className="text-xl font-bold text-slate-text mb-4 flex items-center">
+          <span className="w-8 h-8 rounded-lg bg-primary-soft text-primary flex items-center justify-center mr-3">
+            <ClipboardCheck className="w-5 h-5" />
+          </span>
+          Accesos Rápidos a Módulos y Actas
+        </h5>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button 
+            type="button"
+            onClick={() => onNavigate?.('coordinator_academic')}
+            className="p-4 rounded-xl border border-slate-200 bg-white hover:border-primary hover:shadow-md transition-all text-left group cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-primary uppercase">Coordinación</span>
+              <ArrowRight size={14} className="text-primary group-hover:translate-x-1 transition-transform" />
+            </div>
+            <div className="font-bold text-sm text-slate-800">Control de Actas</div>
+            <p className="text-xs text-slate-500 mt-1">Cierre formal, fechas límite y reaperturas</p>
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => onNavigate?.('evaluation')}
+            className="p-4 rounded-xl border border-slate-200 bg-white hover:border-indigo-500 hover:shadow-md transition-all text-left group cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-indigo-600 uppercase">Docente</span>
+              <ArrowRight size={14} className="text-indigo-600 group-hover:translate-x-1 transition-transform" />
+            </div>
+            <div className="font-bold text-sm text-slate-800">Panel de Calificaciones</div>
+            <p className="text-xs text-slate-500 mt-1">Ingreso de notas 0-20 y vista previa oficial</p>
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => onNavigate?.('coordinator_eval')}
+            className="p-4 rounded-xl border border-slate-200 bg-white hover:border-amber-500 hover:shadow-md transition-all text-left group cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-amber-600 uppercase">Supervisión</span>
+              <ArrowRight size={14} className="text-amber-600 group-hover:translate-x-1 transition-transform" />
+            </div>
+            <div className="font-bold text-sm text-slate-800">Supervisión de Actas</div>
+            <p className="text-xs text-slate-500 mt-1">Monitoreo consolidado de calificaciones</p>
+          </button>
         </div>
       </div>
 

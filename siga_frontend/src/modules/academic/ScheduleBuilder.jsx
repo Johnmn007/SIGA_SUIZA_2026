@@ -1,5 +1,42 @@
 import React, { useState } from 'react';
+import { useToast } from '../../core/ui/ToastContext';
+import { useConfirm } from '../../core/ui/ConfirmModal';
 import { BookOpen, AlertTriangle, Save, RefreshCw } from 'lucide-react';
+
+function useSafeToast() {
+  try {
+    return useToast();
+  } catch {
+    const noop = () => {};
+    return {
+      toast: { success: noop, error: noop, warning: noop, info: noop, dismiss: noop, clear: noop },
+      success: noop,
+      error: noop,
+      warning: noop,
+      info: noop,
+      showSuccess: noop,
+      showError: noop,
+      showWarning: noop,
+      showInfo: noop,
+      dismiss: noop,
+      clear: noop,
+      toasts: [],
+    };
+  }
+}
+
+function useSafeConfirm() {
+  try {
+    return useConfirm();
+  } catch {
+    const fn = async () => true;
+    return Object.assign(fn, {
+      confirm: async () => true,
+      promptModal: async () => '',
+      prompt: async () => '',
+    });
+  }
+}
 
 // Horarios específicos para Desarrollo de Sistemas de Información (Turno Tarde/Noche)
 const TIME_SLOTS = [
@@ -16,6 +53,8 @@ const TIME_SLOTS = [
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
 
 export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
+  const { toast } = useSafeToast();
+  const confirm = useSafeConfirm();
   // Estado para el horario: key = "Dia-SlotId", value = carga_lectiva_id
   const [schedule, setSchedule] = useState({});
   const [draggedCargaId, setDraggedCargaId] = useState(null);
@@ -73,15 +112,21 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
     validateSchedule(newSchedule);
   };
 
-  const handleClear = () => {
-    if(window.confirm("¿Limpiar todo el horario?")) {
+  const handleClear = async () => {
+    const ok = await confirm({
+      title: "Limpiar Horario",
+      message: "¿Seguro que desea limpiar todo el horario?",
+      isDestructive: true
+    });
+    if (ok) {
       setSchedule({});
       setWarnings([]);
+      toast.info("Horario limpiado correctamente");
     }
   };
 
   const handleSave = () => {
-    alert("Horario guardado temporalmente. (Función MVP: En un futuro se enlazará para guardarse en la BD).");
+    toast.info("Horario guardado temporalmente. (Función MVP: En un futuro se enlazará para guardarse en la BD).");
   };
 
   const getAssignedCount = (cargaId) => {
@@ -161,7 +206,7 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
                 </tr>
               </thead>
               <tbody>
-                {TIME_SLOTS.map((slot, index) => (
+                {TIME_SLOTS.map((slot) => (
                   <tr key={slot.id} className={slot.type === 'recreo' ? 'bg-amber-50' : 'bg-white'}>
                     <td className="border-b border-r border-slate-200 p-2 text-center align-middle font-medium text-xs text-slate-500 bg-slate-50/50">
                       <div>{slot.start}</div>

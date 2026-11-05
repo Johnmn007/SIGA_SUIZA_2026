@@ -1,15 +1,39 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { apiClient } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
+import { useToast } from '../../core/ui/ToastContext';
 import { GraduationCap, Calendar, X, FileSpreadsheet, SearchX, Eye } from 'lucide-react';
+
+function useSafeToast() {
+  try {
+    return useToast();
+  } catch {
+    const noop = () => {};
+    return {
+      toast: { success: noop, error: noop, warning: noop, info: noop, dismiss: noop, clear: noop },
+      success: noop,
+      error: noop,
+      warning: noop,
+      info: noop,
+      showSuccess: noop,
+      showError: noop,
+      showWarning: noop,
+      showInfo: noop,
+      dismiss: noop,
+      clear: noop,
+      toasts: [],
+    };
+  }
+}
 
 export function CoordinatorSupervision() {
   const { user } = useAuth();
+  const { toast } = useSafeToast();
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
-  const [personal, setPersonal] = useState([]);
   const [malla, setMalla] = useState([]);
   
   const [selectedProgram, setSelectedProgram] = useState('');
@@ -50,7 +74,6 @@ export function CoordinatorSupervision() {
         
         setPrograms(progRes || []);
         setPeriods(perRes || []);
-        setPersonal(personalRes || []);
         
         let hasProgram = false;
         if (personalRes && user) {
@@ -66,8 +89,8 @@ export function CoordinatorSupervision() {
         }
         
         if (perRes && perRes.length > 0) {
-          const active = perRes.find(p => p.estado === 'ACTIVO');
-          setSelectedPeriod(active ? active.id.toString() : perRes[perRes.length - 1].id.toString());
+          const active = perRes.find(p => ['ACTIVO', 'activo', 'matricula_abierta', 'en_curso'].includes(p.estado)) || perRes[0];
+          setSelectedPeriod(active ? active.id.toString() : perRes[0].id.toString());
         }
       } catch (e) {
         console.error('Error fetching initial data', e);
@@ -111,7 +134,7 @@ export function CoordinatorSupervision() {
 
   const handleViewActa = async (unidad, moduloNombre) => {
     if (!selectedPeriod) {
-      alert("Por favor, seleccione un periodo académico primero.");
+      toast.warning("Por favor, seleccione un periodo académico primero.");
       return;
     }
     setSelectedViewUD({ ...unidad, moduloNombre });
@@ -139,7 +162,8 @@ export function CoordinatorSupervision() {
     setLoadingUD(false);
   };
 
-  const isCoordinador = user?.rol === 'coordinador_programa';
+  const userRoles = Array.isArray(user?.roles) ? user.roles : (user?.role ? [user.role] : []);
+  const isCoordinador = !user?.is_superuser && userRoles.includes('coordinador_programa');
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -343,7 +367,7 @@ export function CoordinatorSupervision() {
               </div>
               <button 
                 className="btn-primary text-sm px-4 py-2 flex items-center"
-                onClick={() => alert("Función 'Exportar a PDF (MINEDU)' en desarrollo.")}
+                onClick={() => toast.info("Función 'Exportar a PDF (MINEDU)' en desarrollo.")}
               >
                 <FileSpreadsheet className="w-4 h-4 mr-1" /> Exportar Acta Oficial
               </button>

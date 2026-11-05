@@ -1,14 +1,55 @@
-import { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
+import { useConfirm } from '../../core/ui/ConfirmModal';
 import { CoordinatorReview } from './CoordinatorReview';
 import { CoordinatorTutorias } from './CoordinatorTutorias';
+import { CoordinatorActas } from './CoordinatorActas';
 import { ScheduleBuilder } from './ScheduleBuilder';
-import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle, KeyRound } from 'lucide-react';
+import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle, KeyRound, FileCheck } from 'lucide-react';
 import { AssignmentModal } from './AssignmentModal';
+
+function useSafeToast() {
+  try {
+    return useToast();
+  } catch {
+    const noop = () => {};
+    return {
+      toast: { success: noop, error: noop, warning: noop, info: noop, dismiss: noop, clear: noop },
+      success: noop,
+      error: noop,
+      warning: noop,
+      info: noop,
+      showSuccess: noop,
+      showError: noop,
+      showWarning: noop,
+      showInfo: noop,
+      dismiss: noop,
+      clear: noop,
+      toasts: [],
+    };
+  }
+}
+
+function useSafeConfirm() {
+  try {
+    return useConfirm();
+  } catch {
+    const fn = async () => true;
+    return Object.assign(fn, {
+      confirm: async () => true,
+      promptModal: async () => '',
+      prompt: async () => '',
+    });
+  }
+}
 
 export function CoordinatorAcademic() {
   const { user, openPasswordModal } = useAuth();
+  const { toast } = useSafeToast();
+  const { confirm, promptModal } = useSafeConfirm();
   
   const [activeTab, setActiveTab] = useState('carga'); // 'carga', 'horarios'
   const [horariosSubTab, setHorariosSubTab] = useState('visual'); // 'excel', 'visual'
@@ -25,7 +66,6 @@ export function CoordinatorAcademic() {
   const [personal, setPersonal] = useState([]);
   const [allDocentes, setAllDocentes] = useState([]);
   const [docentes, setDocentes] = useState([]);
-  const [malla, setMalla] = useState([]);
   const [unidadesFlat, setUnidadesFlat] = useState([]);
   const [cargaLectiva, setCargaLectiva] = useState([]);
   const [horarios, setHorarios] = useState([]);
@@ -89,8 +129,8 @@ export function CoordinatorAcademic() {
         }
         
         if (perRes && perRes.length > 0) {
-          const active = perRes.find(p => p.estado === 'ACTIVO');
-          setSelectedPeriod(active ? active.id.toString() : perRes[perRes.length - 1].id.toString());
+          const active = perRes.find(p => ['ACTIVO', 'activo', 'matricula_abierta', 'en_curso'].includes(p.estado)) || perRes[0];
+          setSelectedPeriod(active ? active.id.toString() : perRes[0].id.toString());
         }
         
       } catch (error) {
@@ -104,7 +144,6 @@ export function CoordinatorAcademic() {
   // 2. Load Malla and filter docentes when Program changes
   useEffect(() => {
     if (!selectedProgram) {
-      setMalla([]);
       setUnidadesFlat([]);
       setDocentes([]);
       return;
@@ -124,7 +163,6 @@ export function CoordinatorAcademic() {
     const fetchMalla = async () => {
       try {
         const res = await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/malla`);
-        setMalla(res || []);
         
         // Flatten unidades for easy select dropdown
         const flat = [];
@@ -141,17 +179,7 @@ export function CoordinatorAcademic() {
     fetchMalla();
   }, [selectedProgram, personal]);
 
-  // 3. Load Carga & Horarios when Program AND Period change
-  useEffect(() => {
-    if (!selectedProgram || !selectedPeriod) {
-      setCargaLectiva([]);
-      setHorarios([]);
-      return;
-    }
-    fetchCargaYHorarios();
-  }, [selectedProgram, selectedPeriod]);
-
-  const fetchCargaYHorarios = async () => {
+  const fetchCargaYHorarios = useCallback(async () => {
     setLoading(true);
     try {
       const [cargaRes, horRes] = await Promise.all([
@@ -165,13 +193,32 @@ export function CoordinatorAcademic() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedProgram, selectedPeriod]);
+
+  // 3. Load Carga & Horarios when Program AND Period change
+  useEffect(() => {
+    if (!selectedProgram || !selectedPeriod) {
+      setCargaLectiva([]);
+      setHorarios([]);
+      return;
+    }
+    fetchCargaYHorarios();
+  }, [selectedProgram, selectedPeriod, fetchCargaYHorarios]);
 
   const handleCreateCarga = async (e) => {
     e.preventDefault();
-    if (!selectedProgram || !selectedPeriod) return alert("Seleccione Programa y Periodo primero");
-    if (!cargaForm.unidades_didacticas_ids || cargaForm.unidades_didacticas_ids.length === 0) return alert("Seleccione al menos una unidad didáctica");
-    if (!cargaForm.docente_id) return alert("Seleccione un docente");
+    if (!selectedProgram || !selectedPeriod) {
+      toast.warning("Seleccione Programa y Periodo primero");
+      return;
+    }
+    if (!cargaForm.unidades_didacticas_ids || cargaForm.unidades_didacticas_ids.length === 0) {
+      toast.warning("Seleccione al menos una unidad didáctica");
+      return;
+    }
+    if (!cargaForm.docente_id) {
+      toast.warning("Seleccione un docente");
+      return;
+    }
     
     setSaving(true);
     try {
@@ -194,10 +241,10 @@ export function CoordinatorAcademic() {
       setCargaForm({ ...cargaForm, unidades_didacticas_ids: [] });
       setIsModalOpen(false);
       fetchCargaYHorarios();
-      alert("Docente asignado correctamente a los cursos seleccionados.");
+      toast.success("Docente asignado correctamente a los cursos seleccionados.");
     } catch (error) {
       console.error("Error saving carga", error);
-      alert("Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
+      toast.error("Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
     } finally {
       setSaving(false);
     }
@@ -205,7 +252,10 @@ export function CoordinatorAcademic() {
 
   const handleUploadHorario = async (e) => {
     e.preventDefault();
-    if (!selectedProgram || !selectedPeriod) return alert("Seleccione Programa y Periodo primero");
+    if (!selectedProgram || !selectedPeriod) {
+      toast.warning("Seleccione Programa y Periodo primero");
+      return;
+    }
     
     setSaving(true);
     try {
@@ -223,31 +273,41 @@ export function CoordinatorAcademic() {
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error saving horario", error);
-      alert("Error al subir el horario");
+      toast.error("Error al subir el horario");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteCarga = async (id) => {
-    if (!window.confirm("¿Seguro que desea eliminar esta asignación?")) return;
+    const ok = await confirm({
+      title: "Eliminar asignación",
+      message: "¿Seguro que desea eliminar esta asignación?",
+      isDestructive: true
+    });
+    if (!ok) return;
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva/${id}`, { method: 'DELETE' });
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error deleting carga", error);
-      alert("No se pudo eliminar la carga");
+      toast.error("No se pudo eliminar la carga");
     }
   };
 
   const handleDeleteHorario = async (id) => {
-    if (!window.confirm("¿Seguro que desea eliminar este horario?")) return;
+    const ok = await confirm({
+      title: "Eliminar horario",
+      message: "¿Seguro que desea eliminar este horario?",
+      isDestructive: true
+    });
+    if (!ok) return;
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/horarios/${id}`, { method: 'DELETE' });
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error deleting horario", error);
-      alert("No se pudo eliminar el horario");
+      toast.error("No se pudo eliminar el horario");
     }
   };
 
@@ -275,7 +335,12 @@ export function CoordinatorAcademic() {
   };
 
   const handleCloneCarga = async () => {
-    const prevPeriodId = prompt("Ingrese el ID del periodo anterior desde el cual desea clonar (Ej. 1):");
+    const prevPeriodId = await promptModal({
+      title: "Clonar Periodo",
+      message: "Ingrese el ID del periodo anterior desde el cual desea clonar:",
+      placeholder: "Ej. 1",
+      required: true
+    });
     if (!prevPeriodId) return;
     setLoading(true);
     try {
@@ -283,16 +348,17 @@ export function CoordinatorAcademic() {
         method: 'POST',
         body: JSON.stringify({ from_periodo_id: parseInt(prevPeriodId), to_periodo_id: parseInt(selectedPeriod) })
       });
-      alert(res.message);
+      toast.success(res.message || "Carga lectiva clonada exitosamente");
       fetchCargaYHorarios();
-    } catch (e) {
-      alert("Error al clonar la carga lectiva. Verifique que el periodo origen tenga registros.");
+    } catch {
+      toast.error("Error al clonar la carga lectiva. Verifique que el periodo origen tenga registros.");
     } finally {
       setLoading(false);
     }
   };
 
-  const isCoordinador = user?.rol === 'coordinador_programa';
+  const userRoles = Array.isArray(user?.roles) ? user.roles : (user?.role ? [user.role] : []);
+  const isCoordinador = !user?.is_superuser && userRoles.includes('coordinador_programa');
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -442,6 +508,13 @@ export function CoordinatorAcademic() {
               onClick={() => setActiveTab('horarios')}
             >
               <Clock size={16} /> Horarios del Periodo
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'actas' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+              onClick={() => setActiveTab('actas')}
+              data-testid="tab-control-actas"
+            >
+              <FileCheck size={16} /> Control de Actas
             </button>
           </div>
 
@@ -700,6 +773,15 @@ export function CoordinatorAcademic() {
               programId={selectedProgram}
               periodId={selectedPeriod}
               docentes={docentes}
+            />
+          )}
+
+          {!loading && activeTab === 'actas' && (
+            <CoordinatorActas 
+              programId={selectedProgram}
+              periodId={selectedPeriod}
+              programs={programs}
+              periods={periods}
             />
           )}
         </>
