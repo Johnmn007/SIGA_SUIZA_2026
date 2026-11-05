@@ -137,18 +137,29 @@ from starlette.concurrency import run_in_threadpool
 def parse_excel_sync(contents: bytes):
     excel_data = pd.ExcelFile(BytesIO(contents))
     
-    if 'B_Datos' not in excel_data.sheet_names:
-        raise ValueError("El Excel debe contener la hoja 'B_Datos'")
+    sheet_names_lower = [s.lower().strip() for s in excel_data.sheet_names]
+    b_datos_idx = None
+    for i, name in enumerate(sheet_names_lower):
+        if name == 'b_datos':
+            b_datos_idx = i
+            break
+    
+    if b_datos_idx is None:
+        raise ValueError(f"El Excel debe contener una hoja 'B_Datos'. Hojas encontradas: {excel_data.sheet_names}")
         
     df_reg = pd.read_excel(excel_data, sheet_name='B_Datos')
     if df_reg.shape[1] > 38:
         df_reg = df_reg.iloc[:, :38]
     
     df_exo = pd.DataFrame()
-    if 'B_Datos_Exonerados' in excel_data.sheet_names:
-        df_exo = pd.read_excel(excel_data, sheet_name='B_Datos_Exonerados')
-        if df_exo.shape[1] > 40:
-            df_exo = df_exo.iloc[:, :40]
+    if 'B_Datos_Exonerados' in excel_data.sheet_names or \
+       any(s.lower().strip() == 'b_datos_exonerados' for s in excel_data.sheet_names):
+        for i, s in enumerate(excel_data.sheet_names):
+            if s.lower().strip() == 'b_datos_exonerados':
+                df_exo = pd.read_excel(excel_data, sheet_name=i)
+                if df_exo.shape[1] > 40:
+                    df_exo = df_exo.iloc[:, :40]
+                break
             
     admitidos_list = []
     
