@@ -2,6 +2,16 @@ import { useState } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { GraduationCap, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 
+// FastAPI devuelve `detail` como lista de objetos en errores 422; React no puede renderizarlos.
+const toText = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    return value.map((v) => (typeof v === 'string' ? v : v?.msg || JSON.stringify(v))).join('; ');
+  }
+  return value.msg || value.message || JSON.stringify(value);
+};
+
 export function AdmissionModule() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -31,12 +41,12 @@ export function AdmissionModule() {
         body: formData
       });
       
-      const data = await res.json();
-      
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        setMessage({ text: data.message || 'Archivo procesado con éxito.', type: 'success' });
+        setMessage({ text: toText(data.message, 'Archivo procesado con éxito.'), type: 'success' });
       } else {
-        setMessage({ text: data.detail || 'Error al procesar el archivo.', type: 'error' });
+        setMessage({ text: toText(data.detail, `Error al procesar el archivo (HTTP ${res.status}).`), type: 'error' });
       }
     } catch (err) {
       console.error(err);
@@ -80,11 +90,13 @@ export function AdmissionModule() {
               className="w-full btn-primary py-3 text-lg rounded-xl flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <>
+                <span key="loading" className="flex items-center">
                   <Loader2 className="animate-spin mr-3 h-5 w-5 text-white" />
-                  Procesando Excel...
-                </>
-              ) : "Procesar Archivo"}
+                  <span>Procesando Excel...</span>
+                </span>
+              ) : (
+                <span key="idle">Procesar Archivo</span>
+              )}
             </button>
           </form>
 
@@ -93,7 +105,7 @@ export function AdmissionModule() {
               message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-100' : 'bg-red-50 text-red-800 border border-red-100'
             }`}>
               {message.type === 'success' ? <CheckCircle2 className="inline w-4 h-4 mr-1" /> : <AlertTriangle className="inline w-4 h-4 mr-1" />}
-              {message.text}
+              <span>{message.text}</span>
             </div>
           )}
         </div>

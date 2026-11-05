@@ -442,8 +442,14 @@ export function AcademicDashboard() {
 
   const handleConfirmImport = async () => {
     if (!importFile || !previewData) return;
+    const codigoImport = String(previewData.codigo || '').trim().toUpperCase();
+    const duplicado = programs.find(p => String(p.codigo || '').trim().toUpperCase() === codigoImport);
+    if (duplicado) {
+      alert(`Ya existe el programa "${duplicado.nombre}" con el código ${duplicado.codigo}. No se importó nada. Edita o inactiva el programa existente, o usa un archivo con otro código.`);
+      return;
+    }
     setIsProcessing(true);
-    
+
     try {
       const programaData = {
         nombre: previewData.nombre,
@@ -511,7 +517,7 @@ export function AcademicDashboard() {
       }
     } catch (error) {
       console.error('Error en importación:', error);
-      alert('Error al crear la carrera. Podría haber conflictos de código duplicado.');
+      alert(error.message || 'Error al crear la carrera. Podría haber conflictos de código duplicado.');
     } finally {
       setIsProcessing(false);
     }

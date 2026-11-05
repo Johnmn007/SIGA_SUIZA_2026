@@ -16,8 +16,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # La tabla ya existe si proviene del dump de Railway
-    pass
+    # En BD nuevas la tabla no existe; si viene del dump de Railway ya existe.
+    bind = op.get_bind()
+    if sa.inspect(bind).has_table('core_role_permissions'):
+        return
+    op.create_table(
+        'core_role_permissions',
+        sa.Column('role_id', sa.Integer(), sa.ForeignKey('core_roles.id', ondelete='CASCADE')),
+        sa.Column('permission_id', sa.Integer(), sa.ForeignKey('core_permissions.id', ondelete='CASCADE')),
+    )
 
 
 def downgrade() -> None:
