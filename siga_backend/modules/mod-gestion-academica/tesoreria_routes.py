@@ -421,13 +421,7 @@ def normalizar_tarifas(data: ConceptoIn) -> list:
 
 
 async def conceptos_activos(db: AsyncSession) -> List[ConceptoTupa]:
-    total = (await db.execute(select(func.count(ConceptoTupa.id)))).scalar()
-    if not total:
-        for codigo, nombre, categoria, monto, libera, descripcion in CONCEPTOS_DEFECTO:
-            db.add(ConceptoTupa(codigo=codigo, nombre=nombre, categoria=categoria, descripcion=descripcion,
-                                tipo_precio="fijo", tarifas=[{"id": "T1", "nombre": "General", "monto": monto}],
-                                monto_minimo=0, libera_matricula=libera, permite_repetir=False, activo=True))
-        await db.commit()
+    # El tarifario empieza vacío; los conceptos de ejemplo se cargan con POST /conceptos/restaurar
     result = await db.execute(select(ConceptoTupa).where(ConceptoTupa.activo.is_(True)).order_by(ConceptoTupa.id))
     return result.scalars().all()
 
