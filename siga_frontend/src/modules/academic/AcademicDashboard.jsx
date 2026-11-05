@@ -501,6 +501,13 @@ export function AcademicDashboard() {
       
       const result = await response.json();
       if (response.ok) {
+        // Vincular la carrera con su plan (lo usan el avance académico y el motor de matrícula)
+        if (createdProgram?.id && result.plan_id) {
+          const { nombre, codigo, descripcion, duracion_periodos, creditos_totales, modalidad, estado } = createdProgram;
+          await apiClient.callModule('mod-programas-estudio', `programas/${createdProgram.id}`, 'PUT', {
+            nombre, codigo, descripcion, duracion_periodos, creditos_totales, modalidad, estado, plan_estudio_id: result.plan_id,
+          });
+        }
         alert('¡Carrera y Plan de Estudios creados exitosamente!');
         setShowImportModal(false);
         setImportFile(null);
