@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
-import { FileText, BookOpen, ExternalLink, Filter } from 'lucide-react';
+import { useToast } from '../../core/ui/ToastContext';
+import { FileText, BookOpen, ExternalLink, Filter, AlertCircle, X } from 'lucide-react';
 
 export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva, unidadesFlat }) {
+  const toast = useToast();
   const [silabos, setSilabos] = useState([]);
   const [planes, setPlanes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [obsModal, setObsModal] = useState(null);
+  const [obsText, setObsText] = useState('');
 
   const fetchData = async () => {
     if (!programId || !periodId) return;
@@ -28,19 +32,27 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
     fetchData();
   }, [programId, periodId]);
 
-  const handleUpdateStatus = async (type, id, status) => {
-    const obs = status === 'observado' ? prompt("Ingrese el motivo de la observación:") : '';
-    if (status === 'observado' && !obs) return;
+  const handleUpdateStatus = async (type, id, status, customObs = '') => {
+    if (status === 'observado' && !customObs) {
+      setObsModal({ type, id });
+      setObsText('');
+      return;
+    }
 
     try {
+      const obs = customObs || '';
       const url = type === 'silabo' 
         ? `/api/mod-programas-estudio/silabos/${id}/estado?estado=${status}${obs ? `&observaciones=${encodeURIComponent(obs)}` : ''}`
         : `/api/mod-programas-estudio/planes-trabajo/${id}/estado?estado=${status}${obs ? `&observaciones=${encodeURIComponent(obs)}` : ''}`;
         
       await apiClient.request(url, { method: 'PUT' });
+      toast.success(status === 'aprobado' ? 'Documento aprobado con éxito.' : 'Observación enviada al docente.');
       fetchData();
-    } catch {
-      alert(`Error al actualizar estado del ${type}`);
+      setObsModal(null);
+      setObsText('');
+    } catch (err) {
+      console.error(err);
+      toast.error(`Error al actualizar estado del ${type}`);
     }
   };
 
@@ -175,6 +187,56 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
           </div>
         )}
       </div>
+
+      {/* Modal institucional para registrar observaciones */}
+      {obsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md overflow-hidden animate-scale-up">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <AlertCircle size={16} className="text-amber-500" />
+                Observar {obsModal.type === 'silabo' ? 'Sílabo' : 'Plan de Trabajo'}
+              </h4>
+              <button 
+                onClick={() => setObsModal(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <label className="block text-xs font-semibold text-slate-600">
+                Ingrese el motivo de la observación:
+              </label>
+              <textarea
+                rows={3}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                placeholder="Indique las correcciones requeridas..."
+                value={obsText}
+                onChange={(e) => setObsText(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setObsModal(null)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-200/60 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!obsText.trim()}
+                onClick={() => handleUpdateStatus(obsModal.type, obsModal.id, 'observado', obsText.trim())}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              >
+                Registrar Observación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

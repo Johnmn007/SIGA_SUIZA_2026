@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../core/auth/useAuth';
 import { API_BASE } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import techBg from '../../assets/tech-bg.jpg';
 import { EditStudentModal } from './EditStudentModal';
 import { StudentDetail } from './StudentDetail';
@@ -260,7 +261,7 @@ export function StudentMaster() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('Selecciona un archivo de imagen válido (JPG o PNG).');
+      toast.warning('Selecciona un archivo de imagen válido (JPG o PNG).');
       return;
     }
     const reader = new FileReader();
@@ -276,7 +277,7 @@ export function StudentMaster() {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         setForm({ ...form, foto_url: canvas.toDataURL('image/jpeg', 0.82) });
       };
-      img.onerror = () => alert('No se pudo leer la imagen seleccionada.');
+      img.onerror = () => toast.error('No se pudo leer la imagen seleccionada.');
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
@@ -318,21 +319,27 @@ export function StudentMaster() {
       } else {
         const errorText = await res.text();
         console.error("Error creating student:", errorText);
-        alert(`Error al registrar el estudiante: ${errorText}`);
+        toast.error(`Error al registrar el estudiante: ${errorText}`);
       }
     } catch (e) {
       console.error(e);
-      alert("Error de conexión al registrar el estudiante.");
+      toast.error("Error de conexión al registrar el estudiante.");
     }
   };
 
   const handleSincronizar = async () => {
     if (userRole !== 'superadmin' && userRole !== 'admin') {
-      alert("Solo el Super Admin puede ejecutar la ingesta de Admisión.");
+      toast.error("Solo el Super Admin puede ejecutar la ingesta de Admisión.");
       return;
     }
 
-    if (!window.confirm("¿Sincronizar lista de ingresantes desde el módulo de Admisión?")) return;
+    const ok = await toast.confirm({
+      title: 'Sincronizar Admisión',
+      message: '¿Sincronizar lista de ingresantes desde el módulo de Admisión?',
+      type: 'info',
+      confirmText: 'Sí, sincronizar'
+    });
+    if (!ok) return;
     setLoading(true);
     try {
       // via gateway, do not puncture the module directly
@@ -344,7 +351,7 @@ export function StudentMaster() {
       let admisionData = await resAdmision.json();
 
       if (admisionData.admitidos.length === 0) {
-        alert("No se encontraron ingresantes para el programa seleccionado.");
+        toast.info("No se encontraron ingresantes para el programa seleccionado.");
         setLoading(false);
         return;
       }
@@ -360,15 +367,15 @@ export function StudentMaster() {
 
       if (resIngesta.ok) {
         const result = await resIngesta.json();
-        alert(`Sincronización exitosa. ${result.estudiantes_creados} nuevos estudiantes ingresados al Core.`);
+        toast.success(`Sincronización exitosa. ${result.estudiantes_creados} nuevos estudiantes ingresados al Core.`);
         handleSearch('');
       } else {
         const err = await resIngesta.text();
-        alert(`Error en la ingesta: ${err}`);
+        toast.error(`Error en la ingesta: ${err}`);
       }
     } catch (e) {
       console.error(e);
-      alert(e.message);
+      toast.error(e.message);
     }
     setLoading(false);
   };

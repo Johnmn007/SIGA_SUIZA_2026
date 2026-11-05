@@ -17,6 +17,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { PAYMENT_METHODS, CAREERS_MAP, getAvailableConcepts } from './tupaCatalog';
+import { useToast } from '../../core/ui/ToastContext';
 import { ConceptFormModal } from './ConceptFormModal';
 import { ModalPortal } from './ModalPortal';
 import { QrCodeView } from './QrCodeView';
@@ -85,11 +86,19 @@ export function PaymentModal({
   };
 
   const handleDeleteConcept = async (concept) => {
-    if (!window.confirm(`¿Eliminar "${concept.codigo} · ${concept.nombre}" del tarifario TUPA?\n\nLos recibos ya emitidos se conservan.`)) return;
+    const ok = await toast.confirm({
+      title: 'Eliminar Concepto TUPA',
+      message: `¿Eliminar "${concept.codigo} · ${concept.nombre}" del tarifario TUPA? Los recibos ya emitidos se conservan.`,
+      type: 'danger',
+      confirmText: 'Sí, eliminar'
+    });
+    if (!ok) return;
     try {
       await onDeleteConcept(concept.id);
+      toast.success('Concepto eliminado del tarifario.');
     } catch (err) {
       setError(err.message);
+      toast.error(err.message);
     }
   };
 

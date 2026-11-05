@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { apiClient, API_BASE } from '../../core/api/client';
 import { QRCodeSVG } from 'qrcode.react';
 import { getDefaultPeriod, getPeriodLabel, isHistoricalPeriod } from './periodUtils';
+import { useToast } from '../../core/ui/ToastContext';
 
 export function EnrollmentProcess({ initialStudent, onCancel }) {
+  const toast = useToast();
   const [step, setStep] = useState(initialStudent ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -96,7 +98,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
   const loadMallaAndContinue = async () => {
     // 0. Validar Pago Financiero
     if (selection.student && !selection.student.pago_matricula) {
-      alert("MATRÍCULA BLOQUEADA: El estudiante registra deuda pendiente. Debe realizar el pago físico en Caja/Tesorería antes de proceder.");
+      toast.error("MATRÍCULA BLOQUEADA: El estudiante registra deuda pendiente. Debe realizar el pago físico en Caja/Tesorería antes de proceder.");
       return;
     }
 
@@ -106,13 +108,13 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
          const today = new Date();
          const limit = new Date(selection.student.fecha_limite_documentos);
          if (today > limit) {
-           alert("MATRÍCULA BLOQUEADA: El periodo de gracia para entregar documentos ha expirado.");
+           toast.error("MATRÍCULA BLOQUEADA: El periodo de gracia para entregar documentos ha expirado.");
            return;
          } else {
-           alert(`ADVERTENCIA: Matrícula Condicional. Tiene hasta el ${limit.toLocaleDateString()} para regularizar sus documentos.`);
+           toast.warning(`ADVERTENCIA: Matrícula Condicional. Tiene hasta el ${limit.toLocaleDateString()} para regularizar sus documentos.`);
          }
       } else {
-         alert("MATRÍCULA BLOQUEADA: El estudiante no ha completado sus documentos y no tiene periodo de gracia.");
+         toast.error("MATRÍCULA BLOQUEADA: El estudiante no ha completado sus documentos y no tiene periodo de gracia.");
          return;
       }
     }
@@ -124,15 +126,15 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       const finExt = selection.period.fecha_fin_matricula_extemporanea ? new Date(selection.period.fecha_fin_matricula_extemporanea) : null;
       
       if (finExt && today > finExt) {
-        alert("MATRÍCULA CERRADA: La fase de matrícula extemporánea ha finalizado definitivamente para este periodo.");
+        toast.error("MATRÍCULA CERRADA: La fase de matrícula extemporánea ha finalizado definitivamente para este periodo.");
         return;
       } else if (finRegular && today > finRegular) {
-        alert("ADVERTENCIA: Fase de Matrícula Extemporánea. Se aplicarán las reglas correspondientes.");
+        toast.warning("ADVERTENCIA: Fase de Matrícula Extemporánea. Se aplicarán las reglas correspondientes.");
       }
     }
 
     if (isHistoricalPeriod(selection.period)) {
-      alert("MATRÍCULA BLOQUEADA: El periodo seleccionado es histórico y ya no permite nuevas matrículas.");
+      toast.error("MATRÍCULA BLOQUEADA: El periodo seleccionado es histórico y ya no permite nuevas matrículas.");
       return;
     }
 
@@ -175,7 +177,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       setStep(3);
     } catch (e) {
       console.error(e);
-      alert("Error al cargar la malla curricular del programa.");
+      toast.error("Error al cargar la malla curricular del programa.");
     } finally {
       setLoading(false);
     }
@@ -245,7 +247,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       setStep(4);
     } catch (e) { 
       console.error(e);
-      alert(`❌ Error al matricular: ${e.message || "Verifique que cumpla los créditos requeridos."}`);
+      toast.error(`Error al matricular: ${e.message || "Verifique que cumpla los créditos requeridos."}`);
     }
     setLoading(false);
   };
@@ -259,7 +261,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       setConsolidacion(res);
     } catch (e) {
       console.error(e);
-      alert(`❌ No se pudo consolidar: ${e.message}`);
+      toast.error(`No se pudo consolidar: ${e.message}`);
     } finally {
       setConsolidando(false);
     }

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { UserCog, Users, Trash2 } from 'lucide-react';
 
 export function CoordinatorTutorias({ programId, periodId, docentes }) {
+  const toast = useToast();
   const [tutorias, setTutorias] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -27,7 +29,10 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
 
   const handleAssign = async (e) => {
     e.preventDefault();
-    if (!form.ciclo || !form.docente_id) return alert("Seleccione ciclo y docente");
+    if (!form.ciclo || !form.docente_id) {
+      toast.warning("Seleccione ciclo y docente");
+      return;
+    }
     
     setSaving(true);
     try {
@@ -42,21 +47,30 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
       });
       setForm({ ciclo: '', docente_id: '', observaciones: '' });
       fetchData();
-      alert("Tutor asignado correctamente");
-    } catch {
-      alert("Error al asignar tutor");
+      toast.success("Tutor asignado correctamente");
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al asignar tutor");
     }
     setSaving(false);
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("¿Seguro que desea eliminar esta tutoría?")) return;
+    const ok = await toast.confirm({
+      title: 'Eliminar Tutoría',
+      message: '¿Seguro que desea eliminar esta asignación de tutoría?',
+      type: 'danger',
+      confirmText: 'Sí, eliminar'
+    });
+    if (!ok) return;
+
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${programId}/tutorias/${id}`, { method: 'DELETE' });
+      toast.success("Tutoría eliminada exitosamente");
       fetchData();
     } catch (error) {
       console.error("Error deleting tutoria", error);
-      alert("No se pudo eliminar la tutoría");
+      toast.error("No se pudo eliminar la tutoría");
     }
   };
 

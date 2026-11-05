@@ -3,8 +3,10 @@ import { createPortal } from 'react-dom';
 import { apiClient } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { GraduationCap, Calendar, X, FileSpreadsheet, SearchX, Eye } from 'lucide-react';
+import { useToast } from '../../core/ui/ToastContext';
 
 export function CoordinatorSupervision() {
+  const toast = useToast();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState([]);
@@ -111,7 +113,7 @@ export function CoordinatorSupervision() {
 
   const handleViewActa = async (unidad, moduloNombre) => {
     if (!selectedPeriod) {
-      alert("Por favor, seleccione un periodo académico primero.");
+      toast.warning("Por favor, seleccione un periodo académico primero.");
       return;
     }
     setSelectedViewUD({ ...unidad, moduloNombre });
@@ -343,7 +345,7 @@ export function CoordinatorSupervision() {
               </div>
               <button 
                 className="btn-primary text-sm px-4 py-2 flex items-center"
-                onClick={() => alert("Función 'Exportar a PDF (MINEDU)' en desarrollo.")}
+                onClick={() => toast.info("Función 'Exportar a PDF (MINEDU)' en desarrollo.")}
               >
                 <FileSpreadsheet className="w-4 h-4 mr-1" /> Exportar Acta Oficial
               </button>
