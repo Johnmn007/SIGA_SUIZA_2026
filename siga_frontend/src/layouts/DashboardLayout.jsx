@@ -15,6 +15,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
   const sidebarRef = useRef(null);
+  const notificationSeqRef = useRef(0);
 
   const getUserRoles = () => {
     if (user?.is_superuser) return ['superadmin'];
@@ -51,7 +52,7 @@ export function DashboardLayout({ children, currentView, onNavigate }) {
     const unsubConnect = wsClient.on('connected', () => setWsStatus('connected'));
     const unsubDisconnect = wsClient.on('disconnected', () => setWsStatus('disconnected'));
     const unsubMessage = wsClient.on('message', (data) => {
-      setNotifications(prev => [...prev, { id: Date.now(), text: data }]);
+      setNotifications(prev => [...prev, { id: ++notificationSeqRef.current, text: data }]);
       setTimeout(() => {
         setNotifications(prev => prev.slice(1));
       }, 5000);
