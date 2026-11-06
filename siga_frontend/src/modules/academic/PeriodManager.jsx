@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { X, Lightbulb, Calendar, Plus, Clock, ArrowRight } from 'lucide-react';
 
 export function PeriodManager({ onClose, onUpdate }) {
+  const toast = useToast();
   const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,9 +41,10 @@ export function PeriodManager({ onClose, onUpdate }) {
       setNewPeriod({ codigo: '', fecha_inicio: '', fecha_fin: '', fecha_fin_matricula_regular: '', fecha_fin_matricula_extemporanea: '', estado: 'planificacion' });
       fetchPeriods();
       if (onUpdate) onUpdate();
+      toast.success('Periodo académico creado exitosamente');
     } catch (error) {
       console.error('Error creating period:', error);
-      alert('Hubo un error al crear el periodo');
+      toast.error(error.message || 'Hubo un error al crear el periodo');
     } finally {
       setIsSubmitting(false);
     }
@@ -93,9 +96,10 @@ export function PeriodManager({ onClose, onUpdate }) {
       await apiClient.callModule('mod-programas-estudio', `periodos/${periodoId}/estado?estado=${nuevoEstado}`, 'PUT');
       fetchPeriods();
       if (onUpdate) onUpdate();
+      toast.success(`Estado del periodo actualizado a "${nuevoEstado}"`);
     } catch (error) {
       console.error('Error actualizando estado:', error);
-      alert('Error al actualizar el estado del periodo');
+      toast.error(error.message || 'Error al actualizar el estado del periodo');
     }
   };
 

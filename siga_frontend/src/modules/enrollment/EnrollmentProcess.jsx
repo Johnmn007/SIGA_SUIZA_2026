@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { apiClient, API_BASE } from '../../core/api/client';
 import { QRCodeSVG } from 'qrcode.react';
-import { getDefaultPeriod, getPeriodLabel, isHistoricalPeriod } from './periodUtils';
+import { getDefaultPeriod, getPeriodLabel, isHistoricalPeriod, isFirstPeriodOfYear } from './periodUtils';
+import { useToast } from '../../core/ui/ToastContext';
 
 export function EnrollmentProcess({ initialStudent, onCancel }) {
+  const toast = useToast();
   const [step, setStep] = useState(initialStudent ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -13,7 +15,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
     student: initialStudent || null,
     program: null,
     period: null,
-    tipo: 'Ordinario'
+    tipo: 'Regular'
   });
 
   const [malla, setMalla] = useState([]);
@@ -71,6 +73,8 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       console.log("Academic Data Loaded:", {fetchedPrograms, fetchedPeriods, initialStudent});
       
       const activePeriod = getDefaultPeriod(fetchedPeriods);
+      const isStartOfYear = isFirstPeriodOfYear(activePeriod);
+      const defaultTipo = isStartOfYear ? 'Ordinario' : 'Regular';
 
       // Auto-select based on student and active period (usar mismos periodos que Periodos Lectivos)
       if (initialStudent) {
@@ -78,12 +82,14 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
         setSelection(prev => ({
           ...prev,
           program: studentProgram || fetchedPrograms[0] || null,
-          period: activePeriod
+          period: activePeriod,
+          tipo: defaultTipo
         }));
       } else if (activePeriod) {
         setSelection(prev => ({
           ...prev,
-          period: prev.period || activePeriod
+          period: prev.period || activePeriod,
+          tipo: !isStartOfYear && prev.tipo === 'Ordinario' ? 'Regular' : (prev.tipo || defaultTipo)
         }));
       }
       } catch (e) { 
@@ -96,7 +102,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
   const loadMallaAndContinue = async () => {
     // 0. Validar Pago Financiero
     if (selection.student && !selection.student.pago_matricula) {
-      alert("MATRÍCULA BLOQUEADA: El estudiante registra deuda pendiente. Debe realizar el pago físico en Caja/Tesorería antes de proceder.");
+      toast.error("MATRÍCULA BLOQUEADA: El estudiante registra deuda pendiente. Debe realizar el pago físico en Caja/Tesorería antes de proceder.");
       return;
     }
 
@@ -106,13 +112,13 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
          const today = new Date();
          const limit = new Date(selection.student.fecha_limite_documentos);
          if (today > limit) {
-           alert("MATRÍCULA BLOQUEADA: El periodo de gracia para entregar documentos ha expirado.");
+           toast.error("MATRÍCULA BLOQUEADA: El periodo de gracia para entregar documentos ha expirado.");
            return;
          } else {
-           alert(`ADVERTENCIA: Matrícula Condicional. Tiene hasta el ${limit.toLocaleDateString()} para regularizar sus documentos.`);
+           toast.warning(`ADVERTENCIA: Matrícula Condicional. Tiene hasta el ${limit.toLocaleDateString()} para regularizar sus documentos.`);
          }
       } else {
-         alert("MATRÍCULA BLOQUEADA: El estudiante no ha completado sus documentos y no tiene periodo de gracia.");
+         toast.error("MATRÍCULA BLOQUEADA: El estudiante no ha completado sus documentos y no tiene periodo de gracia.");
          return;
       }
     }
@@ -124,15 +130,15 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       const finExt = selection.period.fecha_fin_matricula_extemporanea ? new Date(selection.period.fecha_fin_matricula_extemporanea) : null;
       
       if (finExt && today > finExt) {
-        alert("MATRÍCULA CERRADA: La fase de matrícula extemporánea ha finalizado definitivamente para este periodo.");
+        toast.error("MATRÍCULA CERRADA: La fase de matrícula extemporánea ha finalizado definitivamente para este periodo.");
         return;
       } else if (finRegular && today > finRegular) {
-        alert("ADVERTENCIA: Fase de Matrícula Extemporánea. Se aplicarán las reglas correspondientes.");
+        toast.warning("ADVERTENCIA: Fase de Matrícula Extemporánea. Se aplicarán las reglas correspondientes.");
       }
     }
 
     if (isHistoricalPeriod(selection.period)) {
-      alert("MATRÍCULA BLOQUEADA: El periodo seleccionado es histórico y ya no permite nuevas matrículas.");
+      toast.error("MATRÍCULA BLOQUEADA: El periodo seleccionado es histórico y ya no permite nuevas matrículas.");
       return;
     }
 
@@ -175,7 +181,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       setStep(3);
     } catch (e) {
       console.error(e);
-      alert("Error al cargar la malla curricular del programa.");
+      toast.error("Error al cargar la malla curricular del programa.");
     } finally {
       setLoading(false);
     }
@@ -245,7 +251,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       setStep(4);
     } catch (e) { 
       console.error(e);
-      alert(`❌ Error al matricular: ${e.message || "Verifique que cumpla los créditos requeridos."}`);
+      toast.error(`Error al matricular: ${e.message || "Verifique que cumpla los créditos requeridos."}`);
     }
     setLoading(false);
   };
@@ -259,7 +265,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       setConsolidacion(res);
     } catch (e) {
       console.error(e);
-      alert(`❌ No se pudo consolidar: ${e.message}`);
+      toast.error(`No se pudo consolidar: ${e.message}`);
     } finally {
       setConsolidando(false);
     }
@@ -382,12 +388,21 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
                     value={selection.tipo}
                     onChange={(e) => setSelection({...selection, tipo: e.target.value})}
                   >
-                    <option value="Ordinario">Cachimbo (Auto-selección C1)</option>
-                    <option value="Regular">Estudiante Regular (Invicto)</option>
-                    <option value="Irregular">Estudiante Irregular</option>
+                    {isFirstPeriodOfYear(selection.period) ? (
+                      <option value="Ordinario">Cachimbo (Ingresante - Auto Ciclo 1)</option>
+                    ) : (
+                      <option value="Ordinario" disabled>Cachimbo (Solo disponible en inicio de año)</option>
+                    )}
+                    <option value="Regular">Estudiante Regular (Invicto / Continuador)</option>
+                    <option value="Irregular">Estudiante Irregular (Con arrastre)</option>
                     <option value="Reingresante">Reingresante</option>
                     <option value="Traslado">Traslado / Convalidación</option>
                   </select>
+                  {selection.period && !isFirstPeriodOfYear(selection.period) && (
+                    <span className="text-[10px] text-amber-700 font-medium block mt-1.5 leading-tight">
+                      Periodo {selection.period?.codigo}: No existen cachimbos en este semestre; se aplica régimen regular o histórico.
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="mt-auto pt-6 border-t border-slate-200/50 flex gap-4">

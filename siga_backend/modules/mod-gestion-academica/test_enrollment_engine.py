@@ -174,6 +174,31 @@ class TestMotorMatricula(unittest.TestCase):
         self.assertTrue(prop.detalle_alumno["es_historico"])
         self.assertEqual(prop.detalle_alumno["plan_origen"], 3)
 
+    def test_periodo_no_inicio_no_fuerza_cachimbo(self):
+        # En periodo 2026-II, aunque se intente pasar Casuistica.INGRESANTE,
+        # el motor detecta que no es periodo de inicio de año y adapta a REGULAR.
+        ctx = _ctx(
+            casuistica=Casuistica.INGRESANTE.value,
+            periodo={"id": 2, "codigo": "2026-II", "estado": "matricula_abierta"},
+        )
+        prop = construir_propuesta(ctx)
+        self.assertEqual(prop.casuistica, Casuistica.REGULAR.value)
+        self.assertEqual(prop.tipo_alumno, "Historico")
+        # En periodo 2026-II no se obligan unidades de Ciclo I como bloque de ingresante
+        self.assertEqual(prop.obligatorias, [])
+        self.assertTrue(any("posterior al inicio de año" in w for w in prop.warnings))
+
+    def test_periodo_inicio_si_admite_cachimbo(self):
+        # En periodo 2026-I sí opera la matrícula automática de Ciclo I
+        ctx = _ctx(
+            casuistica=Casuistica.INGRESANTE.value,
+            periodo={"id": 1, "codigo": "2026-I", "estado": "matricula_abierta"},
+        )
+        prop = construir_propuesta(ctx)
+        self.assertEqual(prop.casuistica, Casuistica.INGRESANTE.value)
+        self.assertEqual(prop.tipo_alumno, "Ingresante")
+        self.assertEqual({u.id for u in prop.obligatorias}, {1, 2})
+
 
 if __name__ == "__main__":
     unittest.main()

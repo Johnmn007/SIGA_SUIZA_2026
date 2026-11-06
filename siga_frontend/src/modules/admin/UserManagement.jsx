@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { Plus, Pencil, X, UserX, Users, ShieldCheck } from 'lucide-react';
 
 export function UserManagement() {
+  const toast = useToast();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -87,18 +89,25 @@ export function UserManagement() {
       loadData();
     } catch (error) {
       console.error('Error saving user:', error);
-      alert('Error guardando usuario. Verifica la consola para más detalles.');
+      toast.error('Error guardando usuario. Verifica la consola para más detalles.');
     }
   };
 
   const handleDelete = async (id) => {
-    if (confirm('¿Estás seguro de desactivar este usuario?')) {
-      try {
-        await apiClient.request(`/api/mod-usuarios/usuarios/${id}`, { method: 'DELETE' });
-        loadData();
-      } catch (error) {
-        console.error('Error deleting user:', error);
-      }
+    const ok = await toast.confirm({
+      title: 'Desactivar Usuario',
+      message: '¿Estás seguro de desactivar este usuario?',
+      type: 'warning',
+      confirmText: 'Sí, desactivar'
+    });
+    if (!ok) return;
+    try {
+      await apiClient.request(`/api/mod-usuarios/usuarios/${id}`, { method: 'DELETE' });
+      toast.success('Usuario desactivado exitosamente.');
+      loadData();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Error al desactivar el usuario.');
     }
   };
 
