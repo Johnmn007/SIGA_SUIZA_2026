@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient, API_BASE } from '../../core/api/client';
 import { QRCodeSVG } from 'qrcode.react';
-import { getDefaultPeriod, getPeriodLabel, isHistoricalPeriod } from './periodUtils';
+import { getDefaultPeriod, getPeriodLabel, isHistoricalPeriod, isFirstPeriodOfYear } from './periodUtils';
 import { useToast } from '../../core/ui/ToastContext';
 
 export function EnrollmentProcess({ initialStudent, onCancel }) {
@@ -15,7 +15,7 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
     student: initialStudent || null,
     program: null,
     period: null,
-    tipo: 'Ordinario'
+    tipo: 'Regular'
   });
 
   const [malla, setMalla] = useState([]);
@@ -73,6 +73,8 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
       console.log("Academic Data Loaded:", {fetchedPrograms, fetchedPeriods, initialStudent});
       
       const activePeriod = getDefaultPeriod(fetchedPeriods);
+      const isStartOfYear = isFirstPeriodOfYear(activePeriod);
+      const defaultTipo = isStartOfYear ? 'Ordinario' : 'Regular';
 
       // Auto-select based on student and active period (usar mismos periodos que Periodos Lectivos)
       if (initialStudent) {
@@ -80,12 +82,14 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
         setSelection(prev => ({
           ...prev,
           program: studentProgram || fetchedPrograms[0] || null,
-          period: activePeriod
+          period: activePeriod,
+          tipo: defaultTipo
         }));
       } else if (activePeriod) {
         setSelection(prev => ({
           ...prev,
-          period: prev.period || activePeriod
+          period: prev.period || activePeriod,
+          tipo: !isStartOfYear && prev.tipo === 'Ordinario' ? 'Regular' : (prev.tipo || defaultTipo)
         }));
       }
       } catch (e) { 
@@ -384,12 +388,21 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
                     value={selection.tipo}
                     onChange={(e) => setSelection({...selection, tipo: e.target.value})}
                   >
-                    <option value="Ordinario">Cachimbo (Auto-selección C1)</option>
-                    <option value="Regular">Estudiante Regular (Invicto)</option>
-                    <option value="Irregular">Estudiante Irregular</option>
+                    {isFirstPeriodOfYear(selection.period) ? (
+                      <option value="Ordinario">Cachimbo (Ingresante - Auto Ciclo 1)</option>
+                    ) : (
+                      <option value="Ordinario" disabled>Cachimbo (Solo disponible en inicio de año)</option>
+                    )}
+                    <option value="Regular">Estudiante Regular (Invicto / Continuador)</option>
+                    <option value="Irregular">Estudiante Irregular (Con arrastre)</option>
                     <option value="Reingresante">Reingresante</option>
                     <option value="Traslado">Traslado / Convalidación</option>
                   </select>
+                  {selection.period && !isFirstPeriodOfYear(selection.period) && (
+                    <span className="text-[10px] text-amber-700 font-medium block mt-1.5 leading-tight">
+                      Periodo {selection.period?.codigo}: No existen cachimbos en este semestre; se aplica régimen regular o histórico.
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="mt-auto pt-6 border-t border-slate-200/50 flex gap-4">
