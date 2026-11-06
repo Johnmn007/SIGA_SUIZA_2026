@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { API_BASE } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { 
   Wallet, 
   Search, 
@@ -62,6 +63,7 @@ const findMatriculaReceipt = (transactions, student) =>
   );
 
 export function FinancesDashboard() {
+  const toast = useToast();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('caja'); // 'caja' | 'historial' | 'arqueo' | 'tarifario'
 
@@ -331,7 +333,7 @@ export function FinancesDashboard() {
       const current = pagos.map(t => withCurrentConcept(t, conceptos));
       const list = filtered ? current.filter(matchesHistoryFilters) : current;
       if (list.length === 0) {
-        alert('No hay transacciones registradas para exportar.');
+        toast.warning('No hay transacciones registradas para exportar.');
         return;
       }
 
@@ -1135,7 +1137,7 @@ export function FinancesDashboard() {
                 Descargar Libro Diario (Excel)
               </button>
               <button
-                onClick={() => alert(`Arqueo conforme registrado con éxito.\nTotal recaudado: S/ ${arqueoPorMetodo.total.toFixed(2)}\nComprobantes emitidos: ${transactions.length}`)}
+                onClick={() => toast.success(`Arqueo conforme registrado con éxito. Total recaudado: S/ ${arqueoPorMetodo.total.toFixed(2)}. Comprobantes emitidos: ${transactions.length}`)}
                 className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/25 transition cursor-pointer"
               >
                 Cierre de Turno y Arqueo Conforme

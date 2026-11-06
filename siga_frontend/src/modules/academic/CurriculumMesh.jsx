@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { ArrowLeft, X, Plus, Trash2, BookOpen, Clock, Layers, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export function CurriculumMesh({ programId, onBack }) {
+  const toast = useToast();
   const [malla, setMalla] = useState([]);
   const [program, setProgram] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -95,7 +97,7 @@ export function CurriculumMesh({ programId, onBack }) {
           periodo: parseInt(newModule.periodo, 10)
         })
       });
-      alert('Módulo creado correctamente');
+      toast.success('Módulo creado correctamente');
       setShowAddModule(false);
       setNewModule({ nombre: '', periodo: 1 });
       fetchMalla();
@@ -113,17 +115,23 @@ export function CurriculumMesh({ programId, onBack }) {
   };
 
   const handleDeleteModule = async (moduloId, moduloNombre) => {
-    if (!window.confirm(`¿Estás seguro de eliminar el módulo "${moduloNombre}" y todas sus unidades asociadas?`)) {
-      return;
-    }
+    const ok = await toast.confirm({
+      title: '¿Eliminar módulo formativo?',
+      message: `¿Estás seguro de eliminar el módulo "${moduloNombre}" y todas sus unidades asociadas?`,
+      confirmText: 'Sí, eliminar',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await apiClient.request(`/api/mod-programas-estudio/modulos/${moduloId}`, {
         method: 'DELETE'
       });
+      toast.success(`Módulo "${moduloNombre}" eliminado correctamente`);
       fetchMalla();
     } catch (error) {
       console.error('Error deleting module:', error);
-      alert('Error al eliminar el módulo');
+      toast.error(error.message || 'Error al eliminar el módulo');
     }
   };
 
@@ -154,27 +162,34 @@ export function CurriculumMesh({ programId, onBack }) {
         }
       });
       setShowAddUnit({ show: false, moduloId: null, moduloNombre: '' });
+      toast.success('Unidad didáctica guardada exitosamente');
       fetchMalla();
     } catch (error) {
       console.error('Error adding unit:', error);
-      alert('Error al guardar la unidad didáctica');
+      toast.error(error.message || 'Error al guardar la unidad didáctica');
     } finally {
       setSavingUnit(false);
     }
   };
 
   const handleDeleteUnit = async (unidadId, unidadNombre) => {
-    if (!window.confirm(`¿Deseas eliminar la unidad didáctica "${unidadNombre}"?`)) {
-      return;
-    }
+    const ok = await toast.confirm({
+      title: '¿Eliminar unidad didáctica?',
+      message: `¿Deseas eliminar la unidad didáctica "${unidadNombre}"?`,
+      confirmText: 'Eliminar unidad',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await apiClient.request(`/api/mod-programas-estudio/unidades/${unidadId}`, {
         method: 'DELETE'
       });
+      toast.success(`Unidad "${unidadNombre}" eliminada`);
       fetchMalla();
     } catch (error) {
       console.error('Error deleting unit:', error);
-      alert('Error al eliminar la unidad didáctica');
+      toast.error(error.message || 'Error al eliminar la unidad didáctica');
     }
   };
 

@@ -56,9 +56,15 @@ services:
       - "8000:8000"
     environment:
       - DB_USER=${DB_USER:-postgres}
+<<<<<<< HEAD
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
       - DB_HOST=postgres
       - DB_PORT=5432
+=======
+      - DB_PASSWORD=${DB_PASSWORD:-61077615}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+>>>>>>> 68ae03ebc23abaa873d5f4af8effdb656f0f8e76
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
@@ -83,9 +89,15 @@ services:
       - "8001:8001"
     environment:
       - DB_USER=${DB_USER:-postgres}
+<<<<<<< HEAD
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
       - DB_HOST=postgres
       - DB_PORT=5432
+=======
+      - DB_PASSWORD=${DB_PASSWORD:-61077615}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+>>>>>>> 68ae03ebc23abaa873d5f4af8effdb656f0f8e76
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8001
@@ -107,9 +119,15 @@ services:
       - "8002:8002"
     environment:
       - DB_USER=${DB_USER:-postgres}
+<<<<<<< HEAD
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
       - DB_HOST=postgres
       - DB_PORT=5432
+=======
+      - DB_PASSWORD=${DB_PASSWORD:-61077615}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+>>>>>>> 68ae03ebc23abaa873d5f4af8effdb656f0f8e76
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8002
@@ -131,9 +149,15 @@ services:
       - "8005:8005"
     environment:
       - DB_USER=${DB_USER:-postgres}
+<<<<<<< HEAD
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
       - DB_HOST=postgres
       - DB_PORT=5432
+=======
+      - DB_PASSWORD=${DB_PASSWORD:-61077615}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+>>>>>>> 68ae03ebc23abaa873d5f4af8effdb656f0f8e76
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8005
@@ -155,9 +179,15 @@ services:
       - "8006:8006"
     environment:
       - DB_USER=${DB_USER:-postgres}
+<<<<<<< HEAD
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
       - DB_HOST=postgres
       - DB_PORT=5432
+=======
+      - DB_PASSWORD=${DB_PASSWORD:-61077615}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+>>>>>>> 68ae03ebc23abaa873d5f4af8effdb656f0f8e76
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8006
@@ -179,9 +209,15 @@ services:
       - "8007:8007"
     environment:
       - DB_USER=${DB_USER:-postgres}
+<<<<<<< HEAD
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
       - DB_HOST=postgres
       - DB_PORT=5432
+=======
+      - DB_PASSWORD=${DB_PASSWORD:-61077615}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+>>>>>>> 68ae03ebc23abaa873d5f4af8effdb656f0f8e76
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8007
@@ -203,9 +239,15 @@ services:
       - "8008:8008"
     environment:
       - DB_USER=${DB_USER:-postgres}
+<<<<<<< HEAD
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
       - DB_HOST=postgres
       - DB_PORT=5432
+=======
+      - DB_PASSWORD=${DB_PASSWORD:-61077615}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+>>>>>>> 68ae03ebc23abaa873d5f4af8effdb656f0f8e76
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8008
@@ -227,9 +269,15 @@ services:
       - "8009:8009"
     environment:
       - DB_USER=${DB_USER:-postgres}
+<<<<<<< HEAD
       - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD in .env}
       - DB_HOST=postgres
       - DB_PORT=5432
+=======
+      - DB_PASSWORD=${DB_PASSWORD:-61077615}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+>>>>>>> 68ae03ebc23abaa873d5f4af8effdb656f0f8e76
       - DB_NAME=${DB_NAME:-siga_core}
       - NATS_URL=nats://nats:4222
       - PORT=8009
@@ -248,8 +296,13 @@ services:
     build:
       context: ./siga_frontend
       dockerfile: Dockerfile
+<<<<<<< HEAD
       target: dev
     command: ["sh", "-c", "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"]
+=======
+      target: build
+    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0 --port 80"]
+>>>>>>> 68ae03ebc23abaa873d5f4af8effdb656f0f8e76
     ports:
       - "5173:5173"
       - "3000:5173"

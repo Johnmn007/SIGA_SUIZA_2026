@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import {
   Upload, GraduationCap, CalendarDays, FileSpreadsheet,
-  Search, CircleCheckBig,
+  Search, CircleCheckBig, AlertTriangle, Info,
 } from 'lucide-react';
 import { apiClient, API_BASE } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
-import { getDefaultPeriod, getPeriodLabel, getPeriodLabelById, isHistoricalPeriod } from './periodUtils';
+import { getDefaultPeriod, getPeriodLabel, getPeriodLabelById, isHistoricalPeriod, isFirstPeriodOfYear } from './periodUtils';
 import './enrollmentPremium.css';
 
 /**
@@ -27,6 +27,8 @@ export function AdmissionPanel() {
   const [error, setError] = useState('');
   const [ficha, setFicha] = useState(null);
   const [fichaLoading, setFichaLoading] = useState(null);
+
+  const selPeriodo = periods.find(p => String(p.id) === String(periodoId));
 
   useEffect(() => {
     (async () => {
@@ -61,6 +63,10 @@ export function AdmissionPanel() {
     const estSel = (selPeriodo?.estado || '').toString().toLowerCase();
     if (estSel === 'historico' || estSel === 'cerrado') {
       setError('Este periodo es histórico y ya no permite nuevas matrículas.');
+      return;
+    }
+    if (!dryRun && !isFirstPeriodOfYear(selPeriodo)) {
+      setError(`Operación no permitida: La matrícula automática de ingresantes (cachimbos) solo está habilitada para periodos de inicio de año (ej. 2026-I, 2027-I). En el periodo '${selPeriodo?.codigo || periodoId}' no existen cachimbos nuevos; todos los estudiantes son continuadores o históricos.`);
       return;
     }
     setLoading(true);
@@ -204,6 +210,18 @@ export function AdmissionPanel() {
           />
         </div>
 
+        {selPeriodo && !isFirstPeriodOfYear(selPeriodo) && (
+          <div className="md:col-span-3 p-4 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-start gap-3">
+            <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-950">Periodo Posterior ({selPeriodo.codigo || selPeriodo.nombre}): Régimen Continuador / Histórico</p>
+              <p className="mt-0.5 text-amber-800 leading-relaxed">
+                En este periodo no existen ingresantes nuevos (cachimbos). Todos los estudiantes inscritos en este periodo son continuadores de ciclo o con trayectoria histórica. La matrícula automática de Ciclo I está habilitada exclusivamente para periodos de inicio de año (ej. 2026-I, 2027-I).
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="md:col-span-3 sma-actions pt-2">
           <button
             onClick={() => subir(true)}
@@ -215,8 +233,9 @@ export function AdmissionPanel() {
           </button>
           <button
             onClick={() => subir(false)}
-            disabled={loading || !file}
-            className="sma-btn sma-btn--primary"
+            disabled={loading || !file || (selPeriodo && !isFirstPeriodOfYear(selPeriodo))}
+            title={selPeriodo && !isFirstPeriodOfYear(selPeriodo) ? 'No disponible en periodos posteriores al inicio de año' : ''}
+            className={`sma-btn ${selPeriodo && !isFirstPeriodOfYear(selPeriodo) ? 'opacity-50 cursor-not-allowed bg-slate-300 text-slate-500' : 'sma-btn--primary'}`}
           >
             <CircleCheckBig size={16} />
             {loading ? 'Procesando...' : 'Procesar y matricular ingresantes'}

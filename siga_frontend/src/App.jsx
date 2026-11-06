@@ -1,4 +1,5 @@
 import { AuthProvider } from './core/auth/AuthProvider';
+import { ToastProvider } from './core/ui/ToastContext';
 import { useAuth } from './core/auth/useAuth';
 import { LoginForm } from './core/auth/LoginForm';
 import { DashboardLayout } from './layouts/DashboardLayout';
@@ -93,7 +94,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AuthProvider>
   );
 }

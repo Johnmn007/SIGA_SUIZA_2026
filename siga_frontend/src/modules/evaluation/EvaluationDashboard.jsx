@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { DocentePlanning } from '../academic/DocentePlanning';
 import { useAuth } from '../../core/auth/useAuth';
 import {
@@ -11,6 +12,7 @@ import {
 
 export function EvaluationDashboard() {
   const { user, openPasswordModal } = useAuth();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState('notas'); // 'notas', 'planificacion'
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -170,13 +172,13 @@ export function EvaluationDashboard() {
       });
       await fetchStudentsAndGrades();
       if (res?.status === 'warning') {
-        alert("ℹ️ " + res.message);
+        toast.warning(res.message);
       } else {
-        alert("✅ " + (res?.message || "Nómina de estudiantes sincronizada con éxito."));
+        toast.success(res?.message || "Nómina de estudiantes sincronizada con éxito.");
       }
     } catch (e) {
       console.error("Error sincronizando nómina", e);
-      alert("❌ Ocurrió un error al sincronizar la nómina: " + (e.message || "Error del servidor"));
+      toast.error("Ocurrió un error al sincronizar la nómina: " + (e.message || "Error del servidor"));
     } finally {
       setSyncing(false);
     }
@@ -272,10 +274,10 @@ export function EvaluationDashboard() {
           return s;
         }));
       }
-      alert("✅ ¡Calificaciones guardadas exitosamente en el sistema SIGA!");
+      toast.success("¡Calificaciones guardadas exitosamente en el sistema SIGA!");
     } catch (e) {
       console.error('Error saving grades', e);
-      alert("❌ Ocurrió un error al guardar las calificaciones: " + (e.message || "Error de conexión"));
+      toast.error("Ocurrió un error al guardar las calificaciones: " + (e.message || "Error de conexión"));
     } finally {
       setSaving(false);
     }
@@ -312,7 +314,7 @@ export function EvaluationDashboard() {
         const text = event.target.result;
         const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
         if (lines.length < 2) {
-          alert("El archivo no contiene suficientes filas.");
+          toast.warning("El archivo no contiene suficientes filas.");
           return;
         }
         
@@ -362,10 +364,10 @@ export function EvaluationDashboard() {
           }
           return updated;
         });
-        alert(`✅ Se importaron calificaciones para ${loadedCount} estudiantes.`);
+        toast.success(`Se importaron calificaciones para ${loadedCount} estudiantes.`);
       } catch (err) {
         console.error("Error parsing CSV", err);
-        alert("Error al procesar el archivo: formato CSV inválido.");
+        toast.error("Error al procesar el archivo: formato CSV inválido.");
       }
     };
     reader.readAsText(file, "UTF-8");
@@ -373,13 +375,19 @@ export function EvaluationDashboard() {
   };
 
   // Acciones Masivas (Llenado Rápido)
-  const handleBulkFill = (fillValue) => {
+  const handleBulkFill = async (fillValue) => {
     setShowBulkMenu(false);
     if (students.length === 0) return;
     const confirmMsg = fillValue === '' 
       ? "¿Deseas limpiar todas las calificaciones de la lista?" 
       : `¿Deseas asignar la nota ${fillValue} a todos los estudiantes con campos vacíos?`;
-    if (!window.confirm(confirmMsg)) return;
+    const ok = await toast.confirm({
+      title: fillValue === '' ? "Limpiar Calificaciones" : "Asignación Masiva",
+      message: confirmMsg,
+      type: fillValue === '' ? 'danger' : 'info',
+      confirmText: fillValue === '' ? 'Sí, limpiar' : 'Sí, asignar'
+    });
+    if (!ok) return;
 
     setStudents(prev => prev.map(s => {
       if (fillValue === '') {

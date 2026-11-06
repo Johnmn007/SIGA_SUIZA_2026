@@ -34,10 +34,11 @@ from domain import (
     ESTADOS_ARRastre,
     clasificar_tipo_alumno,
     normalizar_casuistica,
+    es_periodo_inicio_anio,
 )
 from enrollment_engine import construir_propuesta, evaluar_ventana_matricula
 from enrollment_service import cargar_historial, construir_contexto
-from intermodule import fetch_cargaLectiva, fetch_malla, fetch_programa
+from intermodule import fetch_cargaLectiva, fetch_malla, fetch_programa, fetch_periodo
 from models import (
     BeneficioEstudiante,
     ConvalidacionDetalle,
@@ -255,6 +256,10 @@ async def admision_excel(
     if not registros:
         raise HTTPException(status_code=400, detail="No se encontraron ingresantes con DNI en el archivo.")
 
+    periodo_info = await fetch_periodo(periodo_id)
+    codigo_periodo = periodo_info.get("codigo") if periodo_info else f"ID {periodo_id}"
+    es_inicio = es_periodo_inicio_anio(codigo_periodo)
+
     if dry_run:
         preview = []
         for reg in registros:
@@ -262,6 +267,14 @@ async def admision_excel(
                 select(Estudiante).where(Estudiante.dni == reg["dni"])
             )).scalar_one_or_none()
             preview.append({**reg, "existe": ya is not None, "estudiante_id": ya.id if ya else None})
+        
+        advertencia = None
+        if not es_inicio:
+            advertencia = (
+                f"El periodo seleccionado '{codigo_periodo}' no es de inicio de año (ej. 2026-I). "
+                "En este periodo no aplica matrícula automática de ingresantes (cachimbos)."
+            )
+
         return {
             "modo": "preview",
             "total": len(registros),
@@ -270,6 +283,9 @@ async def admision_excel(
             "registros": preview,
             "programa_id": programa_id,
             "periodo_id": periodo_id,
+            "periodo_codigo": codigo_periodo,
+            "es_periodo_inicio": es_inicio,
+            "advertencia": advertencia,
         }
 
     creados, existentes = 0, 0
@@ -295,7 +311,7 @@ async def admision_excel(
             celular=reg["celular"],
             email_personal=reg["email_personal"],
             modalidad_admision=reg["modalidad"] or "ORDINARIO",
-            estado_academico="ingresante",
+            estado_academico="ingresante" if es_inicio else "regular",
         )
         db.add(estudiante)
         await db.flush()
@@ -306,22 +322,37 @@ async def admision_excel(
 
     matricula_resultado = None
     if matricular and ids_creados:
-        matricula_resultado = await matricular_ingresantes(
-            MatricularIngresantesRequest(
-                estudiante_ids=ids_creados,
-                programa_id=programa_id,
-                periodo_id=periodo_id,
-            ),
-            request,
-            db,
-        )
+        if es_inicio:
+            matricula_resultado = await matricular_ingresantes(
+                MatricularIngresantesRequest(
+                    estudiante_ids=ids_creados,
+                    programa_id=programa_id,
+                    periodo_id=periodo_id,
+                ),
+                request,
+                db,
+            )
+        else:
+            matricula_resultado = {
+                "creadas": [],
+                "omitidas": [
+                    {
+                        "estudiante_id": eid,
+                        "motivo": f"Matrícula automática de cachimbos omitida: el periodo '{codigo_periodo}' no es de inicio de año."
+                    }
+                    for eid in ids_creados
+                ],
+                "advertencia": f"En el periodo '{codigo_periodo}' no existen ingresantes por primera vez (cachimbos)."
+            }
 
+    msg_sufijo = "" if es_inicio else f" Nota: No se realizó matrícula automática de cachimbos porque el periodo '{codigo_periodo}' no es de inicio de año."
     return {
-        "message": f"Admisión procesada: {creados} nuevos, {existentes} ya existían.",
+        "message": f"Admisión procesada: {creados} nuevos, {existentes} ya existían.{msg_sufijo}",
         "estudiantes_creados": creados,
         "estudiantes_existentes": existentes,
         "estudiante_ids": ids_creados,
         "matricula": matricula_resultado,
+        "es_periodo_inicio": es_inicio,
     }
 
 
@@ -331,10 +362,20 @@ async def matricular_ingresantes(
 ):
     """Matrícula automática de Ciclo I para ingresantes (sección 1/3).
 
-    Para cada estudiante sin matrícula vigente: detecta su ciclo (Ciclo I por ser
-    ingresante), asigna todas las unidades de ese ciclo, marca la matrícula como
-    confirmada y genera la ficha.
+    Solo opera en periodos de inicio de año (ej. 2026-I, 2027-I, 2028-I).
+    En periodos posteriores (2026-II, etc.) no existen ingresantes ('cachimbos').
     """
+    periodo_info = await fetch_periodo(payload.periodo_id)
+    codigo_periodo = periodo_info.get("codigo") if periodo_info else f"ID {payload.periodo_id}"
+    if not es_periodo_inicio_anio(codigo_periodo):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Operación denegada: La matrícula automática de ingresantes (cachimbos) solo está permitida "
+                f"en periodos de inicio de año (ej. 2026-I, 2027-I). El periodo '{codigo_periodo}' corresponde a "
+                f"un ciclo posterior donde no existen ingresantes nuevos; todos los estudiantes son continuadores o históricos."
+            )
+        )
     query = select(Estudiante)
     if payload.estudiante_ids:
         query = query.where(Estudiante.id.in_(payload.estudiante_ids))

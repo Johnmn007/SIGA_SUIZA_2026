@@ -1,6 +1,78 @@
-﻿# INFORME DE ESTADO - SIGA
+# INFORME DE ESTADO - SIGA
 
-> **Última actualización:** 13 Oct 2026 | **Sesión:** 7 (Maestro de Estudiantes: scroll infinito, filtro custom, rediseño del listado y del modal)
+> **Última actualización:** 04 Nov 2026 | **Sesión:** 10 (Persistencia de Datos en Registro de Estudiantes + metadata_admision)
+
+---
+
+## 0. SESIÓN 10 — PERSISTENCIA TOTAL DEL REGISTRO DE ESTUDIANTES
+
+Trabajo fullstack (`StudentMaster.jsx`, `StudentDetail.jsx`, `routes.py`).
+
+### 0.1 Empaquetado estructurado en `metadata_admision`
+- **Problema previo:** El wizard de 5 pasos solicitaba Ubigeo, Género, Estado Civil, Nacionalidad, Trabajo/Ingresos, Tipo de Vivienda, Internet, Colegio, Año de Egreso, Tipo de Sangre, Seguro Médico y Contactos de Emergencia, pero el backend los descartaba silenciosamente porque `EstudianteBase` y la tabla `estudiantes` no tenían columnas nativas para ellos.
+- **Solución implementada:** En `StudentMaster.jsx` (`handleCreate`), se agrupan ordenadamente todos esos campos en `metadata_admision` (con estructura jerárquica y aliases directos compatibles con la ingesta masiva de `cargar_admitidos_2026.py`).
+- **Limpieza de Payload:** El objeto raíz enviado a `POST /api/mod-gestion-academica/estudiantes/` se envía saneado, pasando exclusivamente campos nativos válidos del esquema Pydantic + el diccionario `metadata_admision`.
+
+### 0.2 Backend: Respuestas enriquecidas y validación de duplicados
+- `routes.py`:
+  - `crear_estudiante`: Persiste `metadata_admision` en PostgreSQL y valida duplicados con mensajes diferenciados ("El DNI ya se encuentra registrado" vs "El código de estudiante ya existe").
+  - `obtener_estudiantes`: Ahora incluye `foto_url`, `email_personal`, `email_institucional`, `celular`, `direccion_domicilio`, `fecha_nacimiento`, `documentos_completos`, `pago_matricula` y `metadata_admision`. Con esto se soluciona el problema de la lista que mostraba siempre "Sin correo" y sin foto.
+
+### 0.3 Rediseño y Expansión de la Ficha Integral del Estudiante (`StudentDetail.jsx`)
+- **Ampliación del Modal:** El diálogo pasó de `max-w-2xl` a un formato amplio y cómodo (`max-w-4xl lg:max-w-5xl`) con cabecera estilizada con `tech-bg` y degradado institucional.
+- **Pestaña Principal "Expediente & Censo":** Establecida como pestaña por defecto al abrir la ficha ("Ver Ficha"), evitando que abra en una lista vacía de matrículas.
+- **Integración de todos los campos del Registro:**
+  - **Tarjetas Bento de Trámite:** Estado de pago de matrícula, expediente documental físico (con fecha límite de subsanación si aplica), modalidad de ingreso y ciclo.
+  - **Identidad & Ubicación:** DNI, código, fecha de nacimiento, edad calculada automáticamente, género, estado civil, nacionalidad, condición de discapacidad, dirección exacta y Ubigeo jerárquico (Distrito · Provincia · Departamento), teléfono celular y correos.
+  - **Perfil Socioeconómico (Sector 3):** Situación laboral (trabajador/no trabaja), ingreso mensual en soles (S/.), tipo de vivienda (propia/alquilada) y disponibilidad de internet en el domicilio.
+  - **Salud, Procedencia y Emergencias (Sector 4):** Colegio secundario de procedencia, año de egreso, tipo de sangre (con badge destacado), seguro de salud (SIS/EsSalud), contacto de emergencia con teléfono y nombres de los padres.
+  - **Observaciones del Expediente:** Bloque condicional para notas administrativas.
+- **Historial Completo:** Conserva las pestañas de Matrículas, Becas & Beneficios, Convalidaciones y Trámites con contadores numéricos.
+
+### 0.4 Rediseño Visual de la Tabla de Estudiantes (`StudentMaster.jsx`)
+- **Cabecera Sticky & Jerarquía:** Header con `sticky top-0 bg-slate-100/95 backdrop-blur-md` y tipografía `font-black uppercase tracking-wider text-slate-600`.
+- **Identidad del Alumno:** Avatar con foto real (`ProtectedImage`) o iniciales sobre gradiente institucional, nombre completo en negrita con hover animado, badge para el Código institucional (`2026-000XXX`), y correo con truncado seguro.
+- **Carrera:** Badge truncado con icono `GraduationCap` y tooltip completo.
+- **DNI y Contacto:** Pill monospace `DNI XXXXXXXX` y número celular visible.
+- **Estado Académico:** Badges semánticos con punto indicador de color (ámbar pulsante para postulantes, esmeralda para matriculados, azul/gris según aplique).
+- **Expediente & Pago (Nuevo):** Indicadores visuales de estado de pago de matrícula (`Pagado` / `Pendiente`) y expediente documental (`Exp. Completo` / `Exp. Incompleto`).
+- **Acciones y Navegabilidad:** Botones explícitos "Ver Ficha" (abre ficha completa del estudiante) y "Editar" (abre corrección rápida). Además, toda la fila es clickeable.
+- **Paginación Integrada:** Selector de registros por página (15, 25, 50, 100), rango dinámico de visualización ("Mostrando X a Y de Z estudiantes") y botones Anterior / Siguiente, eliminando cuelgues del navegador al renderizar grandes volúmenes.
+- **Fix Pantalla Blanca:** Se corrigió un `ReferenceError` en el renderizado condicional de la tabla vacía (`currentStudents` -> `paginatedStudents`).
+
+### 0.5 Modal de Edición de Datos Personales (`EditStudentModal.jsx`)
+- **Restricción a Datos Personales:** Se bloquearon los campos institucionales (Código de Estudiante, Programa y Estado Académico) en modo Solo Lectura con icono de candado. Únicamente se permite modificar datos personales de identidad, contacto, domicilio, ubigeo y persona de emergencia.
+- **Confirmación Centrada:** Al presionar "Guardar Cambios", se despliega un diálogo centrado sobre el modal con el mensaje: `¿Está seguro de cambiar los datos personales del estudiante "[Nombre Completo]"?` con botones "Cancelar" y "Sí, Confirmar".
+- **Empaquetado de Cambios en Metadata:** Las modificaciones a campos extendidos (género, estado civil, nacionalidad, ubigeo, contacto de emergencia) se actualizan en `metadata_admision` antes de enviar el `PUT`.
+- **Diseño Moderno:** Cabecera con `tech-bg`, banner explicativo de alcance de edición, inputs estructurados con validación de solo dígitos (DNI y celular) y estética unificada.
+
+### 0.6 Verificación
+- `npm run build` OK (0 errores, `✓ built in 29.04s`).
+- Sintaxis Python compilada sin errores (`py_compile`).
+- Contenedores Docker activos y con live-reload funcional.
+
+---
+
+## 0. SESIÓN 9 — MAESTRO DE ESTUDIANTES: CARRERA, FILTRO Y ORDEN
+
+Solo frontend (`StudentMaster.jsx`, `DashboardLayout.jsx`).
+
+### 0.1 Columna Carrera y orden de la tabla
+- La columna **Código** se reemplazó por **Carrera** (`StudentMaster.jsx:1234`). La celda usa `getProgramaLabel(s.programa_id)`, fallback `Sin carrera`, badge truncado a 220px y `title` con el nombre completo.
+- El catálogo sigue hardcodeado en `PROGRAMAS` (ids 1–11) porque `programas_estudio` está vacía. Si se puebla la tabla, unificar el mapeo (hoy `mod-admision` usa otro distinto).
+- **Orden visual:** `compareStudentsByCarrera` ordena por carrera (A→Z, dejando `Sin carrera` al final), luego apellidos y nombres con `localeCompare('es')`. Reemplazó al orden anterior por `id` descendente (`StudentMaster.jsx:423`, `StudentMaster.jsx:622`).
+
+### 0.2 Filtro por carrera
+- El `ProgramaFilter` ahora se muestra también para `secretaria_academica` y `admin_admision`; `secretaria_programa` sigue auto-filtrado a su carrera y sin dropdown.
+- Comparaciones normalizadas con `String(...)` en `ProgramaFilter`/`SearchSelect`; `handleSearch` tolera campos nulos y normaliza DNI, nombres, apellidos y código.
+
+### 0.3 Fix de consola
+- `DashboardLayout.jsx`: las notificaciones WebSocket usaban `Date.now()` como `key` y generaban claves duplicadas; ahora usan `notificationSeqRef` incremental.
+
+### 0.4 Verificación
+- `npm run build` OK; `npx eslint StudentMaster.jsx` → 0 errores, 1 warning preexistente (`react-hooks/exhaustive-deps`).
+- El endpoint de lista solo devuelve 7 campos; por eso la columna Estudiante sigue mostrando `Sin correo`.
+- Nada de esta sesión está commiteado.
 
 ---
 
@@ -9,7 +81,7 @@
 Solo frontend. Archivo central: `siga_frontend/src/modules/students/StudentMaster.jsx`. No se tocó backend ni `docker-compose.yml`.
 
 ### 0.1 Listado con scroll infinito (20 recientes, uno a uno)
-- Los datos se ordenan por `id` descendente tras el fetch (`handleSearch`), es decir **más recientes primero**. El backend sigue devolviendo todo y ordena por `apellidos`; el orden y el paginado son en cliente.
+- Los datos se ordenan por **carrera y apellidos/nombres** (`compareStudentsByCarrera`) tras el fetch (`handleSearch`); antes de la Sesión 9 se ordenaba por `id` descendente. El backend sigue devolviendo todo y ordena por `apellidos`; el orden y el paginado son en cliente.
 - `visibleCount` (constante `INITIAL_VISIBLE = 20`) controla cuántos se muestran; se resetea a 20 cuando cambia la lista (`useEffect` sobre `students`).
 - `IntersectionObserver` sobre un `sentinelRef` (con `rootMargin: '0px 0px 120px 0px'`): revela **1 alumno por vez**, con un `loadLockRef` de 250 ms para evitar ráfagas. El indicador "Cargando más estudiantes…" se muestra solo si `visibleCount < students.length`.
 - Ambos listados (tabla y tarjetas) renderizan `visibleStudents = students.slice(0, visibleCount)`.
@@ -278,3 +350,25 @@ D:\SIGA\
 5. **`animation-fill-mode: both` + `transform` rompe los modales (`position: fixed`):** una animación tipo `.animate-fade-in { animation: fadeIn .25s ease-out both }` retiene el `transform: translateY(0)` del keyframe final incluso al terminar. Ese valor de `transform` (distinto de `none`) convierte al elemento en **containing block y stacking context**, así que los hijos con `position: fixed` se posicionan respecto a él y no al viewport. Si el bloque es más alto que la pantalla, el modal queda centrado fuera del área visible y el síntoma es "el botón no abre nada". **Regla: todo modal (`fixed inset-0`) se monta con `createPortal(..., document.body)`.**
 6. **Clases de animación inexistentes son silenciosas:** `animate-fade-in-up` y `animate-fade-in-right` se usaban en 6 vistas sin existir en `index.css` ni en `tailwind.config.js`. Tailwind no avisa: simplemente no aplican. Verificar siempre que la clase esté definida antes de confiar en el efecto visual.
 7. **Acción invisible en táctil:** `opacity-0 group-hover:opacity-100` en una columna de tabla esconde los botones en tablets y móviles (no hay hover). Usar `opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100`.
+
+
+---
+
+## 0.10 SESIÓN 8 — CONEXIÓN BD + DOCKER (2026-10-27)
+
+### 0.10.1 Configuración Base de Datos
+- PostgreSQL local (17.4): contraseña de postgres cambiada de 61077615 a john.007
+- Base de datos: creada siga_core con tablas del sistema
+- .env raíz: DB_HOST=host.docker.internal, DB_PORT=5432, DB_USER=postgres, DB_PASSWORD=john.007, DB_NAME=siga_core
+
+### 0.10.2 Docker Compose
+- Stack levantado con docker compose up -d (nats, redis, core, 7 módulos, frontend)
+- NATS/Redis healthy; contenedores conectan vía host.docker.internal
+
+### 0.10.3 Ajustes para arranque del Core
+- Instalado psycopg2-binary en siga-core para migraciones Alembic
+- alembic_version ajustado a 123456789abc; creada core_modules si necesario
+- Core Gateway operativo: GET http://localhost:8000/health -> healthy
+
+### 0.10.4 Verificación
+- BD, Core, microservicios y frontend conectados y operativos
