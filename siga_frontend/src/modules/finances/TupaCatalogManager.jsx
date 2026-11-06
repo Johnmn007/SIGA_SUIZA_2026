@@ -39,6 +39,7 @@ export function PriceSummary({ concept }) {
 }
 
 export function TupaCatalogManager({ catalog, catalogError, onSaveConcept, onDeleteConcept, onResetCatalog, cajaConfig, onSaveCajaConfig }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(null); // null | 'new' | concept
   const [query, setQuery] = useState('');
   const [imageError, setImageError] = useState('');

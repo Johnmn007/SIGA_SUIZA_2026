@@ -36,6 +36,7 @@ export function PaymentModal({
   onClose,
   onSuccess,
 }) {
+  const toast = useToast();
   const { available, hidden } = useMemo(
     () => getAvailableConcepts(catalog, student, studentPayments),
     [catalog, student, studentPayments]

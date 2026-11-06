@@ -144,6 +144,7 @@ function ProgramaFilter({ value, onChange }) {
 
 export function StudentMaster() {
   const { user } = useAuth();
+  const toast = useToast();
   const userRoles = user?.roles ? user.roles.map(r => typeof r === 'string' ? r : r.nombre || r.name) : [];
   const primaryRole = user?.is_superuser ? 'superadmin' : (userRoles.length > 0 ? userRoles[0] : (user?.role || 'invitado'));
   const userRole = primaryRole;
