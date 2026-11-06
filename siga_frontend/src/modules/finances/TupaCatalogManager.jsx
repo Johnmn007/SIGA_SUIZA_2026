@@ -4,6 +4,7 @@ import {
   Globe, Save, AlertCircle, CheckCircle2,
 } from 'lucide-react';
 import { PRICE_TYPES } from './tupaCatalog';
+import { useToast } from '../../core/ui/ToastContext';
 import { ConceptFormModal } from './ConceptFormModal';
 import { isPublicUrl, publicApiBase } from './lib/tesoreriaApi';
 import { downloadBlob } from './lib/xlsxWriter';
@@ -38,6 +39,7 @@ export function PriceSummary({ concept }) {
 }
 
 export function TupaCatalogManager({ catalog, catalogError, onSaveConcept, onDeleteConcept, onResetCatalog, cajaConfig, onSaveCajaConfig }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(null); // null | 'new' | concept
   const [query, setQuery] = useState('');
   const [imageError, setImageError] = useState('');
@@ -86,22 +88,38 @@ export function TupaCatalogManager({ catalog, catalogError, onSaveConcept, onDel
   }, [catalog, query]);
 
   const handleDelete = async (concept) => {
-    if (!window.confirm(`¿Eliminar el concepto "${concept.codigo} · ${concept.nombre}" del tarifario?\n\nLos recibos ya emitidos con este concepto se conservan.`)) return;
+    const ok = await toast.confirm({
+      title: 'Eliminar Concepto TUPA',
+      message: `¿Eliminar el concepto "${concept.codigo} · ${concept.nombre}" del tarifario? Los recibos ya emitidos con este concepto se conservan.`,
+      type: 'danger',
+      confirmText: 'Sí, eliminar'
+    });
+    if (!ok) return;
     setActionError('');
     try {
       await onDeleteConcept(concept.id);
+      toast.success('Concepto eliminado del tarifario.');
     } catch (e) {
       setActionError(e.message);
+      toast.error(e.message);
     }
   };
 
   const handleReset = async () => {
-    if (!window.confirm('¿Restaurar el tarifario TUPA oficial? Se perderán los conceptos y precios personalizados.')) return;
+    const ok = await toast.confirm({
+      title: 'Restaurar Tarifario Oficial',
+      message: '¿Restaurar el tarifario TUPA oficial? Se perderán los conceptos y precios personalizados.',
+      type: 'warning',
+      confirmText: 'Sí, restaurar'
+    });
+    if (!ok) return;
     setActionError('');
     try {
       await onResetCatalog();
+      toast.success('Tarifario TUPA restaurado.');
     } catch (e) {
       setActionError(e.message);
+      toast.error(e.message);
     }
   };
 

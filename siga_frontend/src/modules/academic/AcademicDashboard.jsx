@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { CurriculumMesh } from './CurriculumMesh';
 import { PeriodManager } from './PeriodManager';
 import { CareerCarousel } from './CareerCarousel';
@@ -57,6 +58,7 @@ const coincideBusqueda = (busqueda, campos = []) => {
 };
 
 export function AcademicDashboard() {
+  const toast = useToast();
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +67,7 @@ export function AcademicDashboard() {
   
   // Modals state
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importError, setImportError] = useState('');
   const [showPeriodManager, setShowPeriodManager] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -310,9 +313,10 @@ export function AcademicDashboard() {
       });
       setEditingProgram(null);
       await fetchData();
+      toast.success('Configuración de la carrera actualizada exitosamente');
     } catch (error) {
       console.error('Error saving program:', error);
-      alert('Error al guardar la configuración de la carrera');
+      toast.error(error.message || 'Error al guardar la configuración de la carrera');
     } finally {
       setSavingProgram(false);
     }
@@ -383,11 +387,11 @@ export function AcademicDashboard() {
           coordinador_id: null
         }
       });
-      alert('¡Parametrización guardada exitosamente!');
+      toast.success('¡Parametrización guardada exitosamente!');
       setConfigProgram(null);
     } catch (error) {
       console.error('Error guardando configuración:', error);
-      alert('Error al guardar la parametrización');
+      toast.error(error.message || 'Error al guardar la parametrización');
     } finally {
       setSavingConfig(false);
     }
@@ -412,6 +416,7 @@ export function AcademicDashboard() {
     setImportFile(file);
     setIsProcessing(true);
     setPreviewData(null);
+    setImportError('');
 
     const formData = new FormData();
     formData.append('file', file);
@@ -429,12 +434,18 @@ export function AcademicDashboard() {
       const result = await response.json();
       if (response.ok) {
         setPreviewData(result.data);
+        setImportError('');
+        toast.info('Estructura del plan extraída correctamente. Verifica los datos antes de importar.');
       } else {
-        alert(result.detail || 'Error al procesar el archivo');
+        const msg = result.detail || 'Error al procesar el archivo Excel. Verifica el formato MINEDU.';
+        setImportError(msg);
+        toast.error(msg, 'Error de Procesamiento');
       }
     } catch (error) {
       console.error('Error procesando Excel:', error);
-      alert('Error de conexión al procesar el archivo');
+      const msg = 'Error de conexión al procesar el archivo. Intenta nuevamente.';
+      setImportError(msg);
+      toast.error(msg, 'Error de Conexión');
     } finally {
       setIsProcessing(false);
     }
@@ -443,19 +454,60 @@ export function AcademicDashboard() {
   const handleConfirmImport = async () => {
     if (!importFile || !previewData) return;
     setIsProcessing(true);
+    setImportError('');
     
     try {
+      const codigoCarrera = (previewData.codigo || '').trim();
+      const nombreCarrera = (previewData.nombre || '').trim();
+
+      if (!codigoCarrera || !nombreCarrera) {
+        const msg = 'La carrera debe contar con código (CNOF) y denominación válidos.';
+        setImportError(msg);
+        toast.warning(msg, 'Campos requeridos');
+        setIsProcessing(false);
+        return;
+      }
+
+      // 1. Sincronizar o registrar el Plan de Estudios en mod-planes-estudio
+      let planId = null;
+      try {
+        const formData = new FormData();
+        formData.append('file', importFile);
+        formData.append('codigo', codigoCarrera);
+        formData.append('nombre', nombreCarrera);
+
+        const token = localStorage.getItem('token');
+        const planRes = await fetch(`${apiClient.baseURL}/api/mod-planes-estudio/planes/importar-minedu`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        
+        if (planRes.ok) {
+          const planData = await planRes.json();
+          planId = planData.plan_id || null;
+        } else {
+          const planErr = await planRes.json().catch(() => ({}));
+          console.warn('Advertencia secundaria en mod-planes-estudio:', planErr.detail);
+        }
+      } catch (errPlanes) {
+        console.warn('Error no bloqueante en mod-planes-estudio:', errPlanes);
+      }
+
+      // 2. Registrar el programa académico en mod-programas-estudio
       const programaData = {
-        nombre: previewData.nombre,
-        codigo: previewData.codigo,
+        nombre: nombreCarrera,
+        codigo: codigoCarrera,
         descripcion: previewData.descripcion || 'Carrera importada desde Plan MINEDU',
-        creditos_totales: previewData.creditos_totales,
-        duracion_periodos: 6
+        creditos_totales: parseInt(previewData.creditos_totales) || 0,
+        duracion_periodos: 6,
+        plan_estudio_id: planId
       };
       
       const createdProgram = await apiClient.callModule('mod-programas-estudio', 'programas', 'POST', programaData);
 
-      if (createdProgram && createdProgram.id) {
+      // 3. Registrar módulos y unidades didácticas en mod-programas-estudio
+      if (createdProgram && createdProgram.id && Array.isArray(previewData.modulos)) {
         for (let i = 0; i < previewData.modulos.length; i++) {
           const modData = previewData.modulos[i];
           const moduloToCreate = {
@@ -468,7 +520,7 @@ export function AcademicDashboard() {
           
           const createdModulo = await apiClient.callModule('mod-programas-estudio', `programas/${createdProgram.id}/modulos`, 'POST', moduloToCreate);
           
-          if (createdModulo && createdModulo.id && modData.unidades) {
+          if (createdModulo && createdModulo.id && Array.isArray(modData.unidades)) {
             for (let j = 0; j < modData.unidades.length; j++) {
               const udData = modData.unidades[j];
               const unidadToCreate = {
@@ -484,34 +536,18 @@ export function AcademicDashboard() {
         }
       }
 
-      const formData = new FormData();
-      formData.append('file', importFile);
-      if (previewData.codigo) {
-        formData.append('codigo', previewData.codigo);
-      }
-      if (previewData.nombre) {
-        formData.append('nombre', previewData.nombre);
-      }
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${apiClient.baseURL}/api/mod-planes-estudio/planes/importar-minedu`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-      
-      const result = await response.json();
-      if (response.ok) {
-        alert('¡Carrera y Plan de Estudios creados exitosamente!');
-        setShowImportModal(false);
-        setImportFile(null);
-        setPreviewData(null);
-        fetchData();
-      } else {
-        alert(result.detail || 'Error al guardar el plan de estudios');
-      }
+      toast.success(`La carrera "${nombreCarrera}" (${codigoCarrera}) y su estructura curricular fueron creadas exitosamente.`);
+      setShowImportModal(false);
+      setImportFile(null);
+      setPreviewData(null);
+      setImportError('');
+      await fetchData();
+
     } catch (error) {
-      console.error('Error en importación:', error);
-      alert('Error al crear la carrera. Podría haber conflictos de código duplicado.');
+      console.error('Error en importación de carrera:', error);
+      const msg = error.message || 'Error al crear la carrera. Verifique que el código o nombre no existan previamente.';
+      setImportError(msg);
+      toast.error(msg, 'Error en Importación');
     } finally {
       setIsProcessing(false);
     }
@@ -1636,7 +1672,7 @@ export function AcademicDashboard() {
                 <p className="text-xs text-slate-400">Estructura curricular automática a partir del formato Excel oficial</p>
               </div>
               <button 
-                onClick={() => setShowImportModal(false)} 
+                onClick={() => { setShowImportModal(false); setImportError(''); }} 
                 className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 <X size={18} />
@@ -1644,6 +1680,23 @@ export function AcademicDashboard() {
             </div>
             
             <div className="p-6 overflow-y-auto flex-grow space-y-4">
+              {importError && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-fade-in">
+                  <AlertCircle size={16} className="text-rose-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="font-bold block text-rose-900">Aviso del Sistema</span>
+                    <span className="text-[11px] text-rose-700 leading-relaxed block mt-0.5">{importError}</span>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setImportError('')} 
+                    className="text-rose-400 hover:text-rose-700 p-0.5 rounded"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
               {!previewData && (
                 <div className="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-slate-400 hover:bg-slate-50/50 transition-all cursor-pointer relative">
                   <input 
@@ -1752,7 +1805,7 @@ export function AcademicDashboard() {
               <button 
                 type="button" 
                 className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-                onClick={() => setShowImportModal(false)}
+                onClick={() => { setShowImportModal(false); setImportError(''); }}
                 disabled={isProcessing}
               >
                 Cancelar

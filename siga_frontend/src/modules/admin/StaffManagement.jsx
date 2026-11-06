@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { Plus, Pencil, X, UserCog } from 'lucide-react';
 
 export function StaffManagement() {
+  const toast = useToast();
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -85,13 +87,13 @@ export function StaffManagement() {
           method: 'PUT',
           body: JSON.stringify(payload)
         });
-        alert('Personal actualizado exitosamente');
+        toast.success('Personal actualizado exitosamente');
       } else {
         await apiClient.request('/api/mod-usuarios/personal', {
           method: 'POST',
           body: JSON.stringify(payload)
         });
-        alert('Personal registrado exitosamente');
+        toast.success('Personal registrado exitosamente');
       }
       setShowModal(false);
       setEditingId(null);
@@ -109,7 +111,7 @@ export function StaffManagement() {
       fetchStaff();
     } catch (error) {
       console.error('Error saving staff:', error);
-      alert(error.message || 'Error al guardar el personal');
+      toast.error(error.message || 'Error al guardar el personal');
     } finally {
       setIsSubmitting(false);
     }

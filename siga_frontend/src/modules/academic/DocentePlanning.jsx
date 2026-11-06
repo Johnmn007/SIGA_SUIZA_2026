@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { GraduationCap, Calendar, ClipboardList, BookOpen, FileText, Upload, ExternalLink, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export function DocentePlanning() {
   const { user } = useAuth();
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
@@ -128,13 +130,13 @@ export function DocentePlanning() {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      alert("Sílabo enviado correctamente al Coordinador");
+      toast.success("Sílabo enviado correctamente al Coordinador");
       
       // Refresh silabos
       const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`);
       setSilabos(silabosRes || []);
     } catch (e) {
-      alert("Error al enviar el sílabo");
+      toast.error(e.message || "Error al enviar el sílabo");
     } finally {
       e.target.value = ''; // reset input
       setUploadingTarget(null);
@@ -165,13 +167,13 @@ export function DocentePlanning() {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      alert("Plan de Trabajo enviado correctamente al Coordinador");
+      toast.success("Plan de Trabajo enviado correctamente al Coordinador");
       
       // Refresh planes
       const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`);
       setPlanes(planesRes || []);
     } catch (e) {
-      alert("Error al enviar el Plan de Trabajo");
+      toast.error(e.message || "Error al enviar el Plan de Trabajo");
     } finally {
       e.target.value = '';
       setUploadingTarget(null);
