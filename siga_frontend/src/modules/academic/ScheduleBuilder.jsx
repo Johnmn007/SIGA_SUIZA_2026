@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast } from '../../core/ui/ToastContext';
 import { BookOpen, AlertTriangle, Save, RefreshCw } from 'lucide-react';
 
 // Horarios específicos para Desarrollo de Sistemas de Información (Turno Tarde/Noche)
@@ -16,6 +17,7 @@ const TIME_SLOTS = [
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
 
 export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
+  const toast = useToast();
   // Estado para el horario: key = "Dia-SlotId", value = carga_lectiva_id
   const [schedule, setSchedule] = useState({});
   const [draggedCargaId, setDraggedCargaId] = useState(null);
@@ -73,15 +75,22 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
     validateSchedule(newSchedule);
   };
 
-  const handleClear = () => {
-    if(window.confirm("¿Limpiar todo el horario?")) {
+  const handleClear = async () => {
+    const ok = await toast.confirm({
+      title: 'Limpiar Horario',
+      message: '¿Está seguro de limpiar todo el horario actual?',
+      type: 'warning',
+      confirmText: 'Sí, limpiar'
+    });
+    if (ok) {
       setSchedule({});
       setWarnings([]);
+      toast.info("Horario reiniciado.");
     }
   };
 
   const handleSave = () => {
-    alert("Horario guardado temporalmente. (Función MVP: En un futuro se enlazará para guardarse en la BD).");
+    toast.success("Horario guardado temporalmente. (Función MVP: En un futuro se sincronizará con la base de datos).");
   };
 
   const getAssignedCount = (cargaId) => {

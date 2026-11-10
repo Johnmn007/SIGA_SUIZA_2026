@@ -41,6 +41,14 @@ class SIGAApiClient {
       const response = await fetch(url, config);
 
       if (response.status === 401) {
+        if (endpoint.startsWith('/auth/login')) {
+          let errorMsg = 'Credenciales inválidas';
+          try {
+            const errorData = await response.json();
+            errorMsg = errorData.detail || errorMsg;
+          } catch (_) {}
+          throw new Error(errorMsg);
+        }
         this.clearToken();
         window.location.reload();
         return;

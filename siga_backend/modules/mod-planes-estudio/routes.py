@@ -205,11 +205,24 @@ async def importar_plan_minedu(
 
     # Verificar si el código ya existe
     result = await db.execute(select(PlanEstudio).where(PlanEstudio.codigo == data["codigo"]))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail=f"Ya existe un plan con el código {data['codigo']}")
-        
-    # Crear el plan (solo campos válidos del modelo)
+    existing_plan = result.scalar_one_or_none()
     valid_plan_fields = {"codigo", "nombre", "descripcion", "nivel_formativo", "creditos_totales", "horas_totales", "fecha_aprobacion", "resolucion_aprobacion", "estado"}
+    
+    if existing_plan:
+        # Si ya existe un plan con este código, sincronizamos sus metadatos de forma idempotente
+        for k in valid_plan_fields:
+            if k in data and data[k] is not None:
+                setattr(existing_plan, k, data[k])
+        await db.commit()
+        await db.refresh(existing_plan)
+        return {
+            "message": "Plan de estudio existente sincronizado correctamente",
+            "plan_id": existing_plan.id,
+            "codigo": existing_plan.codigo,
+            "modulos_importados": len(data.get("modulos", []))
+        }
+
+    # Crear el plan nuevo (solo campos válidos del modelo)
     plan_data = {k: v for k, v in data.items() if k in valid_plan_fields}
     db_plan = PlanEstudio(**plan_data)
     db.add(db_plan)
