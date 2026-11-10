@@ -26,6 +26,7 @@ from domain import (
     ESTADOS_APROBATORIOS,
     ESTADOS_ARRastre,
     clasificar_tipo_alumno,
+    es_periodo_inicio_anio,
 )
 
 
@@ -64,6 +65,7 @@ class Contexto:
     es_historico: bool = False
     plan_origen: Optional[int] = None
     plan_vigente: Optional[int] = None
+    ciclo_actual: int = 1
 
     @property
     def estricto(self) -> bool:
@@ -171,7 +173,7 @@ def siguiente_ciclo(ctx: Contexto) -> int:
     """
     ciclos = sorted({u.periodo for u in ctx.unidades if u.periodo})
     if not ciclos:
-        return 1
+        return max(1, getattr(ctx, "ciclo_actual", 1))
 
     siguiente = ciclos[0]
     for ciclo in ciclos:
@@ -180,6 +182,11 @@ def siguiente_ciclo(ctx: Contexto) -> int:
             siguiente = ciclo + 1
         else:
             break
+
+    # Si el estudiante ya tiene un ciclo_actual registrado superior y no hay desaprobados previos
+    if getattr(ctx, "ciclo_actual", 1) > siguiente and not any(ctx.historial.values()):
+        siguiente = ctx.ciclo_actual
+
     return min(siguiente, ciclos[-1] + 1)
 
 
@@ -200,6 +207,18 @@ def _es_arrastre(unidad: Unidad, ctx: Contexto) -> bool:
 
 def construir_propuesta(ctx: Contexto) -> Propuesta:
     casuistica = ctx.casuistica or Casuistica.REGULAR.value
+    es_inicio = es_periodo_inicio_anio(ctx.periodo) if ctx.periodo else True
+    warnings: List[str] = []
+
+    # En periodos posteriores al inicio de año (ej. 2026-II, 2027-II, 2026-III),
+    # no existen cachimbos/ingresantes; todos los estudiantes son continuadores o históricos.
+    if casuistica == Casuistica.INGRESANTE.value and not es_inicio:
+        casuistica = Casuistica.REGULAR.value
+        codigo_per = (ctx.periodo or {}).get("codigo", "") if isinstance(ctx.periodo, dict) else getattr(ctx.periodo, "codigo", "")
+        warnings.append(
+            f"El periodo '{codigo_per}' es posterior al inicio de año. "
+            "En este periodo no existen ingresantes (cachimbos); la matrícula se procesa bajo régimen regular según historial."
+        )
 
     # 1. Unidades bloqueadas (prerrequisito / intentos).
     bloqueadas: List[UnidadPropuesta] = []
@@ -247,7 +266,6 @@ def construir_propuesta(ctx: Contexto) -> Propuesta:
     # 5. Reglas agregadas y avisos.
     creditos_oblig = sum(u.creditos for u in obligatorias)
     errores: List[str] = []
-    warnings: List[str] = []
 
     if creditos_oblig > ctx.max_creditos:
         msg = (f"Los cursos a cargo suman {creditos_oblig} créditos y superan el "
@@ -271,7 +289,7 @@ def construir_propuesta(ctx: Contexto) -> Propuesta:
         warnings.append("Convenio/Beca: se generará deuda 0.00 y se derivará el cobro a la entidad.")
 
     # 6. Tipo de alumno histórico (Sección 2): invicto / jalado / histórico.
-    tipo_alumno = clasificar_tipo_alumno(ctx.historial, ctx.convalidados, ctx.es_historico)
+    tipo_alumno = clasificar_tipo_alumno(ctx.historial, ctx.convalidados, ctx.es_historico, es_periodo_inicio=es_inicio)
     detalle_alumno = {
         "tipo": tipo_alumno,
         "es_historico": ctx.es_historico,

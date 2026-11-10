@@ -96,6 +96,31 @@ _ALIAS_CASUISTICA = {
 }
 
 
+def es_periodo_inicio_anio(periodo_ref) -> bool:
+    """Determina si un periodo académico corresponde al inicio de año lectivo.
+
+    Ejemplos de inicio de año: '2026-I', '2027-I', '2028-I', '2026-1'.
+    Solo en estos periodos ocurre la admisión y matrícula automática de ingresantes ('cachimbos').
+    En periodos subsecuentes (como '2026-II', '2027-II', '2026-III') no existen cachimbos nuevos;
+    todos los estudiantes son continuadores o tienen trayectoria académica histórica.
+    """
+    if not periodo_ref:
+        return True  # Fallback permisivo si no se indica periodo
+
+    if isinstance(periodo_ref, dict):
+        codigo = periodo_ref.get("codigo") or periodo_ref.get("nombre") or ""
+    else:
+        codigo = str(getattr(periodo_ref, "codigo", periodo_ref) or "")
+
+    codigo_clean = codigo.strip().upper()
+    if not codigo_clean:
+        return True
+
+    import re
+    # Reconoce sufijos -I, _I, -1, _1, " I", " 1"
+    return bool(re.search(r"[-_\s](I|1)$", codigo_clean)) or codigo_clean.endswith("-I") or codigo_clean.endswith("-1")
+
+
 def normalizar_casuistica(valor):
     """Convierte un texto libre (p. ej. del frontend) a una casuística canónica."""
     if valor is None:
@@ -103,15 +128,17 @@ def normalizar_casuistica(valor):
     return _ALIAS_CASUISTICA.get(str(valor).strip().lower())
 
 
-def clasificar_casuistica(historial, convalidados=None):
-    """Deduce la casuística a partir del historial académico.
+def clasificar_casuistica(historial, convalidados=None, es_periodo_inicio=True):
+    """Deduce la casuística a partir del historial académico y del periodo.
 
     ``historial``: dict ``{unidad_id: estado}``.
     Prioriza la evidencia del propio historial sobre el valor por defecto.
+    En periodos que no son de inicio de año (ej. 2026-II), no existen ingresantes ('cachimbos');
+    un alumno sin historial se clasifica como Regular.
     """
     convalidados = convalidados or set()
     if not historial and not convalidados:
-        return Casuistica.INGRESANTE.value
+        return Casuistica.INGRESANTE.value if es_periodo_inicio else Casuistica.REGULAR.value
     if any(estado == EstadoCurso.DESAPROBADO.value for estado in historial.values()):
         return Casuistica.IRREGULAR.value
     return Casuistica.REGULAR.value
@@ -122,7 +149,7 @@ class TipoAlumno(str, Enum):
 
     - Invicto   : alumno sin cursos a cargo (no arrastra unidades).
     - Jalado    : alumno con cursos a cargo (desaprobó o se retiró).
-    - Historico : alumno que proviene de un plan de estudios anterior.
+    - Historico : alumno que proviene de un plan de estudios anterior o de cohorte previa.
     """
 
     INGRESANTE = "Ingresante"
@@ -131,17 +158,18 @@ class TipoAlumno(str, Enum):
     HISTORICO = "Historico"
 
 
-def clasificar_tipo_alumno(historial, convalidados=None, es_historico=False):
+def clasificar_tipo_alumno(historial, convalidados=None, es_historico=False, es_periodo_inicio=True):
     """Deduce el tipo de alumno (Sección 2 del diagrama).
 
     ``historial``: dict ``{unidad_id: estado}``.
-    ``es_historico``: True si el plan de origen difiere del plan vigente.
+    ``es_historico``: True si el plan de origen difiere del plan vigente o el periodo es intermedio.
     """
     convalidados = convalidados or set()
     if es_historico:
         return TipoAlumno.HISTORICO.value
     if not historial and not convalidados:
-        return TipoAlumno.INGRESANTE.value
+        # En periodos intermedios (ej. 2026-II) no existen ingresantes nuevos; se tratan como históricos
+        return TipoAlumno.INGRESANTE.value if es_periodo_inicio else TipoAlumno.HISTORICO.value
     if any(estado in ESTADOS_ARRastre for estado in historial.values()):
         return TipoAlumno.JALADO.value
     return TipoAlumno.INVICTO.value

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { CoordinatorReview } from './CoordinatorReview';
 import { CoordinatorTutorias } from './CoordinatorTutorias';
 import { ScheduleBuilder } from './ScheduleBuilder';
@@ -9,6 +10,7 @@ import { AssignmentModal } from './AssignmentModal';
 
 export function CoordinatorAcademic() {
   const { user, openPasswordModal } = useAuth();
+  const toast = useToast();
   
   const [activeTab, setActiveTab] = useState('carga'); // 'carga', 'horarios'
   const [horariosSubTab, setHorariosSubTab] = useState('visual'); // 'excel', 'visual'
@@ -34,6 +36,8 @@ export function CoordinatorAcademic() {
   const [cargaForm, setCargaForm] = useState({ docente_id: '', unidades_didacticas_ids: [], turno: 'Mañana', seccion: 'A' });
   const [horarioForm, setHorarioForm] = useState({ archivo_excel_url: '', observaciones: '' });
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [cloneFromPeriod, setCloneFromPeriod] = useState('');
 
   // 1. Initial Load
   useEffect(() => {
@@ -169,9 +173,9 @@ export function CoordinatorAcademic() {
 
   const handleCreateCarga = async (e) => {
     e.preventDefault();
-    if (!selectedProgram || !selectedPeriod) return alert("Seleccione Programa y Periodo primero");
-    if (!cargaForm.unidades_didacticas_ids || cargaForm.unidades_didacticas_ids.length === 0) return alert("Seleccione al menos una unidad didáctica");
-    if (!cargaForm.docente_id) return alert("Seleccione un docente");
+    if (!selectedProgram || !selectedPeriod) return toast.warning("Seleccione Programa y Periodo primero");
+    if (!cargaForm.unidades_didacticas_ids || cargaForm.unidades_didacticas_ids.length === 0) return toast.warning("Seleccione al menos una unidad didáctica");
+    if (!cargaForm.docente_id) return toast.warning("Seleccione un docente");
     
     setSaving(true);
     try {
@@ -194,10 +198,10 @@ export function CoordinatorAcademic() {
       setCargaForm({ ...cargaForm, unidades_didacticas_ids: [] });
       setIsModalOpen(false);
       fetchCargaYHorarios();
-      alert("Docente asignado correctamente a los cursos seleccionados.");
+      toast.success("Docente asignado correctamente a los cursos seleccionados.");
     } catch (error) {
       console.error("Error saving carga", error);
-      alert("Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
+      toast.error("Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
     } finally {
       setSaving(false);
     }
@@ -205,7 +209,7 @@ export function CoordinatorAcademic() {
 
   const handleUploadHorario = async (e) => {
     e.preventDefault();
-    if (!selectedProgram || !selectedPeriod) return alert("Seleccione Programa y Periodo primero");
+    if (!selectedProgram || !selectedPeriod) return toast.warning("Seleccione Programa y Periodo primero");
     
     setSaving(true);
     try {
@@ -220,34 +224,51 @@ export function CoordinatorAcademic() {
         body: JSON.stringify(payload)
       });
       setHorarioForm({ archivo_excel_url: '', observaciones: '' });
+      toast.success("Horario publicado correctamente");
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error saving horario", error);
-      alert("Error al subir el horario");
+      toast.error(error.message || "Error al subir el horario");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteCarga = async (id) => {
-    if (!window.confirm("¿Seguro que desea eliminar esta asignación?")) return;
+    const ok = await toast.confirm({
+      title: '¿Eliminar asignación docente?',
+      message: '¿Seguro que desea eliminar esta asignación de carga lectiva?',
+      confirmText: 'Sí, eliminar',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva/${id}`, { method: 'DELETE' });
+      toast.success("Asignación de carga lectiva eliminada");
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error deleting carga", error);
-      alert("No se pudo eliminar la carga");
+      toast.error("No se pudo eliminar la carga");
     }
   };
 
   const handleDeleteHorario = async (id) => {
-    if (!window.confirm("¿Seguro que desea eliminar este horario?")) return;
+    const ok = await toast.confirm({
+      title: '¿Eliminar horario?',
+      message: '¿Seguro que desea eliminar este horario?',
+      confirmText: 'Eliminar horario',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/horarios/${id}`, { method: 'DELETE' });
+      toast.success("Horario eliminado");
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error deleting horario", error);
-      alert("No se pudo eliminar el horario");
+      toast.error("No se pudo eliminar el horario");
     }
   };
 
@@ -274,19 +295,31 @@ export function CoordinatorAcademic() {
     document.body.removeChild(link);
   };
 
-  const handleCloneCarga = async () => {
-    const prevPeriodId = prompt("Ingrese el ID del periodo anterior desde el cual desea clonar (Ej. 1):");
-    if (!prevPeriodId) return;
+  const handleOpenCloneModal = () => {
+    if (!selectedProgram || !selectedPeriod) {
+      toast.warning("Seleccione primero un programa y periodo actual.");
+      return;
+    }
+    setCloneFromPeriod('');
+    setShowCloneModal(true);
+  };
+
+  const handleExecuteCloneCarga = async () => {
+    if (!cloneFromPeriod) {
+      toast.warning("Seleccione el periodo de origen.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva/clonar`, {
         method: 'POST',
-        body: JSON.stringify({ from_periodo_id: parseInt(prevPeriodId), to_periodo_id: parseInt(selectedPeriod) })
+        body: JSON.stringify({ from_periodo_id: parseInt(cloneFromPeriod), to_periodo_id: parseInt(selectedPeriod) })
       });
-      alert(res.message);
+      toast.success(res.message || "Carga lectiva clonada correctamente");
+      setShowCloneModal(false);
       fetchCargaYHorarios();
     } catch (e) {
-      alert("Error al clonar la carga lectiva. Verifique que el periodo origen tenga registros.");
+      toast.error("Error al clonar la carga lectiva. Verifique que el periodo origen tenga registros.");
     } finally {
       setLoading(false);
     }
@@ -493,7 +526,7 @@ export function CoordinatorAcademic() {
                       <h4 className="text-sm font-bold text-indigo-900 mb-2 flex items-center gap-2"><Copy size={16}/> Ahorra tiempo</h4>
                       <p className="text-xs text-indigo-700/80 mb-4 leading-relaxed">¿Mismos cursos y docentes que el ciclo anterior? Copia toda la carga lectiva con un clic.</p>
                       <button 
-                        onClick={handleCloneCarga}
+                        onClick={handleOpenCloneModal}
                         className="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex justify-center items-center gap-2"
                       >
                         Clonar periodo anterior
@@ -703,6 +736,68 @@ export function CoordinatorAcademic() {
             />
           )}
         </>
+      )}
+
+      {/* Modal Institucional para Clonar Carga Lectiva */}
+      {showCloneModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md overflow-hidden animate-scale-up">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <Copy size={16} className="text-indigo-600" />
+                Clonar Carga Lectiva
+              </h4>
+              <button 
+                onClick={() => setShowCloneModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Seleccione el periodo académico desde el cual desea copiar las asignaciones docentes para este programa:
+              </p>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Periodo de Origen
+                </label>
+                <select 
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                  value={cloneFromPeriod}
+                  onChange={(e) => setCloneFromPeriod(e.target.value)}
+                >
+                  <option value="">-- Seleccione periodo origen --</option>
+                  {periods
+                    .filter(p => String(p.id) !== String(selectedPeriod))
+                    .map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre || p.codigo} {p.es_regular ? '(Regular)' : ''}
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCloneModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-200/60 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!cloneFromPeriod || loading}
+                onClick={handleExecuteCloneCarga}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? 'Clonando...' : 'Clonar Asignaciones'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
