@@ -1,9 +1,9 @@
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
 import { useState, useEffect } from 'react';
-import { Boxes, Activity, Server, Rocket, CheckCircle2, Lock, Layers, ShieldCheck } from 'lucide-react';
+import { Boxes, Activity, Server, Rocket, CheckCircle2, Lock, Layers, ShieldCheck, ClipboardCheck, LineChart, Eye, ArrowRight } from 'lucide-react';
 
-export function Dashboard() {
+export function Dashboard({ onNavigate }) {
   const { user, permissions } = useAuth();
   const [modules, setModules] = useState([]);
   const [systemStatus, setSystemStatus] = useState(null);
@@ -87,6 +87,102 @@ export function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Accesos Rápidos a Módulos y Actas Implementadas */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-xl font-bold text-slate-text flex items-center gap-2">
+              <ClipboardCheck size={20} className="text-primary" />
+              Gestión Académica y Actas
+            </h4>
+            <span className="text-sm text-slate-500">Acceso directo a las herramientas implementadas para coordinación y docentes</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Card Coordinación de Programa */}
+          <div 
+            onClick={() => onNavigate?.('coordinator_academic')}
+            className="glass-card p-6 flex flex-col justify-between hover:-translate-y-1 transition-all duration-300 hover:shadow-glass-lg cursor-pointer border-t-4 border-t-primary group"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="w-10 h-10 rounded-xl bg-primary-soft text-primary flex items-center justify-center font-bold">
+                  <ClipboardCheck size={20} />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  Control de Actas
+                </span>
+              </div>
+              <h5 className="font-bold text-lg text-slate-text group-hover:text-primary transition-colors">
+                Coordinación de Programa
+              </h5>
+              <p className="text-slate-500 text-xs mt-1.5 leading-relaxed">
+                Control de actas con métricas ejecutivas, fijación de fechas límite masivas e individuales, cierre formal preventivo y reapertura excepcional.
+              </p>
+            </div>
+            <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-primary group-hover:translate-x-1 transition-transform">
+              <span>Abrir Coordinación</span>
+              <ArrowRight size={14} />
+            </div>
+          </div>
+
+          {/* Card Panel Docente */}
+          <div 
+            onClick={() => onNavigate?.('evaluation')}
+            className="glass-card p-6 flex flex-col justify-between hover:-translate-y-1 transition-all duration-300 hover:shadow-glass-lg cursor-pointer border-t-4 border-t-indigo-500 group"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                  <LineChart size={20} />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                  Escala 0-20
+                </span>
+              </div>
+              <h5 className="font-bold text-lg text-slate-text group-hover:text-indigo-600 transition-colors">
+                Panel Docente & Calificaciones
+              </h5>
+              <p className="text-slate-500 text-xs mt-1.5 leading-relaxed">
+                Ingreso de promedios con validación vigesimal, banner de fecha límite urgente (≤ 3 días), bloqueo de acta cerrada y vista previa con marca de agua en hora oficial de Lima.
+              </p>
+            </div>
+            <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-indigo-600 group-hover:translate-x-1 transition-transform">
+              <span>Abrir Panel Docente</span>
+              <ArrowRight size={14} />
+            </div>
+          </div>
+
+          {/* Card Supervisión de Actas */}
+          <div 
+            onClick={() => onNavigate?.('coordinator_eval')}
+            className="glass-card p-6 flex flex-col justify-between hover:-translate-y-1 transition-all duration-300 hover:shadow-glass-lg cursor-pointer border-t-4 border-t-amber-500 group"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                  <Eye size={20} />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                  Supervisión
+                </span>
+              </div>
+              <h5 className="font-bold text-lg text-slate-text group-hover:text-amber-600 transition-colors">
+                Supervisión General de Actas
+              </h5>
+              <p className="text-slate-500 text-xs mt-1.5 leading-relaxed">
+                Monitoreo consolidado del avance de notas, actas abiertas vs cerradas y cumplimiento por programas formativos.
+              </p>
+            </div>
+            <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-amber-600 group-hover:translate-x-1 transition-transform">
+              <span>Abrir Supervisión</span>
+              <ArrowRight size={14} />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {isAdmin ? (
         <>

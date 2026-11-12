@@ -445,16 +445,46 @@ export function StudentReportCard() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin`,
-          { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
-        );
-        if (res.ok) {
-          const real = await res.json();
-          setData(real);
+        let real = null;
+        try {
+          const res = await fetch(
+            `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin`,
+            { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
+          );
+          if (res.ok) {
+            real = await res.json();
+          }
+        } catch (err) {
+          console.warn('API /boletin no disponible o error:', err);
+        }
+
+        const notasJson = obtenerNotasPorCiclo(effectiveStudentId, selectedStudent);
+        if (notasJson) {
+          const periodoActual = resumenDesdeJson(notasJson);
+          if (real) {
+            setData({
+              ...real,
+              estudiante: { ...real.estudiante, periodo_codigo: notasJson.periodoActual },
+              cursos_periodo: periodoActual.cursos_periodo,
+              resumen: { ...real.resumen, ...periodoActual.resumen },
+              _notasJson: notasJson,
+            });
+          } else {
+            const boletinJson = generarBoletinDesdeJson(effectiveStudentId, selectedStudent);
+            if (boletinJson) {
+              setData(boletinJson);
+            } else {
+              throw new Error('No se pudo generar la información del boletín.');
+            }
+          }
+        } else if (real) {
+          const evaluacion = mockEvaluacion.evaluaciones.find(
+            e => e.codigo_estudiante === real.estudiante.codigo_estudiante
+              && e.periodo === real.estudiante.periodo_codigo
+          );
+          setData(evaluacion ? { ...real, ...evaluacion } : real);
         } else {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.detail || 'No se encontró información del boletín para este estudiante.');
+          throw new Error('No se encontró información del boletín para este estudiante.');
         }
       } catch (e) {
         setError(e.message);

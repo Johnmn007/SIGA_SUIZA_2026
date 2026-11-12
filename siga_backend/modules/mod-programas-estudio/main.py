@@ -1,5 +1,13 @@
 from fastapi import FastAPI
 import os
+import sys
+from pathlib import Path
+
+# Asegurar que la raíz del backend esté en sys.path para imports compartidos
+_app_root = str(Path(__file__).resolve().parent.parent.parent)
+if _app_root not in sys.path:
+    sys.path.insert(0, _app_root)
+
 from routes import router
 from database import init_db
 import asyncio

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, TIMESTAMP, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, Boolean, TIMESTAMP, ForeignKey, JSON, Date
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from database import BaseModel
@@ -97,6 +97,10 @@ class CargaLectiva(BaseModel):
     turno = Column(String(50)) # Mañana, Tarde, Noche
     seccion = Column(String(10)) # A, B, C
     estado = Column(String(30), default="borrador") # borrador, revision, publicado
+    fecha_limite_notas = Column(Date, nullable=True)
+    acta_cerrada = Column(Boolean, default=False, nullable=False)
+    acta_cerrada_at = Column(TIMESTAMP, nullable=True)
+    acta_cerrada_por = Column(Integer, nullable=True)
 
 class Silabo(BaseModel):
     """Sílabo elaborado por el Docente para una Carga Lectiva"""

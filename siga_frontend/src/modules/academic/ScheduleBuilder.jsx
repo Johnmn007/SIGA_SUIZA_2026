@@ -1,6 +1,44 @@
 import React, { useState } from 'react';
 import { useToast } from '../../core/ui/ToastContext';
+
+import { useConfirm } from '../../core/ui/ConfirmModal';
+
 import { BookOpen, AlertTriangle, Save, RefreshCw } from 'lucide-react';
+
+function useSafeToast() {
+  try {
+    return useToast();
+  } catch {
+    const noop = () => {};
+    return {
+      toast: { success: noop, error: noop, warning: noop, info: noop, dismiss: noop, clear: noop },
+      success: noop,
+      error: noop,
+      warning: noop,
+      info: noop,
+      showSuccess: noop,
+      showError: noop,
+      showWarning: noop,
+      showInfo: noop,
+      dismiss: noop,
+      clear: noop,
+      toasts: [],
+    };
+  }
+}
+
+function useSafeConfirm() {
+  try {
+    return useConfirm();
+  } catch {
+    const fn = async () => true;
+    return Object.assign(fn, {
+      confirm: async () => true,
+      promptModal: async () => '',
+      prompt: async () => '',
+    });
+  }
+}
 
 // Horarios específicos para Desarrollo de Sistemas de Información (Turno Tarde/Noche)
 const TIME_SLOTS = [
@@ -17,7 +55,12 @@ const TIME_SLOTS = [
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
 
 export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
+
+  const { toast } = useSafeToast();
+  const confirm = useSafeConfirm();
+
   const toast = useToast();
+
   // Estado para el horario: key = "Dia-SlotId", value = carga_lectiva_id
   const [schedule, setSchedule] = useState({});
   const [draggedCargaId, setDraggedCargaId] = useState(null);
@@ -35,7 +78,7 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
 
       const slotKey = `${day}-${timeId}`;
       if (!timeMap[slotKey]) timeMap[slotKey] = [];
-      
+
       if (timeMap[slotKey].includes(carga.docente_id)) {
         newWarnings.push(`Cruce detectado: El docente ${getDocenteName(carga.docente_id)} está asignado doble en ${day} a las ${TIME_SLOTS.find(t=>t.id === timeId)?.start}.`);
       } else {
@@ -76,21 +119,36 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
   };
 
   const handleClear = async () => {
+
+    const ok = await confirm({
+      title: "Limpiar Horario",
+      message: "¿Seguro que desea limpiar todo el horario?",
+      isDestructive: true
+
     const ok = await toast.confirm({
       title: 'Limpiar Horario',
       message: '¿Está seguro de limpiar todo el horario actual?',
       type: 'warning',
       confirmText: 'Sí, limpiar'
+
     });
     if (ok) {
       setSchedule({});
       setWarnings([]);
+
+      toast.info("Horario limpiado correctamente");
+
       toast.info("Horario reiniciado.");
+
     }
   };
 
   const handleSave = () => {
+
+    toast.info("Horario guardado temporalmente. (Función MVP: En un futuro se enlazará para guardarse en la BD).");
+
     toast.success("Horario guardado temporalmente. (Función MVP: En un futuro se sincronizará con la base de datos).");
+
   };
 
   const getAssignedCount = (cargaId) => {
@@ -99,7 +157,7 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
 
   return (
     <div className="flex flex-col xl:flex-row gap-6">
-      
+
       {/* Panel Izquierdo: Tarjetas de Carga Lectiva Disponibles */}
       <div className="xl:w-1/4 flex-shrink-0">
         <div className="glass-card p-4 h-full border border-slate-200">
@@ -107,10 +165,10 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
             <BookOpen size={16} className="text-primary"/> Cursos Asignados
           </h4>
           <p className="text-xs text-slate-500 mb-4">Arrastra las tarjetas hacia la cuadrícula de la derecha.</p>
-          
+
           <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
             {cargaLectiva.length === 0 && <p className="text-sm italic text-slate-400">No hay carga lectiva creada.</p>}
-            
+
             {cargaLectiva.map(carga => {
               const assigned = getAssignedCount(carga.id);
               return (
@@ -170,13 +228,13 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
                 </tr>
               </thead>
               <tbody>
-                {TIME_SLOTS.map((slot, index) => (
+                {TIME_SLOTS.map((slot) => (
                   <tr key={slot.id} className={slot.type === 'recreo' ? 'bg-amber-50' : 'bg-white'}>
                     <td className="border-b border-r border-slate-200 p-2 text-center align-middle font-medium text-xs text-slate-500 bg-slate-50/50">
                       <div>{slot.start}</div>
                       <div className="text-[10px] opacity-70">a {slot.end}</div>
                     </td>
-                    
+
                     {slot.type === 'recreo' ? (
                       <td colSpan={5} className="border-b border-slate-200 p-2 text-center text-amber-700/60 font-black tracking-widest text-xs">
                         {slot.label}
@@ -186,7 +244,7 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
                         const cellKey = `${day}-${slot.id}`;
                         const cellCargaId = schedule[cellKey];
                         const cellCarga = cellCargaId ? cargaLectiva.find(c => c.id === cellCargaId) : null;
-                        
+
                         return (
                           <td 
                             key={`${day}-${slot.id}`}
