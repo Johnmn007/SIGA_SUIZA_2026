@@ -1,7 +1,9 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import MetaData
+from sqlalchemy.pool import NullPool
 import os
+import sys
 from datetime import datetime
 from sqlalchemy import Column, Integer, DateTime, String, JSON, Boolean, text
 
@@ -34,13 +36,25 @@ class OutboxEvent(BaseModel):
     payload = Column(JSON, nullable=False)
     published = Column(Boolean, default=False, index=True)
 
-engine = create_async_engine(DATABASE_URL, echo=True)
+_is_test = (os.getenv("DB_NAME") == "siga_test") or ("pytest" in sys.modules)
+
+_engine_kwargs = {}
+if _is_test:
+    _engine_kwargs["poolclass"] = NullPool
+    _engine_kwargs["echo"] = False
+else:
+    _engine_kwargs["echo"] = True
+
+engine = create_async_engine(DATABASE_URL, **_engine_kwargs)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 async def get_db():
     async with AsyncSessionLocal() as db:
         try:
             yield db
+        except BaseException:
+            await db.rollback()
+            raise
         finally:
             await db.close()
 
