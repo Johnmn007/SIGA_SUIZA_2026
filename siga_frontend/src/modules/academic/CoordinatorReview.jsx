@@ -2,10 +2,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
 import { useToast } from '../../core/ui/ToastContext';
-
-import { usePrompt } from '../../core/ui/ConfirmModal';
-import { FileText, BookOpen, ExternalLink, Filter } from 'lucide-react';
-
 import { FileText, BookOpen, ExternalLink, Filter, AlertCircle, X } from 'lucide-react';
 
 function useSafeToast() {
@@ -30,20 +26,8 @@ function useSafeToast() {
   }
 }
 
-function useSafePrompt() {
-  try {
-    return usePrompt();
-  } catch {
-    return async () => '';
-  }
-}
-
 export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva, unidadesFlat }) {
-
   const { toast } = useSafeToast();
-  const promptModal = useSafePrompt();
-
-  const toast = useToast();
 
   const [silabos, setSilabos] = useState([]);
   const [planes, setPlanes] = useState([]);
@@ -72,37 +56,20 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
     fetchData();
   }, [programId, periodId]);
 
-  const handleUpdateStatus = async (type, id, status) => {
-    let obs = '';
-    if (status === 'observado') {
-      obs = await promptModal({
-        title: "Observar " + type,
-        message: "Ingrese el motivo de la observación:",
-        isTextarea: true,
-        required: true,
-        placeholder: "Detalle las observaciones para el docente..."
-      });
-      if (!obs) return;
-
   const handleUpdateStatus = async (type, id, status, customObs = '') => {
     if (status === 'observado' && !customObs) {
       setObsModal({ type, id });
       setObsText('');
       return;
-
     }
 
     try {
       const obs = customObs || '';
-      const url = type === 'silabo' 
+      const url = type === 'silabo'
         ? `/api/mod-programas-estudio/silabos/${id}/estado?estado=${status}${obs ? `&observaciones=${encodeURIComponent(obs)}` : ''}`
         : `/api/mod-programas-estudio/planes-trabajo/${id}/estado?estado=${status}${obs ? `&observaciones=${encodeURIComponent(obs)}` : ''}`;
 
       await apiClient.request(url, { method: 'PUT' });
-
-      toast.success(status === 'aprobado' ? `${type === 'silabo' ? 'Sílabo' : 'Plan de Trabajo'} aprobado` : `${type === 'silabo' ? 'Sílabo' : 'Plan de Trabajo'} observado`);
-      fetchData();
-    } catch {
 
       toast.success(status === 'aprobado' ? 'Documento aprobado con éxito.' : 'Observación enviada al docente.');
       fetchData();
@@ -110,7 +77,6 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
       setObsText('');
     } catch (err) {
       console.error(err);
-
       toast.error(`Error al actualizar estado del ${type}`);
     }
   };

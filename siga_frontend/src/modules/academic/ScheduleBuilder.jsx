@@ -55,11 +55,8 @@ const TIME_SLOTS = [
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
 
 export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
-
   const { toast } = useSafeToast();
   const confirm = useSafeConfirm();
-
-  const toast = useToast();
 
   // Estado para el horario: key = "Dia-SlotId", value = carga_lectiva_id
   const [schedule, setSchedule] = useState({});
@@ -119,36 +116,20 @@ export function ScheduleBuilder({ cargaLectiva, getUDName, getDocenteName }) {
   };
 
   const handleClear = async () => {
-
     const ok = await confirm({
       title: "Limpiar Horario",
       message: "¿Seguro que desea limpiar todo el horario?",
       isDestructive: true
-
-    const ok = await toast.confirm({
-      title: 'Limpiar Horario',
-      message: '¿Está seguro de limpiar todo el horario actual?',
-      type: 'warning',
-      confirmText: 'Sí, limpiar'
-
     });
     if (ok) {
       setSchedule({});
       setWarnings([]);
-
       toast.info("Horario limpiado correctamente");
-
-      toast.info("Horario reiniciado.");
-
     }
   };
 
   const handleSave = () => {
-
     toast.info("Horario guardado temporalmente. (Función MVP: En un futuro se enlazará para guardarse en la BD).");
-
-    toast.success("Horario guardado temporalmente. (Función MVP: En un futuro se sincronizará con la base de datos).");
-
   };
 
   const getAssignedCount = (cargaId) => {

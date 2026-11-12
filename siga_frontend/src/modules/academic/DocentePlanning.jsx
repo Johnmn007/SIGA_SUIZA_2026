@@ -29,10 +29,7 @@ function useSafeToast() {
 
 export function DocentePlanning() {
   const { user } = useAuth();
-
   const { toast } = useSafeToast();
-
-  const toast = useToast();
 
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState([]);
@@ -181,13 +178,6 @@ export function DocentePlanning() {
       }
     } catch (err) {
       toast.error(err.message || "Error al enviar el sílabo");
-
-      // Refresh silabos
-      const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`);
-      setSilabos(silabosRes || []);
-    } catch (e) {
-      toast.error(e.message || "Error al enviar el sílabo");
-
     } finally {
       e.target.value = ''; // reset input
       uploadingTargetRef.current = null;
@@ -251,13 +241,6 @@ export function DocentePlanning() {
       }
     } catch (err) {
       toast.error(err.message || "Error al enviar el Plan de Trabajo");
-
-      // Refresh planes
-      const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`);
-      setPlanes(planesRes || []);
-    } catch (e) {
-      toast.error(e.message || "Error al enviar el Plan de Trabajo");
-
     } finally {
       e.target.value = '';
       uploadingTargetRef.current = null;

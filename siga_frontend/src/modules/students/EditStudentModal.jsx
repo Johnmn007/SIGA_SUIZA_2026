@@ -1,9 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { API_BASE } from '../../core/api/client';
-
-import { Pencil, X, Fingerprint, GraduationCap, Mail, MapPin, ShieldAlert } from 'lucide-react';
-
 import techBg from '../../assets/tech-bg.jpg';
 import { DEPARTAMENTOS, getProvincias, getDistritos } from './ubigeoPeru';
 import {
@@ -267,11 +264,6 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (student) {
-      setForm({ ...student });
-
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
@@ -313,10 +305,7 @@ export function EditStudentModal({ student, onClose, onUpdated }) {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = async (e) => {
-
   const handlePreSubmit = (e) => {
-
     e.preventDefault();
     if (!form.nombres.trim() || !form.apellidos.trim() || !form.dni.trim()) {
       setError("Los nombres, apellidos y DNI son campos obligatorios.");

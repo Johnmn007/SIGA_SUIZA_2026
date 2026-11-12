@@ -43,11 +43,8 @@ function useSafeConfirm() {
 }
 
 export function CoordinatorTutorias({ programId, periodId, docentes }) {
-
   const { toast } = useSafeToast();
   const confirm = useSafeConfirm();
-
-  const toast = useToast();
 
   const [tutorias, setTutorias] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -92,31 +89,20 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
       setForm({ ciclo: '', docente_id: '', observaciones: '' });
       fetchData();
       toast.success("Tutor asignado correctamente");
-
-    } catch {
-
     } catch (err) {
       console.error(err);
-
       toast.error("Error al asignar tutor");
     }
     setSaving(false);
   };
 
   const handleDelete = async (id) => {
-
     const ok = await confirm({
       title: "Eliminar Tutoría",
-      message: "¿Seguro que desea eliminar esta tutoría?",
-      isDestructive: true
-    });
-    if (!ok) return;
-
-    const ok = await toast.confirm({
-      title: 'Eliminar Tutoría',
-      message: '¿Seguro que desea eliminar esta asignación de tutoría?',
-      type: 'danger',
-      confirmText: 'Sí, eliminar'
+      message: "¿Seguro que desea eliminar esta asignación de tutoría?",
+      type: "danger",
+      isDestructive: true,
+      confirmText: "Sí, eliminar"
     });
     if (!ok) return;
 

@@ -49,6 +49,8 @@ function useSafeConfirm() {
 
 export function CoordinatorAcademic() {
   const { user, openPasswordModal } = useAuth();
+  const { toast } = useSafeToast();
+  const { confirm } = useSafeConfirm();
 
   const [activeTab, setActiveTab] = useState('carga'); // 'carga', 'horarios'
   const [horariosSubTab, setHorariosSubTab] = useState('visual'); // 'excel', 'visual'
@@ -259,14 +261,19 @@ export function CoordinatorAcademic() {
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error saving horario", error);
-
+      toast.error("Error al subir el horario");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteCarga = async (id) => {
-
+    const ok = await confirm({
+      title: "Eliminar asignación",
+      message: "¿Seguro que desea eliminar esta asignación?",
+      isDestructive: true
+    });
+    if (!ok) return;
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva/${id}`, { method: 'DELETE' });
       toast.success("Asignación de carga lectiva eliminada");
@@ -278,7 +285,12 @@ export function CoordinatorAcademic() {
   };
 
   const handleDeleteHorario = async (id) => {
-
+    const ok = await confirm({
+      title: "Eliminar horario",
+      message: "¿Seguro que desea eliminar este horario?",
+      isDestructive: true
+    });
+    if (!ok) return;
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/horarios/${id}`, { method: 'DELETE' });
       toast.success("Horario eliminado");
@@ -300,10 +312,8 @@ export function CoordinatorAcademic() {
   };
 
   const handleExportCSV = () => {
-    const headers = "Unidad Didactica,Docente,Turno,Seccion,Estado
-";
-    const rows = cargaLectiva.map(c => `"${getUDName(c.unidad_didactica_id)}","${getDocenteName(c.docente_id)}",${c.turno},${c.seccion},${c.estado}`).join('
-');
+    const headers = "Unidad Didactica,Docente,Turno,Seccion,Estado\n";
+    const rows = cargaLectiva.map(c => `"${getUDName(c.unidad_didactica_id)}","${getDocenteName(c.docente_id)}",${c.turno},${c.seccion},${c.estado}`).join('\n');
     const blob = new Blob(["\uFEFF" + headers + rows], { type: 'text/csv;charset=utf-8;' }); // \uFEFF para soportar caracteres UTF-8 en Excel
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -314,13 +324,30 @@ export function CoordinatorAcademic() {
     document.body.removeChild(link);
   };
 
+  const handleOpenCloneModal = () => {
+    if (!selectedProgram || !selectedPeriod) {
+      toast.warning("Seleccione primero un programa y periodo actual.");
+      return;
+    }
+    setCloneFromPeriod('');
+    setShowCloneModal(true);
+  };
+
+  const handleExecuteCloneCarga = async () => {
+    if (!cloneFromPeriod) {
+      toast.warning("Seleccione el periodo de origen.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva/clonar`, {
         method: 'POST',
         body: JSON.stringify({ from_periodo_id: parseInt(cloneFromPeriod), to_periodo_id: parseInt(selectedPeriod) })
       });
-
+      toast.success(res.message || "Carga lectiva clonada correctamente");
+      setShowCloneModal(false);
+      fetchCargaYHorarios();
+    } catch {
       toast.error("Error al clonar la carga lectiva. Verifique que el periodo origen tenga registros.");
     } finally {
       setLoading(false);
