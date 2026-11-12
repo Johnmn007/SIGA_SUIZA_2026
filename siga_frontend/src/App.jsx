@@ -1,5 +1,6 @@
 import { AuthProvider } from './core/auth/AuthProvider';
 import { ToastProvider } from './core/ui/ToastContext';
+import { ConfirmProvider } from './core/ui/ConfirmModal';
 import { useAuth } from './core/auth/useAuth';
 import { LoginForm } from './core/auth/LoginForm';
 import { DashboardLayout } from './layouts/DashboardLayout';
@@ -79,7 +80,7 @@ function AppContent() {
       case 'report_card': return <StudentReportCard />;
       case 'tramites': return <TramitesDashboard />;
       case 'finanzas': return <FinancesDashboard />;
-      case 'admin': return <AdminDashboard />;
+      case 'admin': return <AdminDashboard onNavigate={setCurrentView} />;
       default: return <Dashboard onNavigate={setCurrentView} />;
     }
   };
@@ -95,7 +96,10 @@ function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <AppContent />
+
+        <ConfirmProvider>
+          <AppContent />
+        </ConfirmProvider>
       </ToastProvider>
     </AuthProvider>
   );

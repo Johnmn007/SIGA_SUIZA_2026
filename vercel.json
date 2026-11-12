@@ -1,0 +1,11 @@
+{
+  "buildCommand": "cd siga_frontend && npm install && npm run build",
+  "outputDirectory": "siga_frontend/dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

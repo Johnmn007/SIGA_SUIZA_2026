@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 venv/
 .venv/
+.venv-test/
 env/
 *.egg-info/
 .pytest_cache/
@@ -70,3 +71,4 @@ siga_backend/.venv_fixed/
 dump_railway.sql
 siga_core_inserts.sql
 dump_*.sql
+backups/

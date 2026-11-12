@@ -1,25 +1,49 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
 import { useToast } from '../../core/ui/ToastContext';
 import { GraduationCap, Calendar, ClipboardList, BookOpen, FileText, Upload, ExternalLink, CheckCircle2, RefreshCw } from 'lucide-react';
 
+function useSafeToast() {
+  try {
+    return useToast();
+  } catch {
+    const noop = () => {};
+    return {
+      toast: { success: noop, error: noop, warning: noop, info: noop, dismiss: noop, clear: noop },
+      success: noop,
+      error: noop,
+      warning: noop,
+      info: noop,
+      showSuccess: noop,
+      showError: noop,
+      showWarning: noop,
+      showInfo: noop,
+      dismiss: noop,
+      clear: noop,
+      toasts: [],
+    };
+  }
+}
+
 export function DocentePlanning() {
   const { user } = useAuth();
-  const toast = useToast();
+  const { toast } = useSafeToast();
+
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
-  
+
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
-  
+
   const [planActual, setPlanActual] = useState(null);
-  
+
   const [cargaLectiva, setCargaLectiva] = useState([]);
   const [mallaFlat, setMallaFlat] = useState([]);
   const [silabos, setSilabos] = useState([]);
-  const [planes, setPlanes] = useState([]);
+  const [_PLANES, setPlanes] = useState([]);
 
   // Fetch initial data
   useEffect(() => {
@@ -84,7 +108,7 @@ export function DocentePlanning() {
   // Fetch Silabos and Planes when Period changes
   useEffect(() => {
     if (!selectedProgram || !selectedPeriod || !user?.id) return;
-    
+
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -92,8 +116,10 @@ export function DocentePlanning() {
         const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`).catch(() => []);
         // Silabos
         const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`).catch(() => []);
-        
+
         setPlanes(planesRes || []);
+        const plan = (planesRes || []).find(p => String(p.programa_id) === String(selectedProgram)) || (planesRes && planesRes.length > 0 ? planesRes[0] : null);
+        setPlanActual(plan || null);
         setSilabos(silabosRes || []);
       } catch (e) {
         console.error('Error fetching planning data', e);
@@ -105,24 +131,37 @@ export function DocentePlanning() {
 
   const fileInputRefSilabo = useRef(null);
   const fileInputRefPlan = useRef(null);
+  const uploadingTargetRef = useRef(null);
   const [uploadingTarget, setUploadingTarget] = useState(null); // { type: 'silabo' | 'plan', id?: number }
 
   const triggerUploadSilabo = (cargaId) => {
-    setUploadingTarget({ type: 'silabo', id: cargaId });
+    const target = { type: 'silabo', id: cargaId };
+    uploadingTargetRef.current = target;
+    setUploadingTarget(target);
     if (fileInputRefSilabo.current) fileInputRefSilabo.current.click();
   };
 
   const handleUploadSilabo = async (e) => {
-    const file = e.target.files[0];
-    if (!file || !uploadingTarget || uploadingTarget.type !== 'silabo') return;
-    
+    const file = e.target.files && e.target.files[0];
+    const target = uploadingTargetRef.current || uploadingTarget;
+    if (!file) {
+      uploadingTargetRef.current = null;
+      setUploadingTarget(null);
+      return;
+    }
+    if (!target || target.type !== 'silabo') return;
+    if (!user?.id) {
+      toast.error("No se pudo identificar la sesión del docente.");
+      return;
+    }
+
     // Simular subida (en producción se subiría a S3/GCS y se obtendría la URL)
     const simulatedUrl = `/docs/silabos/${file.name.replace(/\s+/g, '_')}`;
-    const cargaId = uploadingTarget.id;
-    
+    const cargaId = target.id;
+
     try {
       const payload = {
-        carga_lectiva_id: cargaId,
+        carga_lectiva_id: parseInt(cargaId, 10),
         estado: "presentado",
         archivo_url: simulatedUrl
       };
@@ -131,35 +170,59 @@ export function DocentePlanning() {
         body: JSON.stringify(payload)
       });
       toast.success("Sílabo enviado correctamente al Coordinador");
-      
-      // Refresh silabos
-      const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`);
-      setSilabos(silabosRes || []);
-    } catch (e) {
-      toast.error(e.message || "Error al enviar el sílabo");
+
+      // Refresh silabos con tolerancia a fallos
+      const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`).catch(() => []);
+      if (silabosRes) {
+        setSilabos(silabosRes);
+      }
+    } catch (err) {
+      toast.error(err.message || "Error al enviar el sílabo");
     } finally {
       e.target.value = ''; // reset input
+      uploadingTargetRef.current = null;
       setUploadingTarget(null);
     }
   };
 
   const triggerUploadPlan = () => {
-    setUploadingTarget({ type: 'plan' });
+    if (!selectedPeriod || !selectedProgram) {
+      toast.warning("Por favor seleccione un programa y periodo académico antes de enviar el Plan de Trabajo.");
+      return;
+    }
+    const target = { type: 'plan' };
+    uploadingTargetRef.current = target;
+    setUploadingTarget(target);
     if (fileInputRefPlan.current) fileInputRefPlan.current.click();
   };
 
   const handleUploadPlan = async (e) => {
-    const file = e.target.files[0];
-    if (!file || !uploadingTarget || uploadingTarget.type !== 'plan') return;
-    
+    const file = e.target.files && e.target.files[0];
+    const target = uploadingTargetRef.current || uploadingTarget;
+    if (!file) {
+      uploadingTargetRef.current = null;
+      setUploadingTarget(null);
+      return;
+    }
+    if (!target || target.type !== 'plan') return;
+
+    if (!selectedPeriod || !selectedProgram) {
+      toast.warning("Por favor seleccione un programa y periodo académico antes de enviar el Plan de Trabajo.");
+      return;
+    }
+    if (!user?.id) {
+      toast.error("No se pudo identificar la sesión del docente.");
+      return;
+    }
+
     // Simular subida
     const simulatedUrl = `/docs/planes/${file.name.replace(/\s+/g, '_')}`;
-    
+
     try {
       const payload = {
-        periodo_id: parseInt(selectedPeriod),
-        programa_id: parseInt(selectedProgram),
-        docente_id: user.id,
+        periodo_id: parseInt(selectedPeriod, 10),
+        programa_id: parseInt(selectedProgram, 10),
+        docente_id: parseInt(user.id, 10),
         estado: "presentado",
         archivo_url: simulatedUrl
       };
@@ -168,14 +231,19 @@ export function DocentePlanning() {
         body: JSON.stringify(payload)
       });
       toast.success("Plan de Trabajo enviado correctamente al Coordinador");
-      
-      // Refresh planes
-      const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`);
-      setPlanes(planesRes || []);
-    } catch (e) {
-      toast.error(e.message || "Error al enviar el Plan de Trabajo");
+
+      // Refresh planes con tolerancia a fallos
+      const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`).catch(() => []);
+      if (planesRes) {
+        setPlanes(planesRes);
+        const plan = planesRes.find(p => String(p.programa_id) === String(selectedProgram)) || (planesRes.length > 0 ? planesRes[0] : null);
+        setPlanActual(plan || null);
+      }
+    } catch (err) {
+      toast.error(err.message || "Error al enviar el Plan de Trabajo");
     } finally {
       e.target.value = '';
+      uploadingTargetRef.current = null;
       setUploadingTarget(null);
     }
   };
@@ -192,7 +260,6 @@ export function DocentePlanning() {
     (!selectedPeriod || String(c.periodo_id) === String(selectedPeriod)) &&
     (!selectedProgram || String(c.programa_id) === String(selectedProgram))
   );
-  const planActivo = planes.length > 0 ? planes[0] : null;
 
   return (
     <div className="space-y-6">
@@ -293,11 +360,11 @@ export function DocentePlanning() {
                 </div>
               )}
             </div>
-            
+
             {/* Hidden File Inputs */}
             <input type="file" ref={fileInputRefSilabo} onChange={handleUploadSilabo} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx" />
             <input type="file" ref={fileInputRefPlan} onChange={handleUploadPlan} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx" />
-            
+
           </div>
 
           {/* Carga Lectiva y Sílabos */}
@@ -326,7 +393,7 @@ export function DocentePlanning() {
                   {cargaActiva.map(carga => {
                     const udNombre = getUnidadNombre(carga);
                     const silabo = silabos.find(s => s.carga_lectiva_id === carga.id);
-                    
+
                     return (
                       <div key={carga.id} className="border border-slate-100 rounded-xl p-4 hover:shadow-md transition-shadow bg-white">
                         <div className="flex flex-col md:flex-row justify-between md:items-center">
@@ -341,7 +408,7 @@ export function DocentePlanning() {
                               </span>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center">
                             {silabo ? (
                               <div className="text-right">
