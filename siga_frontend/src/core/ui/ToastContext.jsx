@@ -121,17 +121,68 @@ export function ToastProvider({ children }) {
   const warning = useCallback((msg, dur = 5000) => addToast('warning', msg, dur), [addToast]);
   const info = useCallback((msg, dur = 4000) => addToast('info', msg, dur), [addToast]);
 
-  const toastMethods = {
-    success,
-    error,
-    warning,
-    info,
-    dismiss: removeToast,
-    clear: clearToasts,
-  };
+  // INTERCEPTOR GLOBAL: Erradicar al 100% las ventanas emergentes nativas del navegador (window.alert y window.prompt)
+  useEffect(() => {
+    const originalAlert = window.alert;
+    const originalPrompt = window.prompt;
+
+    window.prompt = (message) => {
+      console.warn('Native window.prompt was intercepted and blocked:', message);
+      addToast({ type: 'warning', title: 'Aviso del Sistema', message: typeof message === 'string' ? message : 'Entrada bloqueada' });
+      return null;
+    };
+
+    window.alert = (message) => {
+      try {
+        const text = typeof message === 'object' ? JSON.stringify(message) : String(message ?? '');
+        const lower = text.toLowerCase();
+        if (
+          lower.includes('error') || 
+          lower.includes('falló') || 
+          lower.includes('no se pudo') || 
+          text.includes('❌') || 
+          lower.includes('bloquead') ||
+          lower.includes('inválid')
+        ) {
+          addToast('error', text);
+        } else if (
+          lower.includes('éxito') || 
+          lower.includes('correctamente') || 
+          lower.includes('exitos') || 
+          text.includes('✅') || 
+          lower.includes('guardad') ||
+          lower.includes('actualizad')
+        ) {
+          addToast('success', text);
+        } else if (
+          lower.includes('advertencia') || 
+          lower.includes('atención') || 
+          text.includes('⚠️')
+        ) {
+          addToast('warning', text);
+        } else {
+          addToast('info', text);
+        }
+      } catch (err) {
+        console.warn('Error intercepting window.alert:', err);
+      }
+    };
+
+    return () => {
+      window.alert = originalAlert;
+      window.prompt = originalPrompt;
+    };
+  }, [addToast]);
 
   const contextValue = {
-    toast: toastMethods,
+    toast: {
+      success,
+      error,
+      warning,
+      info,
+      dismiss: removeToast,
+      clear: clearToasts,
+    },
     success,
     error,
     warning,

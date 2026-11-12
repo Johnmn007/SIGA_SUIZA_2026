@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { useToast } from '../../core/ui/ToastContext';
 import { DocentePlanning } from '../academic/DocentePlanning';
 import { useAuth } from '../../core/auth/useAuth';
 import { Save, GraduationCap, Calendar, BookOpen, ClipboardList, AlertTriangle, Target, FileText, Printer, X, CheckCircle2 } from 'lucide-react';
@@ -114,9 +115,14 @@ function mapSaveError(error) {
 }
 
 export function EvaluationDashboard() {
+
   const { user } = useAuth();
   const userRole = user?.role || (Array.isArray(user?.roles) ? user.roles[0]?.name || user.roles[0] : '');
   const isAdmin = Boolean(user?.is_superuser || userRole === 'admin' || userRole === 'superadmin');
+
+  const { user, openPasswordModal } = useAuth();
+  const toast = useToast();
+
   const [activeTab, setActiveTab] = useState('notas'); // 'notas', 'planificacion'
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -125,16 +131,16 @@ export function EvaluationDashboard() {
   const [saveSuccess, setSaveSuccess] = useState(null);
   const [saveError, setSaveError] = useState(null);
   const [actaStatus, setActaStatus] = useState(null);
-  
+
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [malla, setMalla] = useState([]);
   const [teacherLoad, setTeacherLoad] = useState([]);
-  
+
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [selectedUnit, setSelectedUnit] = useState('');
-  
+
   const [students, setStudents] = useState([]);
 
   // Cargar Programas, Periodos y Carga del Docente al iniciar
@@ -200,7 +206,7 @@ export function EvaluationDashboard() {
       setActaStatus(null);
       return;
     }
-    
+
     const fetchStudentsAndGrades = async () => {
       setLoading(true);
       try {
@@ -215,7 +221,7 @@ export function EvaluationDashboard() {
         } else {
           setActaStatus(null);
         }
-        
+
         const enrolledList = Array.isArray(enrolled) ? enrolled : [];
         const gradesList = Array.isArray(grades) ? grades : [];
 
@@ -229,7 +235,7 @@ export function EvaluationDashboard() {
             nota_final: gradeRecord?.nota_final ?? ''
           };
         });
-        
+
         combined.sort((a, b) => a.name.localeCompare(b.name));
         setStudents(combined);
       } catch (e) {
@@ -237,13 +243,35 @@ export function EvaluationDashboard() {
       }
       setLoading(false);
     };
-    
+
     fetchStudentsAndGrades();
   }, [selectedUnit, selectedPeriod]);
 
   const isReadOnly = Boolean(
     actaStatus && (!actaStatus.tiene_carga || !actaStatus.editable)
   );
+
+  // Sincronizar nómina de alumnos con el programa/sección
+  const handleSyncStudents = async () => {
+    if (!selectedUnit || !selectedPeriod) return;
+    setSyncing(true);
+    try {
+      const res = await apiClient.request(`/api/mod-evaluacion/seccion/${selectedUnit}/periodo/${selectedPeriod}/sincronizar`, {
+        method: 'POST'
+      });
+      await fetchStudentsAndGrades();
+      if (res?.status === 'warning') {
+        toast.warning(res.message);
+      } else {
+        toast.success(res?.message || "Nómina de estudiantes sincronizada con éxito.");
+      }
+    } catch (e) {
+      console.error("Error sincronizando nómina", e);
+      toast.error("Ocurrió un error al sincronizar la nómina: " + (e.message || "Error del servidor"));
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleGradeChange = (studentId, criteria, value) => {
     if (isReadOnly) return;
@@ -252,7 +280,7 @@ export function EvaluationDashboard() {
       setGradeError('La nota debe ser un número entero entre 0 y 20');
       return;
     }
-    
+
     const numValue = parseInt(value, 10);
     if (value !== '' && (numValue < 0 || numValue > 20)) {
       setGradeError('La nota debe estar entre 0 y 20');
@@ -271,7 +299,7 @@ export function EvaluationDashboard() {
 
   const handleSaveGrades = async () => {
     if (!selectedUnit || !selectedPeriod || students.length === 0 || isReadOnly) return;
-    
+
     // Validación cliente de todas las notas
     const hasInvalidGrade = students.some(s => {
       if (s.nota_final === '' || s.nota_final === null || s.nota_final === undefined) return false;
@@ -292,7 +320,7 @@ export function EvaluationDashboard() {
         const payload = {
           nota_final: student.nota_final !== '' && student.nota_final !== null ? parseInt(student.nota_final, 10) : null
         };
-        
+
         if (student.registro_id) {
           return apiClient.request(`/api/mod-evaluacion/registros/${student.registro_id}`, {
             method: 'PUT',
@@ -311,9 +339,9 @@ export function EvaluationDashboard() {
           }).then(data => ({ status: 'ok', data }));
         }
       });
-      
+
       const results = await Promise.all(promises);
-      
+
       const newStudents = [...students];
       for (let i = 0; i < results.length; i++) {
         const res = results[i];
@@ -321,14 +349,149 @@ export function EvaluationDashboard() {
           newStudents[i].registro_id = res.data.id;
         }
       }
+
       setStudents(newStudents);
       setSaveSuccess('Calificaciones guardadas exitosamente');
     } catch (e) {
       console.error('Error saving grades', e);
       setSaveError(mapSaveError(e));
+
+      toast.success("¡Calificaciones guardadas exitosamente en el sistema SIGA!");
+    } catch (e) {
+      console.error('Error saving grades', e);
+      toast.error("Ocurrió un error al guardar las calificaciones: " + (e.message || "Error de conexión"));
+
     } finally {
       setSaving(false);
     }
+  };
+
+  // Exportar Plantilla Excel / CSV
+  const handleExportCSV = () => {
+    if (!students || students.length === 0) return;
+    const unitName = currentUnitName.replace(/,/g, ' ');
+    const headers = "N°,DNI,Apellidos y Nombres,Capacidad 1 (C1),Capacidad 2 (C2),Capacidad 3 (C3),Promedio Final,Condición
+";
+    const rows = students.map((s, idx) => {
+      const cond = s.nota_final === '' ? 'Pendiente' : (parseInt(s.nota_final, 10) >= 13 ? 'Aprobado' : 'Desaprobado');
+      return `${idx + 1},"${s.dni}","${s.name}",${s.nota_c1},${s.nota_c2},${s.nota_c3},${s.nota_final},${cond}`;
+    }).join('
+');
+
+    const blob = new Blob(["\uFEFF" + headers + rows], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Registro_Notas_${unitName.replace(/\s+/g, '_')}_${currentPeriodName}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Importar Notas desde Archivo Excel / CSV
+  const handleImportCSV = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target.result;
+        const lines = text.split(/\r?
+/).filter(line => line.trim() !== '');
+        if (lines.length < 2) {
+          toast.warning("El archivo no contiene suficientes filas.");
+          return;
+        }
+
+        let loadedCount = 0;
+        setStudents(prev => {
+          const updated = [...prev];
+
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
+            // Columns: N°, DNI, Apellidos y Nombres, C1, C2, C3, Promedio Final
+            if (cols.length >= 3) {
+              const dniOrName = cols[1];
+              const studentName = cols[2];
+              const c1 = cols[3] || '';
+              const c2 = cols[4] || '';
+              const c3 = cols[5] || '';
+              const prom = cols[6] || '';
+
+              const matchIdx = updated.findIndex(s => 
+                (dniOrName && s.dni && s.dni === dniOrName) || 
+                (studentName && s.name.toLowerCase() === studentName.toLowerCase())
+              );
+
+              if (matchIdx !== -1) {
+                loadedCount++;
+                const item = { ...updated[matchIdx] };
+                if (c1 !== '' && !isNaN(Number(c1))) item.nota_c1 = String(Math.min(20, Math.max(0, parseInt(c1, 10))));
+                if (c2 !== '' && !isNaN(Number(c2))) item.nota_c2 = String(Math.min(20, Math.max(0, parseInt(c2, 10))));
+                if (c3 !== '' && !isNaN(Number(c3))) item.nota_c3 = String(Math.min(20, Math.max(0, parseInt(c3, 10))));
+
+                const validVals = [item.nota_c1, item.nota_c2, item.nota_c3]
+                  .filter(v => v !== '' && !isNaN(Number(v)))
+                  .map(Number);
+
+                if (validVals.length > 0) {
+                  const finalP = Math.round(validVals.reduce((a, b) => a + b, 0) / validVals.length);
+                  item.nota_final = String(finalP);
+                  item.estado = finalP >= 13 ? 'aprobado' : 'desaprobado';
+                } else if (prom !== '' && !isNaN(Number(prom))) {
+                  const pVal = Math.min(20, Math.max(0, parseInt(prom, 10)));
+                  item.nota_final = String(pVal);
+                  item.estado = pVal >= 13 ? 'aprobado' : 'desaprobado';
+                }
+                updated[matchIdx] = item;
+              }
+            }
+          }
+          return updated;
+        });
+        toast.success(`Se importaron calificaciones para ${loadedCount} estudiantes.`);
+      } catch (err) {
+        console.error("Error parsing CSV", err);
+        toast.error("Error al procesar el archivo: formato CSV inválido.");
+      }
+    };
+    reader.readAsText(file, "UTF-8");
+    e.target.value = '';
+  };
+
+  // Acciones Masivas (Llenado Rápido)
+  const handleBulkFill = async (fillValue) => {
+    setShowBulkMenu(false);
+    if (students.length === 0) return;
+    const confirmMsg = fillValue === '' 
+      ? "¿Deseas limpiar todas las calificaciones de la lista?" 
+      : `¿Deseas asignar la nota ${fillValue} a todos los estudiantes con campos vacíos?`;
+    const ok = await toast.confirm({
+      title: fillValue === '' ? "Limpiar Calificaciones" : "Asignación Masiva",
+      message: confirmMsg,
+      type: fillValue === '' ? 'danger' : 'info',
+      confirmText: fillValue === '' ? 'Sí, limpiar' : 'Sí, asignar'
+    });
+    if (!ok) return;
+
+    setStudents(prev => prev.map(s => {
+      if (fillValue === '') {
+        return { ...s, nota_c1: '', nota_c2: '', nota_c3: '', nota_final: '', estado: 'cursando' };
+      }
+      const c1 = s.nota_c1 === '' ? String(fillValue) : s.nota_c1;
+      const c2 = s.nota_c2 === '' ? String(fillValue) : s.nota_c2;
+      const c3 = s.nota_c3 === '' ? String(fillValue) : s.nota_c3;
+      const p = Math.round((Number(c1) + Number(c2) + Number(c3)) / 3);
+      return {
+        ...s,
+        nota_c1: c1,
+        nota_c2: c2,
+        nota_c3: c3,
+        nota_final: String(p),
+        estado: p >= 13 ? 'aprobado' : 'desaprobado'
+      };
+    }));
   };
 
   const getTipoCompetencia = (unidadNombre, moduloNombre) => {
@@ -383,7 +546,7 @@ export function EvaluationDashboard() {
             Ingreso y consolidación de promedios finales por unidad didáctica (Escala Vigesimal 0-20).
           </p>
         </div>
-        
+
         <div className="flex items-center gap-2.5">
           <button 
             type="button"
@@ -509,7 +672,7 @@ export function EvaluationDashboard() {
                 <BookOpen size={14} className="text-slate-400" />
                 <span>Seleccionar Unidad Didáctica a Evaluar</span>
               </label>
-              
+
               <div className="relative">
                 <select 
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
@@ -525,9 +688,9 @@ export function EvaluationDashboard() {
                       : modulo.unidades.filter(u => 
                           teacherLoad.some(t => t.unidad_didactica_id === u.id && t.periodo_id === parseInt(selectedPeriod))
                         );
-                    
+
                     if (assignedUnits.length === 0) return null;
-                    
+
                     return (
                       <optgroup key={`mod-${modulo.id}`} label={`Ciclo ${modulo.periodo} - ${modulo.nombre}`} className="bg-slate-50 font-bold text-slate-500 text-xs">
                         {assignedUnits.map(u => (
@@ -678,7 +841,7 @@ export function EvaluationDashboard() {
                   <span>Nota mínima aprobatoria: 13 a 20</span>
                 </div>
               </div>
-              
+
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-20">
                   <div className="w-7 h-7 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mb-2"></div>

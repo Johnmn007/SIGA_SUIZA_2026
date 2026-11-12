@@ -96,6 +96,7 @@ function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+
         <ConfirmProvider>
           <AppContent />
         </ConfirmProvider>

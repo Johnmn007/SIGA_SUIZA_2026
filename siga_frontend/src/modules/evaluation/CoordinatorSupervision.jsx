@@ -5,6 +5,7 @@ import { apiClient } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { useToast } from '../../core/ui/ToastContext';
 import { GraduationCap, Calendar, X, FileSpreadsheet, SearchX, Eye } from 'lucide-react';
+import { useToast } from '../../core/ui/ToastContext';
 
 function useSafeToast() {
   try {
@@ -29,6 +30,7 @@ function useSafeToast() {
 }
 
 export function CoordinatorSupervision() {
+  const toast = useToast();
   const { user } = useAuth();
   const { toast } = useSafeToast();
   const [loading, setLoading] = useState(false);

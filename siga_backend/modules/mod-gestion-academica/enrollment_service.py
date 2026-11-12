@@ -18,6 +18,7 @@ from domain import (
     EstadoMatricula,
     clasificar_casuistica,
     normalizar_casuistica,
+    es_periodo_inicio_anio,
 )
 from enrollment_engine import Contexto, Unidad
 from models import (
@@ -92,11 +93,16 @@ def _flatten_malla(malla, prereqs: Dict[int, List[int]]) -> List[Unidad]:
     return unidades
 
 
-def _deducir_casuistica(estudiante, historial, convalidados, override) -> str:
+def _deducir_casuistica(estudiante, historial, convalidados, override, periodo=None) -> str:
     """Prioriza: override explícito > modalidad del estudiante > historial."""
+    es_inicio = es_periodo_inicio_anio(periodo) if periodo else True
+
     if override:
         normalizada = normalizar_casuistica(override)
         if normalizada:
+            # En periodos posteriores (ej. 2026-II, 2027-II), no existen ingresantes ('cachimbos')
+            if normalizada == Casuistica.INGRESANTE.value and not es_inicio:
+                return Casuistica.REGULAR.value
             return normalizada
 
     modalidad = (getattr(estudiante, "modalidad_admision", "") or "").upper()
@@ -105,7 +111,7 @@ def _deducir_casuistica(estudiante, historial, convalidados, override) -> str:
     if "CONVENIO" in modalidad or "BECA" in modalidad:
         return Casuistica.CONVENIO.value
 
-    return clasificar_casuistica(historial, convalidados)
+    return clasificar_casuistica(historial, convalidados, es_periodo_inicio=es_inicio)
 
 
 async def construir_contexto(
@@ -137,7 +143,7 @@ async def construir_contexto(
 
     return Contexto(
         mode=enrollment_settings.engine_for(estrategia),
-        casuistica=_deducir_casuistica(estudiante, historial, convalidados, casuistica),
+        casuistica=_deducir_casuistica(estudiante, historial, convalidados, casuistica, periodo=periodo),
         unidades=unidades,
         historial=historial,
         intentos=intentos,
@@ -150,4 +156,5 @@ async def construir_contexto(
         es_historico=es_historico,
         plan_origen=plan_origen,
         plan_vigente=plan_vigente,
+        ciclo_actual=getattr(estudiante, "ciclo_actual", 1) or 1,
     )

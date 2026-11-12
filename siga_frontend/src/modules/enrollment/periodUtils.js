@@ -24,6 +24,20 @@ export function isHistoricalPeriod(period) {
   return CLOSED_STATES.has(normalizePeriodState(period?.estado));
 }
 
+export function isFirstPeriodOfYear(period) {
+  if (!period) return false;
+  const codigo = String(period?.codigo || period?.nombre || '').trim().toUpperCase();
+  // Reconoce sufijos de primer semestre: -I, _I, -1, _1, " I", " 1"
+  return /[-_\s](I|1)$/i.test(codigo) || codigo.endsWith('-I') || codigo.endsWith('-1');
+}
+
+export function getPeriodCohortLabel(period) {
+  if (!period) return '';
+  return isFirstPeriodOfYear(period)
+    ? 'Inicio de Año (Ingresantes / Ciclo I)'
+    : 'Periodo Posterior (Continuadores / Históricos)';
+}
+
 export function getPeriodStateLabel(estado) {
   const key = normalizePeriodState(estado);
   if (!key) return '';

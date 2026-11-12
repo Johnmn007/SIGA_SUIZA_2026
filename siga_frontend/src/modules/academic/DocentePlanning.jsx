@@ -29,16 +29,20 @@ function useSafeToast() {
 
 export function DocentePlanning() {
   const { user } = useAuth();
+
   const { toast } = useSafeToast();
+
+  const toast = useToast();
+
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
-  
+
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
-  
+
   const [planActual, setPlanActual] = useState(null);
-  
+
   const [cargaLectiva, setCargaLectiva] = useState([]);
   const [mallaFlat, setMallaFlat] = useState([]);
   const [silabos, setSilabos] = useState([]);
@@ -107,7 +111,7 @@ export function DocentePlanning() {
   // Fetch Silabos and Planes when Period changes
   useEffect(() => {
     if (!selectedProgram || !selectedPeriod || !user?.id) return;
-    
+
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -115,7 +119,7 @@ export function DocentePlanning() {
         const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`).catch(() => []);
         // Silabos
         const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`).catch(() => []);
-        
+
         setPlanes(planesRes || []);
         const plan = (planesRes || []).find(p => String(p.programa_id) === String(selectedProgram)) || (planesRes && planesRes.length > 0 ? planesRes[0] : null);
         setPlanActual(plan || null);
@@ -153,11 +157,11 @@ export function DocentePlanning() {
       toast.error("No se pudo identificar la sesión del docente.");
       return;
     }
-    
+
     // Simular subida (en producción se subiría a S3/GCS y se obtendría la URL)
     const simulatedUrl = `/docs/silabos/${file.name.replace(/\s+/g, '_')}`;
     const cargaId = target.id;
-    
+
     try {
       const payload = {
         carga_lectiva_id: parseInt(cargaId, 10),
@@ -169,7 +173,7 @@ export function DocentePlanning() {
         body: JSON.stringify(payload)
       });
       toast.success("Sílabo enviado correctamente al Coordinador");
-      
+
       // Refresh silabos con tolerancia a fallos
       const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`).catch(() => []);
       if (silabosRes) {
@@ -177,6 +181,13 @@ export function DocentePlanning() {
       }
     } catch (err) {
       toast.error(err.message || "Error al enviar el sílabo");
+
+      // Refresh silabos
+      const silabosRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/silabos`);
+      setSilabos(silabosRes || []);
+    } catch (e) {
+      toast.error(e.message || "Error al enviar el sílabo");
+
     } finally {
       e.target.value = ''; // reset input
       uploadingTargetRef.current = null;
@@ -204,7 +215,7 @@ export function DocentePlanning() {
       return;
     }
     if (!target || target.type !== 'plan') return;
-    
+
     if (!selectedPeriod || !selectedProgram) {
       toast.warning("Por favor seleccione un programa y periodo académico antes de enviar el Plan de Trabajo.");
       return;
@@ -216,7 +227,7 @@ export function DocentePlanning() {
 
     // Simular subida
     const simulatedUrl = `/docs/planes/${file.name.replace(/\s+/g, '_')}`;
-    
+
     try {
       const payload = {
         periodo_id: parseInt(selectedPeriod, 10),
@@ -230,7 +241,7 @@ export function DocentePlanning() {
         body: JSON.stringify(payload)
       });
       toast.success("Plan de Trabajo enviado correctamente al Coordinador");
-      
+
       // Refresh planes con tolerancia a fallos
       const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`).catch(() => []);
       if (planesRes) {
@@ -240,6 +251,13 @@ export function DocentePlanning() {
       }
     } catch (err) {
       toast.error(err.message || "Error al enviar el Plan de Trabajo");
+
+      // Refresh planes
+      const planesRes = await apiClient.request(`/api/mod-programas-estudio/docente/${user.id}/planes-trabajo?periodo_id=${selectedPeriod}`);
+      setPlanes(planesRes || []);
+    } catch (e) {
+      toast.error(e.message || "Error al enviar el Plan de Trabajo");
+
     } finally {
       e.target.value = '';
       uploadingTargetRef.current = null;
@@ -359,11 +377,11 @@ export function DocentePlanning() {
                 </div>
               )}
             </div>
-            
+
             {/* Hidden File Inputs */}
             <input type="file" ref={fileInputRefSilabo} onChange={handleUploadSilabo} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx" />
             <input type="file" ref={fileInputRefPlan} onChange={handleUploadPlan} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx" />
-            
+
           </div>
 
           {/* Carga Lectiva y Sílabos */}
@@ -392,7 +410,7 @@ export function DocentePlanning() {
                   {cargaActiva.map(carga => {
                     const udNombre = getUnidadNombre(carga);
                     const silabo = silabos.find(s => s.carga_lectiva_id === carga.id);
-                    
+
                     return (
                       <div key={carga.id} className="border border-slate-100 rounded-xl p-4 hover:shadow-md transition-shadow bg-white">
                         <div className="flex flex-col md:flex-row justify-between md:items-center">
@@ -407,7 +425,7 @@ export function DocentePlanning() {
                               </span>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center">
                             {silabo ? (
                               <div className="text-right">

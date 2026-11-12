@@ -2,7 +2,9 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
 import { useToast } from '../../core/ui/ToastContext';
+
 import { useConfirm } from '../../core/ui/ConfirmModal';
+
 import { UserCog, Users, Trash2 } from 'lucide-react';
 
 function useSafeToast() {
@@ -41,12 +43,16 @@ function useSafeConfirm() {
 }
 
 export function CoordinatorTutorias({ programId, periodId, docentes }) {
+
   const { toast } = useSafeToast();
   const confirm = useSafeConfirm();
+
+  const toast = useToast();
+
   const [tutorias, setTutorias] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   const [form, setForm] = useState({ ciclo: '', docente_id: '', observaciones: '' });
 
   const fetchData = async () => {
@@ -71,7 +77,7 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
       toast.warning("Seleccione ciclo y docente");
       return;
     }
-    
+
     setSaving(true);
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${programId}/tutorias`, {
@@ -86,21 +92,37 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
       setForm({ ciclo: '', docente_id: '', observaciones: '' });
       fetchData();
       toast.success("Tutor asignado correctamente");
+
     } catch {
+
+    } catch (err) {
+      console.error(err);
+
       toast.error("Error al asignar tutor");
     }
     setSaving(false);
   };
 
   const handleDelete = async (id) => {
+
     const ok = await confirm({
       title: "Eliminar Tutoría",
       message: "¿Seguro que desea eliminar esta tutoría?",
       isDestructive: true
     });
     if (!ok) return;
+
+    const ok = await toast.confirm({
+      title: 'Eliminar Tutoría',
+      message: '¿Seguro que desea eliminar esta asignación de tutoría?',
+      type: 'danger',
+      confirmText: 'Sí, eliminar'
+    });
+    if (!ok) return;
+
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${programId}/tutorias/${id}`, { method: 'DELETE' });
+      toast.success("Tutoría eliminada exitosamente");
       fetchData();
     } catch (error) {
       console.error("Error deleting tutoria", error);
@@ -118,7 +140,7 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* Formulario de Asignación */}
         <div className="lg:col-span-1">
           <div className="glass-card p-6">
@@ -128,7 +150,7 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
               </span>
               Asignar Tutoría
             </h3>
-            
+
             <form onSubmit={handleAssign} className="space-y-4">
               <div>
                 <label className="label text-xs">Ciclo / Semestre</label>
@@ -142,7 +164,7 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
                   {[1,2,3,4,5,6].map(c => <option key={c} value={c}>Ciclo {c}</option>)}
                 </select>
               </div>
-              
+
               <div>
                 <label className="label text-xs">Docente Tutor</label>
                 <select 
@@ -155,7 +177,7 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
                   {docentes.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
                 </select>
               </div>
-              
+
               <div>
                 <label className="label text-xs">Observaciones (Opcional)</label>
                 <textarea 
@@ -165,7 +187,7 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
                   onChange={e => setForm({...form, observaciones: e.target.value})}
                 ></textarea>
               </div>
-              
+
               <button 
                 type="submit" 
                 disabled={saving}
@@ -181,7 +203,7 @@ export function CoordinatorTutorias({ programId, periodId, docentes }) {
         <div className="lg:col-span-2">
           <div className="glass-card p-6 h-full">
             <h3 className="text-lg font-bold text-slate-700 mb-4">Tutores del Periodo</h3>
-            
+
             {loading ? (
               <div className="text-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div></div>
             ) : tutorias.length === 0 ? (

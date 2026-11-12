@@ -14,8 +14,8 @@ down_revision: Union[str, None] = '123456789abc'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-
 def upgrade() -> None:
+
     # Idempotente: la tabla puede existir ya (volcado inicial o migraciones previas)
     if sa.inspect(op.get_bind()).has_table('core_role_permissions'):
         return
@@ -26,6 +26,14 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['permission_id'], ['core_permissions.id'], ondelete='CASCADE')
     )
 
+    conn = op.get_bind()
+    conn.execute(sa.text("""
+        CREATE TABLE IF NOT EXISTS core_role_permissions (
+            role_id INTEGER NOT NULL REFERENCES core_roles(id) ON DELETE CASCADE,
+            permission_id INTEGER NOT NULL REFERENCES core_permissions(id) ON DELETE CASCADE,
+            PRIMARY KEY (role_id, permission_id)
+        );
+    """))
 
 def downgrade() -> None:
-    pass
+    op.drop_table('core_role_permissions')

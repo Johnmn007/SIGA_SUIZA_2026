@@ -4,6 +4,7 @@ import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
 import { useToast } from '../../core/ui/ToastContext';
 import { useConfirm } from '../../core/ui/ConfirmModal';
+
 import { CoordinatorReview } from './CoordinatorReview';
 import { CoordinatorTutorias } from './CoordinatorTutorias';
 import { CoordinatorActas } from './CoordinatorActas';
@@ -48,20 +49,18 @@ function useSafeConfirm() {
 
 export function CoordinatorAcademic() {
   const { user, openPasswordModal } = useAuth();
-  const { toast } = useSafeToast();
-  const { confirm, promptModal } = useSafeConfirm();
-  
+
   const [activeTab, setActiveTab] = useState('carga'); // 'carga', 'horarios'
   const [horariosSubTab, setHorariosSubTab] = useState('visual'); // 'excel', 'visual'
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   // Selectors
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
-  
+
   // Data
   const [personal, setPersonal] = useState([]);
   const [allDocentes, setAllDocentes] = useState([]);
@@ -69,11 +68,13 @@ export function CoordinatorAcademic() {
   const [unidadesFlat, setUnidadesFlat] = useState([]);
   const [cargaLectiva, setCargaLectiva] = useState([]);
   const [horarios, setHorarios] = useState([]);
-  
+
   // Forms
   const [cargaForm, setCargaForm] = useState({ docente_id: '', unidades_didacticas_ids: [], turno: 'Mañana', seccion: 'A' });
   const [horarioForm, setHorarioForm] = useState({ archivo_excel_url: '', observaciones: '' });
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [cloneFromPeriod, setCloneFromPeriod] = useState('');
 
   // 1. Initial Load
   useEffect(() => {
@@ -85,14 +86,14 @@ export function CoordinatorAcademic() {
           apiClient.request('/api/mod-usuarios/personal').catch(() => []),
           apiClient.request('/api/mod-usuarios/usuarios').catch(() => [])
         ]);
-        
+
         setPrograms(progRes || []);
         setPeriods(perRes || []);
-        
+
         // Combinar personal institucional y usuarios con rol docente
         const staffList = Array.isArray(personalRes) ? [...personalRes] : [];
         const existingUserIds = new Set(staffList.map(p => p?.usuario?.id).filter(Boolean));
-        
+
         (usuariosRes || []).forEach(u => {
           const isDocente = u.roles?.some(r => r.name === 'docente');
           if (isDocente && !existingUserIds.has(u.id)) {
@@ -107,14 +108,14 @@ export function CoordinatorAcademic() {
             existingUserIds.add(u.id);
           }
         });
-        
+
         setPersonal(staffList);
-        
+
         const allDocs = staffList
           .filter(p => p?.usuario && p?.perfil?.cargo_funcional !== 'SECRETARIA_PROGRAMA')
           .map(p => p.usuario);
         setAllDocentes(allDocs);
-        
+
         let hasProgram = false;
         if (staffList.length > 0 && user) {
           const myProfile = staffList.find(p => p?.usuario?.id === user.id);
@@ -123,21 +124,21 @@ export function CoordinatorAcademic() {
             hasProgram = true;
           }
         }
-        
+
         if (!hasProgram && progRes && progRes.length > 0) {
           setSelectedProgram(progRes[0].id.toString());
         }
-        
+
         if (perRes && perRes.length > 0) {
           const active = perRes.find(p => ['ACTIVO', 'activo', 'matricula_abierta', 'en_curso'].includes(p.estado)) || perRes[0];
           setSelectedPeriod(active ? active.id.toString() : perRes[0].id.toString());
         }
-        
+
       } catch (error) {
         console.error("Error loading initial data", error);
       }
     };
-    
+
     if (user) fetchInitial();
   }, [user]);
 
@@ -148,7 +149,7 @@ export function CoordinatorAcademic() {
       setDocentes([]);
       return;
     }
-    
+
     // Filter personal for the selected program (or unassigned/global) and exclude secretaries
     const filteredStaff = personal.filter(p => 
       p?.perfil && 
@@ -163,7 +164,7 @@ export function CoordinatorAcademic() {
     const fetchMalla = async () => {
       try {
         const res = await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/malla`);
-        
+
         // Flatten unidades for easy select dropdown
         const flat = [];
         (res || []).forEach(modulo => {
@@ -207,19 +208,7 @@ export function CoordinatorAcademic() {
 
   const handleCreateCarga = async (e) => {
     e.preventDefault();
-    if (!selectedProgram || !selectedPeriod) {
-      toast.warning("Seleccione Programa y Periodo primero");
-      return;
-    }
-    if (!cargaForm.unidades_didacticas_ids || cargaForm.unidades_didacticas_ids.length === 0) {
-      toast.warning("Seleccione al menos una unidad didáctica");
-      return;
-    }
-    if (!cargaForm.docente_id) {
-      toast.warning("Seleccione un docente");
-      return;
-    }
-    
+
     setSaving(true);
     try {
       const promises = cargaForm.unidades_didacticas_ids.map(ud_id => {
@@ -236,7 +225,7 @@ export function CoordinatorAcademic() {
           body: JSON.stringify(payload)
         });
       });
-      
+
       await Promise.all(promises);
       setCargaForm({ ...cargaForm, unidades_didacticas_ids: [] });
       setIsModalOpen(false);
@@ -252,11 +241,7 @@ export function CoordinatorAcademic() {
 
   const handleUploadHorario = async (e) => {
     e.preventDefault();
-    if (!selectedProgram || !selectedPeriod) {
-      toast.warning("Seleccione Programa y Periodo primero");
-      return;
-    }
-    
+
     setSaving(true);
     try {
       const payload = {
@@ -270,24 +255,21 @@ export function CoordinatorAcademic() {
         body: JSON.stringify(payload)
       });
       setHorarioForm({ archivo_excel_url: '', observaciones: '' });
+      toast.success("Horario publicado correctamente");
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error saving horario", error);
-      toast.error("Error al subir el horario");
+
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteCarga = async (id) => {
-    const ok = await confirm({
-      title: "Eliminar asignación",
-      message: "¿Seguro que desea eliminar esta asignación?",
-      isDestructive: true
-    });
-    if (!ok) return;
+
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva/${id}`, { method: 'DELETE' });
+      toast.success("Asignación de carga lectiva eliminada");
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error deleting carga", error);
@@ -296,14 +278,10 @@ export function CoordinatorAcademic() {
   };
 
   const handleDeleteHorario = async (id) => {
-    const ok = await confirm({
-      title: "Eliminar horario",
-      message: "¿Seguro que desea eliminar este horario?",
-      isDestructive: true
-    });
-    if (!ok) return;
+
     try {
       await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/horarios/${id}`, { method: 'DELETE' });
+      toast.success("Horario eliminado");
       fetchCargaYHorarios();
     } catch (error) {
       console.error("Error deleting horario", error);
@@ -322,8 +300,10 @@ export function CoordinatorAcademic() {
   };
 
   const handleExportCSV = () => {
-    const headers = "Unidad Didactica,Docente,Turno,Seccion,Estado\n";
-    const rows = cargaLectiva.map(c => `"${getUDName(c.unidad_didactica_id)}","${getDocenteName(c.docente_id)}",${c.turno},${c.seccion},${c.estado}`).join('\n');
+    const headers = "Unidad Didactica,Docente,Turno,Seccion,Estado
+";
+    const rows = cargaLectiva.map(c => `"${getUDName(c.unidad_didactica_id)}","${getDocenteName(c.docente_id)}",${c.turno},${c.seccion},${c.estado}`).join('
+');
     const blob = new Blob(["\uFEFF" + headers + rows], { type: 'text/csv;charset=utf-8;' }); // \uFEFF para soportar caracteres UTF-8 en Excel
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -334,23 +314,13 @@ export function CoordinatorAcademic() {
     document.body.removeChild(link);
   };
 
-  const handleCloneCarga = async () => {
-    const prevPeriodId = await promptModal({
-      title: "Clonar Periodo",
-      message: "Ingrese el ID del periodo anterior desde el cual desea clonar:",
-      placeholder: "Ej. 1",
-      required: true
-    });
-    if (!prevPeriodId) return;
     setLoading(true);
     try {
       const res = await apiClient.request(`/api/mod-programas-estudio/programas/${selectedProgram}/carga-lectiva/clonar`, {
         method: 'POST',
-        body: JSON.stringify({ from_periodo_id: parseInt(prevPeriodId), to_periodo_id: parseInt(selectedPeriod) })
+        body: JSON.stringify({ from_periodo_id: parseInt(cloneFromPeriod), to_periodo_id: parseInt(selectedPeriod) })
       });
-      toast.success(res.message || "Carga lectiva clonada exitosamente");
-      fetchCargaYHorarios();
-    } catch {
+
       toast.error("Error al clonar la carga lectiva. Verifique que el periodo origen tenga registros.");
     } finally {
       setLoading(false);
@@ -376,7 +346,7 @@ export function CoordinatorAcademic() {
         teacherLoad={cargaLectiva.filter(c => c.docente_id === parseInt(cargaForm.docente_id)).length}
         isOverloaded={cargaLectiva.filter(c => c.docente_id === parseInt(cargaForm.docente_id)).length >= 4}
       />
-      
+
       <div className="glass-panel p-6 mb-8 flex justify-between items-center bg-gradient-to-r from-primary-soft to-primary-soft/40">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-text">
@@ -468,7 +438,7 @@ export function CoordinatorAcademic() {
                 <BookOpen size={24} />
               </div>
             </div>
-            
+
             <div className="glass-card p-5 flex items-center justify-between border-l-4 border-l-emerald-500 bg-gradient-to-r from-emerald-50/50 to-white">
               <div>
                 <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest mb-1">Docentes Asignados</p>
@@ -525,14 +495,14 @@ export function CoordinatorAcademic() {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              
+
               {/* Carga Lectiva Tab */}
               {activeTab === 'carga' && (
                 <>
                   <div className="lg:col-span-1">
                     <form className="glass-card p-6 sticky top-6 mb-6">
                       <h3 className="text-lg font-semibold text-slate-text mb-4">Nueva Asignación</h3>
-                      
+
                       <div className="space-y-4">
                         <div>
                           <label className="label">Docente</label>
@@ -548,7 +518,7 @@ export function CoordinatorAcademic() {
                             ))}
                           </select>
                         </div>
-                        
+
                         {cargaForm.docente_id && (
                           <button 
                             type="button" 
@@ -560,13 +530,13 @@ export function CoordinatorAcademic() {
                         )}
                       </div>
                     </form>
-                    
+
                     {/* Botón de Clonar */}
                     <div className="glass-card p-5 bg-gradient-to-br from-indigo-50 to-white border border-indigo-100">
                       <h4 className="text-sm font-bold text-indigo-900 mb-2 flex items-center gap-2"><Copy size={16}/> Ahorra tiempo</h4>
                       <p className="text-xs text-indigo-700/80 mb-4 leading-relaxed">¿Mismos cursos y docentes que el ciclo anterior? Copia toda la carga lectiva con un clic.</p>
                       <button 
-                        onClick={handleCloneCarga}
+                        onClick={handleOpenCloneModal}
                         className="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex justify-center items-center gap-2"
                       >
                         Clonar periodo anterior
@@ -785,6 +755,68 @@ export function CoordinatorAcademic() {
             />
           )}
         </>
+      )}
+
+      {/* Modal Institucional para Clonar Carga Lectiva */}
+      {showCloneModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md overflow-hidden animate-scale-up">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <Copy size={16} className="text-indigo-600" />
+                Clonar Carga Lectiva
+              </h4>
+              <button 
+                onClick={() => setShowCloneModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Seleccione el periodo académico desde el cual desea copiar las asignaciones docentes para este programa:
+              </p>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Periodo de Origen
+                </label>
+                <select 
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                  value={cloneFromPeriod}
+                  onChange={(e) => setCloneFromPeriod(e.target.value)}
+                >
+                  <option value="">-- Seleccione periodo origen --</option>
+                  {periods
+                    .filter(p => String(p.id) !== String(selectedPeriod))
+                    .map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre || p.codigo} {p.es_regular ? '(Regular)' : ''}
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCloneModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-200/60 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!cloneFromPeriod || loading}
+                onClick={handleExecuteCloneCarga}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? 'Clonando...' : 'Clonar Asignaciones'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
