@@ -1,0 +1,39 @@
+.git
+.gitignore
+.gitattributes
+.github
+.vscode
+.idea
+
+# Frontend (no se usa en la imagen del backend)
+siga_frontend
+
+# Documentación y artefactos locales
+docs
+*.md
+*.xlsx
+*.sql
+*.dump
+*.log
+*.cjs
+*.mjs
+estructura_tabla_estudiantes.txt
+docker-compose.yml
+start_local.ps1
+stop_local.ps1
+test_db_connection.py
+
+# Python
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/venv
+**/.venv
+**/.venv_fixed
+
+# Variables de entorno: solo se configuran en Railway
+.env
+.env.*
+siga_backend/modules/*/.env

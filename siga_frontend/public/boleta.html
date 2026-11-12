@@ -159,6 +159,7 @@
   </nav>
   <div class="aviso oculto" id="aviso" role="status"></div>
 
+  <script src="/config.js"></script>
   <script>
     (function () {
       // Clave pública del sello digital. Tesorería la incrusta al descargar esta página para publicarla en internet
@@ -172,7 +173,8 @@
       var sello = params.get('s') || '';
       var $ = function (id) { return document.getElementById(id); };
       var mostrar = function (id) { $(id).classList.remove('oculto'); };
-      var API = '/api/mod-gestion-academica/tesoreria/publico/';
+      var runtime = window.__SIGA_CONFIG__ || {};
+      var API = (runtime.apiBase || '').replace(/\/+$/, '') + '/api/mod-gestion-academica/tesoreria/publico/';
 
       // Enlace corto "VER BOLETA" del QR (?recibo=...&dni=...&t=...): la boleta se pide al servidor
       if (params.has('recibo')) {
