@@ -1,0 +1,5 @@
+# Contexto mínimo para el despliegue del backend en Railway.
+# El Dockerfile de la raíz solo necesita siga_backend/.
+*
+!siga_backend/
+!siga_backend/**

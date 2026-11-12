@@ -24,6 +24,17 @@ class CoreSettings(BaseSettings):
     modules_validate_on_start: bool = True
     modules_discovery_sources: List[str] = ["local", "database", "kubernetes"]
     
+    # CORS (lista separada por comas). En produccion, por ejemplo:
+    #   CORS_ORIGINS=https://siga.vercel.app
+    # CORS_ORIGIN_REGEX permite comodines; dejar vacio para deshabilitarlo.
+    cors_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:5174,http://127.0.0.1:5174,"
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:3001,http://127.0.0.1:3001"
+    )
+    cors_origin_regex: Optional[str] = r"https?://.*"
+
     # Communication
     http_proxy_timeout: int = 30
     
@@ -57,11 +68,19 @@ class CoreSettings(BaseSettings):
     circuit_breaker_recovery_timeout: int = Field(default=60, description="Tiempo de recuperación en segundos")
     
     @property
+    def cors_origins_list(self) -> List[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
     def database_url(self) -> str:
         if self.DATABASE_URL:
             url = self.DATABASE_URL
+            if url.startswith("postgres://"):
+                url = "postgresql://" + url[len("postgres://"):]
             if url.startswith("postgresql://"):
-                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+                url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+            elif url.startswith("postgresql+psycopg://"):
+                url = "postgresql+asyncpg://" + url[len("postgresql+psycopg://"):]
             return url
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     

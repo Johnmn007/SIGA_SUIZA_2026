@@ -8,6 +8,13 @@ Toda la documentación arquitectónica, técnica y de negocio oficial se encuent
 
 Para conocer el estado actual y los siguientes pasos, revisa el [Informe de Estado](_estado.md).
 
+## Despliegue en producción
+
+- **Backend:** Railway (Core + 7 módulos en un solo servicio).
+- **Frontend:** Vercel.
+
+👉 **[Guía de despliegue Railway + Vercel](DEPLOY_RAILWAY_VERCEL.md)**
+
 ## Levantar todo con Docker
 
 Requisitos: Docker Desktop encendido.

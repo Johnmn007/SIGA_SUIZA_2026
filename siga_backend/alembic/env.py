@@ -26,10 +26,16 @@ if not db_url:
 else:
     config.set_main_option("sqlalchemy.url", db_url)
 
-# Convertir asyncpg a psycopg (sync) para migraciones síncronas
+# Normalizar la URL para migraciones síncronas (psycopg 3).
+# Railway entrega DATABASE_URL como postgresql:// (o postgres://).
 url = config.get_main_option("sqlalchemy.url")
-if url and "asyncpg" in url:
-    url = url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
+if url:
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql+asyncpg://"):
+        url = "postgresql+psycopg://" + url[len("postgresql+asyncpg://"):]
+    elif url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
     config.set_main_option("sqlalchemy.url", url)
 
 # Interpretar el archivo de config para logging

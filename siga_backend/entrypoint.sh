@@ -1,6 +1,12 @@
 #!/bin/sh
 set -e
 
+# Modo Railway / all-in-one: Core + los 7 módulos en un mismo contenedor.
+# El script se encarga de esperar la BD, inicializar el esquema y arrancar todo.
+if [ "$RUN_MODULES" = "true" ]; then
+    exec sh ./start_railway.sh
+fi
+
 if [ "$SKIP_MIGRATIONS" != "true" ]; then
     # Build DB URL for Alembic
     if [ -z "$DB_URL" ]; then
