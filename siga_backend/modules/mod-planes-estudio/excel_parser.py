@@ -40,7 +40,9 @@ class ExcelMineduParser:
         for i, row in df.iterrows():
             found_cols = {}
             for j, val in enumerate(row.values):
-                if pd.notna(val) and isinstance(val, str):
+                # Los encabezados son textos cortos; un párrafo (ej. "Unidad de competencia N.° 1: ... horas")
+                # no debe confundirse con la fila de títulos de la tabla.
+                if pd.notna(val) and isinstance(val, str) and len(val.strip()) <= 60:
                     val_lower = val.lower().strip()
                     for kw in required_keywords:
                         if kw in val_lower:

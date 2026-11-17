@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { API_BASE } from '../../core/api/client';
+import { usePrograms } from '../../core/api/usePrograms';
 import techBg from '../../assets/tech-bg.jpg';
 import { ProtectedImage } from './ProtectedImage';
 import {
@@ -10,20 +11,6 @@ import {
   Briefcase, Wifi, AlertTriangle, CheckCircle2, FileCheck2,
   Users, AlertCircle, Info, Sparkles, DollarSign, Activity
 } from 'lucide-react';
-
-const PROGRAMAS = {
-  1: 'Administración de Operaciones Turísticas',
-  2: 'Asistencia Administrativa',
-  3: 'Contabilidad',
-  4: 'Construcción Civil',
-  5: 'Gestión Administrativa',
-  6: 'Desarrollo de Sistemas de Información',
-  7: 'Electricidad Industrial',
-  8: 'Enfermería Técnica',
-  9: 'Manejo Forestal',
-  10: 'Mecatrónica Automotriz',
-  11: 'Producción Agropecuaria',
-};
 
 const ESTADO_COLORS = {
   postulante: 'bg-amber-100 text-amber-900 border-amber-300 ring-2 ring-amber-300/30',
@@ -112,6 +99,7 @@ function EmptyState({ icon: Icon, title, description }) {
 }
 
 export function StudentDetail({ student, onClose }) {
+  const PROGRAMAS = Object.fromEntries(usePrograms().map(p => [p.id, p.nombre]));
   const [detail, setDetail] = useState(null);
   const [matriculas, setMatriculas] = useState([]);
   const [beneficios, setBeneficios] = useState([]);

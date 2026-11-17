@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { API_BASE } from '../../core/api/client';
+import { usePrograms } from '../../core/api/usePrograms';
 import techBg from '../../assets/tech-bg.jpg';
 import { DEPARTAMENTOS, getProvincias, getDistritos } from './ubigeoPeru';
 import {
@@ -8,20 +9,6 @@ import {
   ShieldAlert, AlertTriangle, Lock, Check, ChevronDown,
   Building2, Activity, GraduationCap, HeartPulse, ShieldCheck
 } from 'lucide-react';
-
-const PROGRAMAS = {
-  1: 'Administración de Operaciones Turísticas',
-  2: 'Asistencia Administrativa',
-  3: 'Contabilidad',
-  4: 'Construcción Civil',
-  5: 'Gestión Administrativa',
-  6: 'Desarrollo de Sistemas de Información',
-  7: 'Electricidad Industrial',
-  8: 'Enfermería Técnica',
-  9: 'Manejo Forestal',
-  10: 'Mecatrónica Automotriz',
-  11: 'Producción Agropecuaria',
-};
 
 function SearchSelect({
   label,
@@ -261,6 +248,7 @@ const EditField = ({
 };
 
 export function EditStudentModal({ student, onClose, onUpdated }) {
+  const PROGRAMAS = Object.fromEntries(usePrograms().map(p => [p.id, p.nombre]));
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
