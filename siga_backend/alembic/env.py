@@ -17,7 +17,7 @@ config = context.config
 # DB_HOST, DB_USER, DB_PORT o DB_NAME con credenciales predeterminadas.
 db_url = os.getenv("DATABASE_URL")
 if not db_url:
-    print("ERROR: DATABASE_URL environment variable is required for Alembic migrations.") >&2
+    print("ERROR: DATABASE_URL environment variable is required for Alembic migrations.", file=sys.stderr)
     sys.exit(1)
 
 config.set_main_option("sqlalchemy.url", db_url)
