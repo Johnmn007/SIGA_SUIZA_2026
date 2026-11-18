@@ -11,13 +11,13 @@ class CoreSettings(BaseSettings):
     secret_key: str = "change-me-in-production"
     debug: bool = True
     
-    # Database (Solo para Identity del Core)
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 5432
-    DB_USER: str = "postgres"
-    DB_PASSWORD: str = "dariana"
-    DB_NAME: str = "siga_suiza_2026"
-    DATABASE_URL: Optional[str] = None
+    # Database - DATABASE_URL is mandatory, no default credentials or localhost
+    DATABASE_URL: str = Field(..., description="URL de base de datos PostgreSQL (ej. postgresql+asyncpg://user:pass@host:port/db)")
+    DB_HOST: str = Field(default="", description="Host de base de datos (usado si DATABASE_URL no está set)")
+    DB_PORT: int = Field(default=5432, description="Puerto de base de datos")
+    DB_USER: str = Field(default="", description="Usuario de base de datos")
+    DB_PASSWORD: str = Field(default="", description="Contraseña de base de datos")
+    DB_NAME: str = Field(default="", nombre de base de datos")
     
     # Module Registry
     modules_auto_discover: bool = True
@@ -63,7 +63,7 @@ class CoreSettings(BaseSettings):
             if url.startswith("postgresql://"):
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
             return url
-        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        raise ValueError("DATABASE_URL is required for database_url property")
     
     @property
     def database_sync_url(self) -> str:
@@ -74,7 +74,7 @@ class CoreSettings(BaseSettings):
             elif url.startswith("postgresql://"):
                 url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
             return url
-        return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        raise ValueError("DATABASE_URL is required for database_sync_url property")
     
     @property
     def redis_url_effective(self) -> str:
@@ -83,7 +83,7 @@ class CoreSettings(BaseSettings):
             return self.redis_url
         auth = f":{self.redis_password}@" if self.redis_password else ""
         return f"redis://{auth}{self.redis_host}:{self.redis_port}"
-
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

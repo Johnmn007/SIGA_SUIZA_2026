@@ -23,7 +23,11 @@ fi
 
 if [ "$SKIP_MIGRATIONS" != "true" ]; then
     echo "🔄 Ejecutando migraciones de base de datos..."
-    alembic upgrade head || echo "⚠️ Alembic upgrade head falló o fue omitido — continuando..."
+    if ! alembic upgrade head; then
+        echo "ERROR: Database migrations failed. Cannot start application." >&2
+        exit 1
+    fi
+    echo "Migrations applied successfully."
 fi
 
 export SIGA_MODULE_USUARIOS_URL="http://127.0.0.1:8001"
