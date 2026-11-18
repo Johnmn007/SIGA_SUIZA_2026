@@ -8,15 +8,22 @@ import ssl
 metadata = MetaData()
 Base = declarative_base(metadata=metadata)
 
-# SSL solo para BDs remotas con TLS (Railway, etc.).
-# El PostgreSQL local corre con ssl=off; los hosts locales de Docker tampoco usan SSL.
+# SSL: PostgreSQL de Railway (contrail.proxy.railway.internal) y hosts internos
+# no requieren SSL cuando la conexión es desde dentro de la red de Railway.
+# Evitar ssl=default para hosts internos que causan ConnectionRefusedError.
+_ssl_exempt_hosts = ("localhost", "127.0.0.1", "::1", "host.docker.internal", "postgres", "contrail.proxy.railway.internal")
 _ssl_ctx = ssl.create_default_context()
 _ssl_ctx.check_hostname = False
 _ssl_ctx.verify_mode = ssl.CERT_NONE
-_SSL_EXEMPT_HOSTS = ("localhost", "127.0.0.1", "::1", "host.docker.internal", "postgres")
-connect_args = {"ssl": _ssl_ctx} if settings.DB_HOST not in _SSL_EXEMPT_HOSTS else {}
+
+# Si el host es uno exento, no usar SSL;otherwise usar SSL con contexto permissivo.
+if settings.DB_HOST and settings.DB_HOST in _ssl_exempt_hosts:
+    connect_args = {}
+else:
+    connect_args = {"ssl": _ssl_ctx}
 
 # Engine asíncrono para el Core
+# Usar settings.database_url que ya tiene la lógica de conversión postgresql:// -> postgresql+asyncpg://
 engine = create_async_engine(settings.database_url, echo=settings.debug, connect_args=connect_args)
 
 # Session local asíncrona
