@@ -83,7 +83,6 @@ class CoreSettings(BaseSettings):
             return self.redis_url
         auth = f":{self.redis_password}@" if self.redis_password else ""
         return f"redis://{auth}{self.redis_host}:{self.redis_port}"
-    
     class Config:
         env_file = ".env"
         case_sensitive = False
