@@ -19,10 +19,12 @@ if [ "$SKIP_MIGRATIONS" != "true" ]; then
     fi
 fi
 
-if [ "$#" -eq 0 ]; then
+# ✅ No hot reload en producción
+ENV="${APP_ENV:-production}"
+if [ "$ENV" = "production" ]; then
+    echo "Starting SIGA Core (production mode)..."
+    exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+else
     echo "Starting SIGA Core con Hot Reload..."
     exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-else
-    echo "Starting Module with command: $@"
-    exec "$@"
 fi

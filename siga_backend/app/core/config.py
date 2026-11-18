@@ -32,7 +32,7 @@ class CoreSettings(BaseSettings):
     module_token_expire_hours: int = 24
     
     # NATS Event Bus
-    enable_nats: bool = Field(default=True, description="Habilitar NATS Event Bus")
+    enable_nats: bool = Field(default=False, description="Habilitar NATS Event Bus")
     nats_url: str = Field(default="nats://localhost:4222", description="URL de NATS")
     
     # 🔄 RESILIENCIA - Configuraciones nuevas
