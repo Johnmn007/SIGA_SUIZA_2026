@@ -36,6 +36,9 @@ async def process_audit_event(msg):
         print(f"[AUDITORIA] Error procesando evento: {e}")
 
 async def start_listener():
+    if os.getenv("ENABLE_NATS", "").strip().lower() == "false":
+        print("[AUDITORIA] NATS deshabilitado (ENABLE_NATS=false).")
+        return
     nc = NATS()
     try:
         await nc.connect(NATS_URL)

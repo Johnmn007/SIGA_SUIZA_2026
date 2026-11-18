@@ -17,7 +17,8 @@ NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
 
 async def outbox_worker():
     nc = None
-    if NATS_AVAILABLE:
+    nats_enabled = os.getenv("ENABLE_NATS", "").strip().lower()
+    if NATS_AVAILABLE and nats_enabled != "false":
         nc = NATS()
         try:
             await nc.connect(NATS_URL)

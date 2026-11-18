@@ -167,7 +167,16 @@ En el frontend, abre la URL de Vercel e inicia sesión con
   git rm --cached .env
   ```
 - `railway.json` es configuración opcional/legacy de Railway. El despliegue
-  funciona igual porque Railway detecta el `Dockerfile` de la raíz.
+  funciona igual porque Railway detecta el `Dockerfile` de la raíz. No define
+  `startCommand`: el `ENTRYPOINT` del Dockerfile arranca todo según
+  `RUN_MODULES`.
+- Con `ENABLE_NATS=false` los módulos no intentan conectarse a NATS (evita
+  reintentos y ruido en los logs). Si agregas NATS en Railway, pon
+  `ENABLE_NATS=true` y `NATS_URL` con la URL privada.
+- La conexión a PostgreSQL detecta el host desde `DATABASE_URL`: usa SSL solo
+  para hosts públicos. En la red privada de Railway
+  (`*.railway.internal`) va sin SSL. Si necesitas forzarlo, define
+  `DB_SSL=true` o `DB_SSL=false`.
 - Si en el futuro separas los módulos en servicios independientes, no uses
   `RUN_MODULES=true`; arranca cada módulo con su propio comando y define
   `SIGA_MODULE_*_URL` apuntando a los dominios privados de Railway.
