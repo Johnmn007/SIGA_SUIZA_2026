@@ -17,7 +17,7 @@ class CoreSettings(BaseSettings):
     DB_PORT: int = Field(default=5432, description="Puerto de base de datos")
     DB_USER: str = Field(default="", description="Usuario de base de datos")
     DB_PASSWORD: str = Field(default="", description="Contraseña de base de datos")
-    DB_NAME: str = Field(default="", nombre de base de datos")
+    DB_NAME: str = Field(default="", description="Nombre de base de datos")
     
     # Module Registry
     modules_auto_discover: bool = True
