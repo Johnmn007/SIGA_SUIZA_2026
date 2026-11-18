@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { useConfirm } from './ConfirmModal';
 
 const ToastContext = createContext(null);
 
@@ -106,9 +107,12 @@ export function ToastProvider({ children }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const clearToasts = useCallback(() => {
+    const clearToasts = useCallback(() => {
     setToasts([]);
   }, []);
+
+  const confirmApi = useConfirm();
+  const confirm = confirmApi.confirm;
 
   const addToast = useCallback((type, message, duration) => {
     const id = Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
@@ -180,9 +184,11 @@ export function ToastProvider({ children }) {
       error,
       warning,
       info,
+      confirm,
       dismiss: removeToast,
       clear: clearToasts,
     },
+    confirm,
     success,
     error,
     warning,

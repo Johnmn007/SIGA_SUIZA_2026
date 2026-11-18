@@ -94,13 +94,12 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-
-        <ConfirmProvider>
+        <AuthProvider>
+      <ConfirmProvider>
+        <ToastProvider>
           <AppContent />
-        </ConfirmProvider>
-      </ToastProvider>
+        </ToastProvider>
+      </ConfirmProvider>
     </AuthProvider>
   );
 }
