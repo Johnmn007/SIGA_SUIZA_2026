@@ -1,7 +1,7 @@
 const runtimeConfig = typeof window !== 'undefined' ? (window.__SIGA_CONFIG__ || {}) : {};
 const normalizeBase = (url) => (url || '').replace(/\/+$/, '');
 
-export const API_BASE = normalizeBase(import.meta.env.VITE_API_URL || runtimeConfig.apiBase || '');
+export const API_BASE = import.meta.env.VITE_API_URL || 'https://sigasuiza2026r-production-8f53be40.up.railway.app';
 export const WS_BASE = normalizeBase(
   import.meta.env.VITE_WS_URL ||
   runtimeConfig.wsBase ||
