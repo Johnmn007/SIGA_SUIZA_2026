@@ -132,6 +132,7 @@ class ExcelMineduParser:
                 df_mod = pd.read_excel(excel_file, sheet_name=m_sheet)
                 nombre_mod = ExcelMineduParser._find_anchor_value(df_mod, ["denominación del módulo", "nombre del módulo", "módulo"])
                 if not nombre_mod: nombre_mod = f"Módulo {orden_modulo_idx}"
+                nombre_mod = str(nombre_mod).strip()
                 
                 header_info = ExcelMineduParser._find_table_headers(df_mod, ["unidad", "horas", "crédito", "credito"])
                 
@@ -194,7 +195,18 @@ class ExcelMineduParser:
                             if cr_col is not None and pd.notna(df_mod.iloc[idx, cr_col]):
                                 try: creds = int(float(str(df_mod.iloc[idx, cr_col]).strip()))
                                 except: pass
-                                    
+
+                            # Los encabezados de seccion del Excel no son unidades didacticas.
+                            ud_lower = ud_name_str.lower()
+                            header_keywords = [
+                                "denominación del módulo", "denominacion del modulo",
+                                "capacidades técnicas", "capacidades tecnicas",
+                                "capacidades de empleabilidad", "capacidades a fortalecer",
+                                "competencias para la empleabilidad",
+                            ]
+                            if any(kw in ud_lower for kw in header_keywords):
+                                continue
+
                             if not periodo_for_row:
                                 periodo_for_row = (orden_modulo_idx - 1) * 2 + 1
                                 

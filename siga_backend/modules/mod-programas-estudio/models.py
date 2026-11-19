@@ -52,7 +52,7 @@ class ProgramaModulo(BaseModel):
 
     programa_id = Column(Integer, ForeignKey("programas_estudio.id"), nullable=False)
     modulo_plan_id = Column(Integer)
-    nombre = Column(String(255), nullable=False)
+    nombre = Column(Text, nullable=False)
     periodo = Column(Integer, nullable=False)
     horas_totales = Column(Integer)
     creditos = Column(Integer)
@@ -67,7 +67,7 @@ class ProgramaUnidad(BaseModel):
 
     programa_modulo_id = Column(Integer, ForeignKey("programa_modulos.id"), nullable=False)
     unidad_plan_id = Column(Integer)
-    nombre = Column(String(255), nullable=False)
+    nombre = Column(Text, nullable=False)
     horas_teoria = Column(Integer, default=0)
     horas_practica = Column(Integer, default=0)
     creditos = Column(Integer)

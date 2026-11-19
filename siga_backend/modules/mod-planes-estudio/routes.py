@@ -1,6 +1,9 @@
+import functools
+import logging
 from fastapi import APIRouter, HTTPException, Depends, status, Request, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, DataError
 from typing import List, Optional
 from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict
@@ -9,6 +12,33 @@ from models import PlanEstudio, ModuloPlan, UnidadPlan
 from excel_parser import ExcelMineduParser
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+def _manejar_errores_importacion(func):
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        db = kwargs.get("db")
+        try:
+            return await func(*args, **kwargs)
+        except HTTPException:
+            raise
+        except IntegrityError as exc:
+            if db is not None:
+                await db.rollback()
+            logger.exception("Conflicto de unicidad al importar plan MINEDU: %s", exc)
+            raise HTTPException(status_code=409, detail=f"Código CNOF duplicado o restricción de unicidad: {exc}")
+        except DataError as exc:
+            if db is not None:
+                await db.rollback()
+            logger.exception("Dato inválido al importar plan MINEDU: %s", exc)
+            raise HTTPException(status_code=400, detail=f"Dato inválido en el Excel: {exc}")
+        except Exception as exc:
+            if db is not None:
+                await db.rollback()
+            logger.exception("Error al importar plan MINEDU")
+            raise HTTPException(status_code=500, detail=f"No se pudo importar el plan de estudio: {type(exc).__name__}: {exc}")
+    return wrapper
 
 # Schemas Pydantic
 class PlanBase(BaseModel):
@@ -181,6 +211,7 @@ async def preview_plan_minedu(file: UploadFile = File(...)):
     }
 
 @router.post("/planes/importar-minedu")
+@_manejar_errores_importacion
 async def importar_plan_minedu(
     request: Request, 
     file: UploadFile = File(...), 
