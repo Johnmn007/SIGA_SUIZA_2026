@@ -1,14 +1,20 @@
 services:
-  # Base de datos: La aplicacion utiliza PostgreSQL local en el host (puerto 5432)
-  # accesible desde los contenedores via host.docker.internal:5432 con usuario postgres y credenciales de .env.
-  # postgres:
-  #   image: postgres:16-alpine
-  #   environment:
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: "admin123"
-  #     POSTGRES_DB: siga_core
-  #   ports:
-  #     - "5433:5432"
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "john.007"
+      POSTGRES_DB: siga_core
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./siga_core_inserts.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d siga_core"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   nats:
     image: nats:2.9-alpine
@@ -39,19 +45,20 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-61077615}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_core}
+      - DB_USER=postgres
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
+      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
     volumes:
       - ./siga_backend:/app
     depends_on:
+      postgres:
+        condition: service_healthy
       nats:
         condition: service_started
       redis:
@@ -65,14 +72,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-usuarios && uvicorn main:app --host 0.0.0.0 --port 8001 --reload"]
     ports:
       - "8001:8001"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-61077615}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_core}
+      - DB_USER=postgres
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
+      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8001
       - SKIP_MIGRATIONS=true
@@ -86,14 +92,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-planes-estudio && uvicorn main:app --host 0.0.0.0 --port 8002 --reload"]
     ports:
       - "8002:8002"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-61077615}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_core}
+      - DB_USER=postgres
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
+      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8002
       - SKIP_MIGRATIONS=true
@@ -107,14 +112,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-programas-estudio && uvicorn main:app --host 0.0.0.0 --port 8005 --reload"]
     ports:
       - "8005:8005"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-61077615}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_core}
+      - DB_USER=postgres
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
+      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8005
       - SKIP_MIGRATIONS=true
@@ -128,14 +132,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-gestion-academica && uvicorn main:app --host 0.0.0.0 --port 8006 --reload"]
     ports:
       - "8006:8006"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-61077615}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_core}
+      - DB_USER=postgres
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
+      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8006
       - SKIP_MIGRATIONS=true
@@ -149,14 +152,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-auditoria && uvicorn main:app --host 0.0.0.0 --port 8007 --reload"]
     ports:
       - "8007:8007"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-61077615}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_core}
+      - DB_USER=postgres
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
+      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8007
       - SKIP_MIGRATIONS=true
@@ -170,14 +172,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-evaluacion && uvicorn main:app --host 0.0.0.0 --port 8008 --reload"]
     ports:
       - "8008:8008"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-61077615}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_core}
+      - DB_USER=postgres
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
+      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8008
       - SKIP_MIGRATIONS=true
@@ -191,14 +192,13 @@ services:
     command: ["sh", "-c", "cd modules/mod-admision && uvicorn main:app --host 0.0.0.0 --port 8009 --reload"]
     ports:
       - "8009:8009"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-61077615}
-      - DB_HOST=${DB_HOST:-host.docker.internal}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-siga_core}
+      - DB_USER=postgres
+      - DB_PASSWORD=john.007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=siga_core
+      - DATABASE_URL=postgresql+asyncpg://postgres:john.007@postgres:5432/siga_core
       - NATS_URL=nats://nats:4222
       - PORT=8009
       - SKIP_MIGRATIONS=true
@@ -215,8 +215,6 @@ services:
     command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0 --port 80"]
     ports:
       - "3000:80"
-      - "3001:80"
-      - "5173:80"
     environment:
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true
@@ -227,5 +225,5 @@ services:
       - siga-core
 
 volumes:
-  # postgres_data:
+  postgres_data:
   frontend_node_modules:

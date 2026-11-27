@@ -1,0 +1,12 @@
+# Contexto del Dockerfile de la raiz (despliegue en Railway): solo usa siga_backend/.
+# docker-compose construye con contexto ./siga_backend y no lee este archivo.
+.git
+siga_frontend
+docs
+scratch
+*.sql
+*.dump
+*.xlsx
+**/__pycache__
+**/.venv
+**/node_modules

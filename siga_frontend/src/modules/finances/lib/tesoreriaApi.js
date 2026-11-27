@@ -1,5 +1,5 @@
 // Cliente de la API de Tesorería (mod-gestion-academica /tesoreria). La base de datos es la fuente de verdad.
-import { API_BASE } from '../../../core/api/client';
+import { API_BASE, apiClient } from '../../../core/api/client';
 
 const BASE = `${API_BASE}/api/mod-gestion-academica/tesoreria`;
 
@@ -12,6 +12,13 @@ async function request(path, { method = 'GET', body } = {}) {
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+  // Sesión vencida (el token dura 30 min): igual que el resto del sistema, se cierra la
+  // sesión y se vuelve al inicio de sesión, en vez de dejar Caja con "Token inválido".
+  if (res.status === 401) {
+    apiClient.clearToken();
+    window.location.reload();
+    throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
+  }
   let data = null;
   try {
     data = await res.json();

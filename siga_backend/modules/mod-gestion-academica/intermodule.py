@@ -53,6 +53,12 @@ async def fetch_programa(programa_id: int):
     return await _get("programas", f"/programas/{programa_id}")
 
 
+async def fetch_programas():
+    """Todas las carreras (cada una con su ``plan_estudio_id`` vigente)."""
+    data = await _get("programas", "/programas")
+    return data if isinstance(data, list) else []
+
+
 async def fetch_periodos():
     """Lista de periodos académicos (mod-programas-estudio)."""
     data = await _get("programas", "/periodos")

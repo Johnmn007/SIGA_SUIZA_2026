@@ -4,6 +4,7 @@ from routes import router
 from database import init_db
 import asyncio
 from outbox_worker import outbox_worker
+from vincular_cuentas_base import vincular_cuentas_base
 
 app = FastAPI(
     title="mod-usuarios",
@@ -40,6 +41,7 @@ async def get_manifest():
 async def startup():
     await init_db()
     asyncio.create_task(outbox_worker())
+    asyncio.create_task(vincular_cuentas_base())
     print("Tablas creadas/verificadas")
     print("Modulo de Usuarios (RBAC) iniciado")
 

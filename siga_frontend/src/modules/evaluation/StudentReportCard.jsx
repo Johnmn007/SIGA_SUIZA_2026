@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, Fragment } from 'react';
 import { API_BASE } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { BoletinImpresion } from './BoletinImpresion';
+import { useDictado } from './voz/useDictado';
+import { buscarPorVoz } from './voz/buscarPorVoz';
 import {
   ArrowUpDown, BadgeCheck, BookOpen, ChevronDown,
   ClipboardList, GraduationCap, Hash, IdCard, Mail,
@@ -10,6 +12,30 @@ import {
 
 const normalizarTexto = (texto) =>
   (texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/**
+ * Normaliza lo escrito o dictado para buscar: sin tildes ni may\u00fasculas, sin signos y con
+ * los n\u00fameros dictados en bloques unidos ("72 34 56 78" -> "72345678").
+ */
+const normalizarBusqueda = (texto) =>
+  normalizarTexto(String(texto ?? ''))
+    .replace(/[.,;:!?\u00bf\u00a1"'()]/g, ' ')
+    .replace(/(\d)[\s-]+(?=\d)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** Cada palabra buscada debe estar en nombres, apellidos, DNI o c\u00f3digo (tambi\u00e9n sin guion). */
+const coincideEstudiante = (s, termino) => {
+  const palabras = normalizarBusqueda(termino).split(' ').filter(Boolean);
+  if (palabras.length === 0) return false;
+  const codigo = String(s.codigo_estudiante ?? '');
+  const ficha = normalizarBusqueda(`${s.nombres} ${s.apellidos} ${s.dni} ${codigo}`)
+    + ' ' + codigo.replace(/\D/g, '');
+  return palabras.every((p) => ficha.includes(p));
+};
+
+/** Evento con el que la etiqueta "B\u00fasqueda por voz" activa el micr\u00f3fono del buscador. */
+const EVENTO_VOZ = 'siga:boletin-voz';
 
 const NOTA_MIN_APROBAR = 13;
 
@@ -300,12 +326,23 @@ function BoletinEmptyState() {
 
         {/* Chips */}
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-          {chips.map((chip) => (
+          {chips.map((chip) => (chip.label === 'Búsqueda por voz' ? (
+            <button
+              key={chip.label}
+              type="button"
+              onClick={() => window.dispatchEvent(new Event(EVENTO_VOZ))}
+              title="Buscar estudiante por voz"
+              className="inline-flex items-center gap-2 rounded-full border border-violet-300 bg-white px-4 py-1.5 text-xs font-medium text-[#374151] shadow-sm cursor-pointer transition-colors hover:bg-violet-50 hover:border-violet-400"
+            >
+              <svg className={`h-4 w-4 ${chip.color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={chip.icon} /></svg>
+              {chip.label}
+            </button>
+          ) : (
             <span key={chip.label} className="inline-flex items-center gap-2 rounded-full border border-[#D7DEE7] bg-white px-4 py-1.5 text-xs font-medium text-[#374151] shadow-sm">
               <svg className={`h-4 w-4 ${chip.color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={chip.icon} /></svg>
               {chip.label}
             </span>
-          ))}
+          )))}
         </div>
       </div>
     </div>
@@ -324,10 +361,10 @@ export function StudentReportCard() {
   const [data, setData] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const sugerenciasVozRef = useRef(null); // { termino, lista } del último dictado
   const [allStudents, setAllStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedStudentName, setSelectedStudentName] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -364,22 +401,15 @@ export function StudentReportCard() {
 
   useEffect(() => {
     if (searchTerm.length >= 3) {
-      const val = searchTerm.trim().toLowerCase();
-      const term = searchTerm.trim();
-      const filtered = allStudents.filter(s => {
-        const nombres = (s.nombres || '').toLowerCase();
-        const apellidos = (s.apellidos || '').toLowerCase();
-        const nombreCompleto = `${s.nombres || ''} ${s.apellidos || ''}`.trim().toLowerCase();
-        const nombreInverso = `${s.apellidos || ''} ${s.nombres || ''}`.trim().toLowerCase();
-        return (
-          (s.dni && s.dni.includes(term)) ||
-          (nombres && nombres.includes(val)) ||
-          (apellidos && apellidos.includes(val)) ||
-          (nombreCompleto && nombreCompleto.includes(val)) ||
-          (nombreInverso && nombreInverso.includes(val)) ||
-          (s.codigo_estudiante && s.codigo_estudiante.toLowerCase().includes(val))
-        );
-      });
+      // Resultado de un dictado: se muestran las sugerencias por sonido calculadas para ese texto.
+      const voz = sugerenciasVozRef.current;
+      if (voz && voz.termino === searchTerm) {
+        setFilteredStudents(voz.lista);
+        setShowDropdown(true);
+        return;
+      }
+      // Sin tildes ni signos y por palabras: sirve igual para lo escrito y lo dictado por voz.
+      const filtered = allStudents.filter(s => coincideEstudiante(s, searchTerm));
       setFilteredStudents(filtered);
       setShowDropdown(true);
     } else {
@@ -400,7 +430,6 @@ export function StudentReportCard() {
 
   const handleSelectStudent = (student) => {
     setSelectedStudentId(student.id);
-    setSelectedStudent(student);
     setSelectedStudentName(`${student.apellidos}, ${student.nombres}`);
     setSearchTerm('');
     setShowDropdown(false);
@@ -416,9 +445,26 @@ export function StudentReportCard() {
     });
   };
 
+  // Resultado del dictado: con un único alumno abre su boletín; si hay varios, deja la lista.
+  const handleVoiceResult = (texto) => {
+    // Primero coincidencia exacta; si no hay, por sonido (los nombres se transcriben "como suenan").
+    const exactas = allStudents.filter(s => coincideEstudiante(s, texto));
+    const { unico, lista } = exactas.length > 0
+      ? { unico: exactas.length === 1 ? exactas[0] : null, lista: exactas }
+      : buscarPorVoz(allStudents, texto);
+    if (unico) {
+      handleSelectStudent(unico);
+      return 1;
+    }
+    const termino = texto.trim(); // se muestra tal cual se dijo
+    sugerenciasVozRef.current = { termino, lista };
+    setSearchTerm(termino);
+    setShowDropdown(true);
+    return lista.length;
+  };
+
   const handleClearSelection = () => {
     setSelectedStudentId(null);
-    setSelectedStudent(null);
     setSelectedStudentName('');
     setSearchTerm('');
     setData(null);
@@ -434,65 +480,61 @@ export function StudentReportCard() {
     });
   };
 
-  const effectiveStudentId = isAdmin ? selectedStudentId : user?.id;
+  // Un estudiante ve su propio boletín. Su cuenta (core_users) y su ficha (estudiantes) son
+  // tablas distintas: se enlazan por el correo, nunca por el id del usuario.
+  const [fichaPropiaId, setFichaPropiaId] = useState(null);
+  useEffect(() => {
+    if (isAdmin || !user?.email) return;
+    (async () => {
+      try {
+        // Solo su propia ficha: el estudiante ya no puede leer el padrón completo.
+        const res = await fetch(`${API_BASE}/api/mod-gestion-academica/estudiantes/mi-ficha`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        const propia = res.ok ? await res.json() : null;
+        if (propia?.id) {
+          setFichaPropiaId(propia.id);
+        } else {
+          setError('Tu cuenta no está vinculada a una ficha de estudiante. Pide a Secretaría que registre tu correo en tu ficha.');
+          setLoading(false);
+        }
+      } catch {
+        setError('No se pudo consultar tu ficha de estudiante.');
+        setLoading(false);
+      }
+    })();
+  }, [isAdmin, user?.email]);
+
+  const effectiveStudentId = isAdmin ? selectedStudentId : fichaPropiaId;
 
   useEffect(() => {
     if (!effectiveStudentId) {
-      setLoading(false);
+      // El estudiante sigue "cargando" hasta que se resuelva su ficha (o se muestre el aviso).
+      if (isAdmin) setLoading(false);
       return;
     }
     const fetchBoletin = async () => {
       setLoading(true);
       setError(null);
       try {
-        let real = null;
-        try {
-          const res = await fetch(
-            `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin`,
-            { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
-          );
-          if (res.ok) {
-            real = await res.json();
-          }
-        } catch (err) {
-          console.warn('API /boletin no disponible o error:', err);
+        // Solo datos reales: los JSON de prueba (notasPorCiclo, mockEvaluacion) se eliminaron.
+        const res = await fetch(
+          `${API_BASE}/api/mod-gestion-academica/estudiantes/${effectiveStudentId}/boletin`,
+          { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
+        );
+        if (!res.ok) {
+          throw new Error(res.status === 404
+            ? 'No se encontró la ficha de este estudiante.'
+            : `El servicio de boletín respondió ${res.status}.`);
         }
-
-        const notasJson = obtenerNotasPorCiclo(effectiveStudentId, selectedStudent);
-        if (notasJson) {
-          const periodoActual = resumenDesdeJson(notasJson);
-          if (real) {
-            setData({
-              ...real,
-              estudiante: { ...real.estudiante, periodo_codigo: notasJson.periodoActual },
-              cursos_periodo: periodoActual.cursos_periodo,
-              resumen: { ...real.resumen, ...periodoActual.resumen },
-              _notasJson: notasJson,
-            });
-          } else {
-            const boletinJson = generarBoletinDesdeJson(effectiveStudentId, selectedStudent);
-            if (boletinJson) {
-              setData(boletinJson);
-            } else {
-              throw new Error('No se pudo generar la información del boletín.');
-            }
-          }
-        } else if (real) {
-          const evaluacion = mockEvaluacion.evaluaciones.find(
-            e => e.codigo_estudiante === real.estudiante.codigo_estudiante
-              && e.periodo === real.estudiante.periodo_codigo
-          );
-          setData(evaluacion ? { ...real, ...evaluacion } : real);
-        } else {
-          throw new Error('No se encontró información del boletín para este estudiante.');
-        }
+        setData(await res.json());
       } catch (e) {
         setError(e.message);
       }
       setLoading(false);
     };
     fetchBoletin();
-  }, [effectiveStudentId, selectedStudent]);
+  }, [effectiveStudentId, isAdmin]);
 
   useEffect(() => {
     setBusquedaCursos('');
@@ -605,6 +647,7 @@ export function StudentReportCard() {
               showDropdown={showDropdown}
               setShowDropdown={setShowDropdown}
               onSelect={handleSelectStudent}
+              onVoiceResult={handleVoiceResult}
               searchLoading={searchLoading}
               recentStudents={recentStudents}
               onRemoveRecent={handleRemoveRecent}
@@ -631,6 +674,7 @@ export function StudentReportCard() {
             filteredStudents={filteredStudents}
             showDropdown={showDropdown}
             onSelect={handleSelectStudent}
+            onVoiceResult={handleVoiceResult}
             searchLoading={searchLoading}
             recentStudents={recentStudents}
             setShowDropdown={setShowDropdown}
@@ -655,6 +699,7 @@ export function StudentReportCard() {
               showDropdown={showDropdown}
               setShowDropdown={setShowDropdown}
               onSelect={handleSelectStudent}
+              onVoiceResult={handleVoiceResult}
               searchLoading={searchLoading}
               recentStudents={recentStudents}
               onRemoveRecent={handleRemoveRecent}
@@ -799,6 +844,7 @@ export function StudentReportCard() {
             filteredStudents={filteredStudents}
             showDropdown={showDropdown}
             onSelect={handleSelectStudent}
+            onVoiceResult={handleVoiceResult}
             searchLoading={searchLoading}
             recentStudents={recentStudents}
             setShowDropdown={setShowDropdown}
@@ -1506,75 +1552,39 @@ function CicloCard({ ciclo, oficial, getNotaChip, getBadgeColor }) {
   );
 }
 
-function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDropdown, onSelect, searchLoading, recentStudents, setShowDropdown, onRemoveRecent }) {
-  const [listening, setListening] = useState(false);
-  const [voiceMsg, setVoiceMsg] = useState('');
-  const recognitionRef = useRef(null);
-
-  useEffect(() => {
-    return () => {
-      try { recognitionRef.current?.abort?.(); } catch { /* noop */ }
-    };
-  }, []);
+function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDropdown, onSelect, onVoiceResult, searchLoading, recentStudents, setShowDropdown, onRemoveRecent }) {
+  const [resultadoVoz, setResultadoVoz] = useState('');
+  const { escuchando, estado, esError, alternar } = useDictado({
+    // Todo lo que la persona dice se escribe en vivo en el buscador.
+    onTexto: (texto) => {
+      setSearchTerm(texto);
+      setShowDropdown?.(true);
+    },
+    onFinal: (texto) => {
+      if (onVoiceResult) {
+        const total = onVoiceResult(texto);
+        setResultadoVoz(total === 0
+          ? `Escuché "${texto}", pero no hay estudiantes que coincidan.`
+          : total === 1 ? '' : `Escuché "${texto}": ${total} estudiantes coinciden, elige uno de la lista.`);
+      } else {
+        setSearchTerm(texto);
+      }
+    },
+  });
 
   const handleVoiceSearch = () => {
-    try {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        setVoiceMsg('Búsqueda por voz no disponible en este dispositivo.');
-        return;
-      }
-      // Si ya está escuchando, cancelar (permite probar "cancelar reconocimiento")
-      if (listening && recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch { /* noop */ }
-        return;
-      }
-      const recognition = new SpeechRecognition();
-      recognitionRef.current = recognition;
-      recognition.lang = 'es-PE';
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        setListening(true);
-        setVoiceMsg('Escuchando...');
-      };
-      recognition.onresult = (event) => {
-        const text = event.results?.[0]?.[0]?.transcript || '';
-        if (text.trim()) {
-          // Reutiliza el MISMO searchTerm del buscador existente:
-          // el useEffect de filtrado (DNI, código, nombres, apellidos) reacciona solo.
-          setSearchTerm(text.trim());
-          setVoiceMsg('');
-        } else {
-          setVoiceMsg('No se pudo reconocer la voz. Inténtalo nuevamente.');
-        }
-      };
-      recognition.onerror = (event) => {
-        const err = event?.error;
-        if (err === 'not-allowed' || err === 'service-not-allowed') {
-          setVoiceMsg('Permiso de micrófono denegado.');
-        } else if (err === 'no-speech' || err === 'audio-capture' || err === 'no-match') {
-          setVoiceMsg('No se pudo reconocer la voz. Inténtalo nuevamente.');
-        } else if (err === 'aborted') {
-          setVoiceMsg('');
-        } else {
-          setVoiceMsg('No se pudo reconocer la voz. Inténtalo nuevamente.');
-        }
-        setListening(false);
-      };
-      recognition.onend = () => {
-        setListening(false);
-        setVoiceMsg((prev) => (prev === 'Escuchando...' ? '' : prev));
-      };
-
-      recognition.start();
-    } catch {
-      // No romper nunca el buscador escrito
-      setListening(false);
-      setVoiceMsg('No se pudo reconocer la voz. Inténtalo nuevamente.');
-    }
+    setResultadoVoz('');
+    alternar();
   };
+
+  useEffect(() => {
+    // La etiqueta "Búsqueda por voz" de la pantalla inicial también enciende el micrófono.
+    const alPedirVoz = () => { if (!escuchando) handleVoiceSearch(); };
+    window.addEventListener(EVENTO_VOZ, alPedirVoz);
+    return () => window.removeEventListener(EVENTO_VOZ, alPedirVoz);
+  });
+
+  const mensajeVoz = estado || resultadoVoz;
   const showRecent = showDropdown && searchTerm.length === 0 && recentStudents.length > 0;
   const showResults = showDropdown && searchTerm.length >= 3;
 
@@ -1595,14 +1605,14 @@ function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDro
           type="button"
           onClick={handleVoiceSearch}
           aria-label="Buscar estudiante por voz"
-          title={listening ? 'Escuchando... pulsa para cancelar' : 'Buscar estudiante por voz'}
+          title={escuchando ? 'Escuchando... pulsa para terminar' : 'Buscar estudiante por voz'}
           className={`relative flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full border transition-colors cursor-pointer ${
-            listening
+            escuchando
               ? 'bg-red-50 border-red-300 text-red-600 animate-pulse'
               : 'border-slate-200 text-slate-500 hover:text-primary hover:border-primary/40 hover:bg-primary/5'
           }`}
         >
-          {listening && (
+          {escuchando && (
             <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-30 animate-ping"></span>
           )}
           <svg className="relative w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1610,10 +1620,10 @@ function StudentSearchBar({ searchTerm, setSearchTerm, filteredStudents, showDro
           </svg>
         </button>
       </div>
-      {(voiceMsg || listening) && (
-        <p className={`mt-1.5 ml-1 text-xs font-medium flex items-center gap-1.5 ${listening ? 'text-red-600' : 'text-slate-500'}`} role="status" aria-live="polite">
-          {listening && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>}
-          {voiceMsg || 'Escuchando...'}
+      {(mensajeVoz || escuchando) && (
+        <p className={`mt-1.5 ml-1 text-xs font-medium flex items-center gap-1.5 ${esError ? 'text-red-600' : escuchando ? 'text-red-600' : 'text-slate-500'}`} role="status" aria-live="polite">
+          {escuchando && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>}
+          {mensajeVoz || 'Escuchando... habla ahora.'}
         </p>
       )}
 

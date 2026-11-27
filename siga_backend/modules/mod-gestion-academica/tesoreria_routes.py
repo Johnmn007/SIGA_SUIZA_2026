@@ -28,6 +28,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from fastapi import APIRouter, Depends, HTTPException, Request
+from seguridad import acceso_estudiante, solo_caja, solo_personal
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -233,6 +234,20 @@ async def asegurar_esquema_tesoreria():
     """Columnas agregadas después de crear las tablas (create_all no altera tablas existentes)."""
     async with engine.begin() as conn:
         await conn.execute(text("ALTER TABLE IF EXISTS tesoreria_pagos ADD COLUMN IF NOT EXISTS qr_contenido TEXT"))
+        # La carrera de cada recibo debe coincidir con la del alumno (la misma que ve Registro de
+        # Estudiantes). Antes la pantalla enviaba una carrera de una lista con ids viejos.
+        # No afecta a los QR ya impresos: llevan sus propios datos firmados dentro del enlace.
+        existen = (await conn.execute(text(
+            "SELECT to_regclass('public.tesoreria_pagos') IS NOT NULL AND to_regclass('public.programas_estudio') IS NOT NULL"
+        ))).scalar()
+        if existen:
+            corregidos = await conn.execute(text("""
+                UPDATE tesoreria_pagos p SET carrera_nombre = pe.nombre
+                FROM estudiantes e JOIN programas_estudio pe ON pe.id = e.programa_id
+                WHERE p.estudiante_id = e.id AND p.carrera_nombre IS DISTINCT FROM pe.nombre
+            """))
+            if corregidos.rowcount:
+                print(f"Tesorería: carrera corregida en {corregidos.rowcount} recibo(s) según la ficha del alumno")
 
 
 # ---------------------------------------------------------------------------
@@ -421,13 +436,7 @@ def normalizar_tarifas(data: ConceptoIn) -> list:
 
 
 async def conceptos_activos(db: AsyncSession) -> List[ConceptoTupa]:
-    total = (await db.execute(select(func.count(ConceptoTupa.id)))).scalar()
-    if not total:
-        for codigo, nombre, categoria, monto, libera, descripcion in CONCEPTOS_DEFECTO:
-            db.add(ConceptoTupa(codigo=codigo, nombre=nombre, categoria=categoria, descripcion=descripcion,
-                                tipo_precio="fijo", tarifas=[{"id": "T1", "nombre": "General", "monto": monto}],
-                                monto_minimo=0, libera_matricula=libera, permite_repetir=False, activo=True))
-        await db.commit()
+    # El tarifario empieza vacío; los conceptos de ejemplo se cargan con POST /conceptos/restaurar
     result = await db.execute(select(ConceptoTupa).where(ConceptoTupa.activo.is_(True)).order_by(ConceptoTupa.id))
     return result.scalars().all()
 
@@ -445,6 +454,13 @@ async def siguiente_codigo_recibo(db: AsyncSession) -> str:
     result = await db.execute(select(PagoCaja.codigo_recibo).where(PagoCaja.codigo_recibo.like(f"{prefijo}%")))
     numeros = [int(c[len(prefijo):]) for c in result.scalars().all() if c[len(prefijo):].isdigit()]
     return f"{prefijo}{(max(numeros) if numeros else 0) + 1:05d}"
+
+
+async def nombre_carrera(db: AsyncSession, programa_id: Optional[int]) -> Optional[str]:
+    """Nombre de la carrera según la base de datos (fuente de verdad para recibos y estados de cuenta)."""
+    if not programa_id:
+        return None
+    return (await db.execute(text("SELECT nombre FROM programas_estudio WHERE id = :p"), {"p": programa_id})).scalar()
 
 
 async def construir_estado_cuenta(db: AsyncSession, est: Estudiante, secreto: bytes) -> dict:
@@ -520,6 +536,7 @@ async def construir_estado_cuenta(db: AsyncSession, est: Estudiante, secreto: by
         "estudiante": {
             "id": est.id, "dni": est.dni, "nombres": est.nombres, "apellidos": est.apellidos,
             "codigo_estudiante": est.codigo_estudiante, "programa_id": est.programa_id,
+            "programa_nombre": await nombre_carrera(db, est.programa_id),
             "modalidad_admision": est.modalidad_admision, "pago_matricula": bool(est.pago_matricula),
         },
         "movimientos": movimientos,
@@ -658,7 +675,7 @@ async def guardar_config(data: dict, db: AsyncSession = Depends(get_db)):
 # Recibos de caja
 # ---------------------------------------------------------------------------
 
-@router.get("/pagos")
+@router.get("/pagos", dependencies=[Depends(solo_caja)])
 async def listar_pagos(estudiante_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
     secreto = await secreto_qr(db)
     stmt = select(PagoCaja).where(PagoCaja.estado == "PAGADO").order_by(PagoCaja.fecha_pago.desc(), PagoCaja.id.desc())
@@ -707,7 +724,9 @@ async def registrar_pago(data: PagoIn, request: Request, db: AsyncSession = Depe
     pago = PagoCaja(
         codigo_recibo=await siguiente_codigo_recibo(db),
         estudiante_id=est.id, dni=est.dni, estudiante_nombre=f"{est.nombres} {est.apellidos}",
-        codigo_estudiante=est.codigo_estudiante, carrera_nombre=data.carreraNombre,
+        # La carrera del recibo sale de la ficha del alumno, no de lo que envíe la pantalla.
+        codigo_estudiante=est.codigo_estudiante,
+        carrera_nombre=(await nombre_carrera(db, est.programa_id)) or data.carreraNombre,
         concepto_id=concepto.id, concepto_codigo=concepto.codigo, concepto_nombre=concepto.nombre,
         concepto_categoria=concepto.categoria, tipo_precio=concepto.tipo_precio, tarifa_nombre=tarifa_nombre,
         monto=monto, metodo_pago_id=data.metodoPagoId, metodo_pago_nombre=METODOS_PAGO[data.metodoPagoId],
@@ -728,7 +747,7 @@ async def registrar_pago(data: PagoIn, request: Request, db: AsyncSession = Depe
     return {"pago": pago_dict(pago, secreto, await url_publica_qr(db)), "pagoMatricula": bool(est.pago_matricula)}
 
 
-@router.get("/estudiantes/{estudiante_id}/estado-cuenta")
+@router.get("/estudiantes/{estudiante_id}/estado-cuenta", dependencies=[Depends(acceso_estudiante)])
 async def estado_cuenta(estudiante_id: int, db: AsyncSession = Depends(get_db)):
     secreto = await secreto_qr(db)
     est = await estudiante_o_404(db, estudiante_id)
@@ -940,7 +959,7 @@ async def _boletas_sinteticas(db: AsyncSession, secreto: bytes, dni: str, estudi
     return boletas
 
 
-@router.get("/pagos/consultar")
+@router.get("/pagos/consultar", dependencies=[Depends(solo_personal)])
 async def consultar_pago(codigo: Optional[str] = None, dni: Optional[str] = None, q: Optional[str] = None,
                          db: AsyncSession = Depends(get_db)):
     secreto = await secreto_qr(db)
@@ -984,7 +1003,7 @@ async def validar_pago(data: ValidarPagoIn, db: AsyncSession = Depends(get_db)):
     return {"valido": True, "recibo": recibo, "verificadoEn": formato_fecha_hora(ahora_peru())}
 
 
-@router.get("/boletas-disponibles")
+@router.get("/boletas-disponibles", dependencies=[Depends(solo_personal)])
 async def listar_boletas_disponibles(dni: Optional[str] = None, q: Optional[str] = None, search: Optional[str] = None,
                                      concepto: Optional[str] = None, status: Optional[str] = None,
                                      estudiante_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):

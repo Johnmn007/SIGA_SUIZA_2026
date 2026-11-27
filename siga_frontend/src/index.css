@@ -121,8 +121,11 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* `backwards` y no `both`: al terminar no debe quedar ningún transform aplicado. Un transform
+   (aunque sea translateY(0)) convierte al contenedor en referencia de los elementos `fixed`, y
+   las ventanas modales quedaban atrapadas y cortadas dentro del área de contenido. */
 .animate-fade-in {
-  animation: fade-in 0.4s ease-out both;
+  animation: fade-in 0.4s ease-out backwards;
 }
 
 @keyframes shimmer {
@@ -147,7 +150,7 @@
 }
 
 .animate-fade-in-up {
-  animation: fade-in-up 0.4s ease-out both;
+  animation: fade-in-up 0.4s ease-out backwards; /* ver .animate-fade-in */
 }
 
 /* === Animaciones Vibrantes para Transición de Sectores del Wizard === */

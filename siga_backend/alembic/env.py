@@ -21,16 +21,19 @@ if not db_url:
     host = os.getenv("DB_HOST", "host.docker.internal")
     port = os.getenv("DB_PORT", "5432")
     dbname = os.getenv("DB_NAME", "siga_core")
-    db_url = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}"
+    db_url = f"postgresql+psycopg://{user}:{password}@{host}:{port}/{dbname}"
     config.set_main_option("sqlalchemy.url", db_url)
 else:
     config.set_main_option("sqlalchemy.url", db_url)
 
-# Convertir asyncpg a psycopg (sync) para migraciones síncronas
+# Las migraciones usan psycopg (v3), el driver instalado. Railway entrega "postgresql://"
+# (que SQLAlchemy resuelve a psycopg2, no instalado) y los módulos usan asyncpg.
 url = config.get_main_option("sqlalchemy.url")
-if url and "asyncpg" in url:
-    url = url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
-    config.set_main_option("sqlalchemy.url", url)
+for prefijo in ("postgresql+asyncpg://", "postgresql+psycopg2://", "postgresql://", "postgres://"):
+    if url and url.startswith(prefijo):
+        url = "postgresql+psycopg://" + url[len(prefijo):]
+        config.set_main_option("sqlalchemy.url", url)
+        break
 
 # Interpretar el archivo de config para logging
 if config.config_file_name is not None:

@@ -45,12 +45,8 @@ const INSTITUTIONAL_KB = {
     certificacionModular: `Cada carrera profesional técnica cuenta con:
 • **3 Módulos Formativos:** Estructurados a lo largo de los 6 semestres académicos.
 • **Certificación Modular Oficial:** Al concluir satisfactoriamente cada módulo de 2 semestres y sus respectivas horas de Experiencias Formativas en Situaciones Reales de Trabajo (EFSRT), el estudiante recibe un Certificado Modular con valor para inserción laboral.`
-  },
-  usuarios: [
-    { rol: 'Superadmin / Administrador', email: 'admin@siga.edu', clave: 'admin123', descripcion: 'Acceso total al sistema, creación de carreras y mallas' },
-    { rol: 'Docente', email: 'docente@siga.edu', clave: 'docente123', descripcion: 'Registro de calificaciones y sílabos' },
-    { rol: 'Secretaría Académica', email: 'secretaria@siga.edu', clave: 'secretaria123', descripcion: 'Matrículas, trámites y reportes académicos' }
-  ]
+  }
+  // Sin usuarios ni contraseñas: el asistente se carga en el navegador de cualquier usuario.
 };
 
 // Generador de ids de mensajes fuera del render (Date.now es impuro en render)
@@ -151,13 +147,12 @@ Recuerda que la asistencia mínima requerida para tener derecho a evaluación es
     };
   }
 
-  // 8. Usuarios de prueba y credenciales
+  // 8. Usuarios y credenciales: nunca se muestran contraseñas
   if (query.includes('usuario') || query.includes('credencial') || query.includes('clave') || query.includes('password') || query.includes('login') || query.includes('contrasena')) {
-    const uList = INSTITUTIONAL_KB.usuarios.map(u => `• **${u.rol}:** \`${u.email}\` | Clave: \`${u.clave}\` (${u.descripcion})`).join('\n');
     return {
-      title: 'Credenciales de Prueba del Sistema',
-      badge: 'Entorno de Desarrollo 2026',
-      content: `Puedes ingresar al SIGA Suiza con las siguientes cuentas de prueba:\n\n${uList}`
+      title: 'Usuarios y contraseñas',
+      badge: 'Seguridad de la cuenta',
+      content: `Por seguridad no comparto usuarios ni contraseñas.\n\n• **Tu cuenta:** te la entrega la Administración del instituto.\n• **Cambiar tu contraseña:** usa la opción **Cambiar Contraseña** del menú.\n• **Olvidaste tu clave:** pide a un administrador que la restablezca.`
     };
   }
 
@@ -211,7 +206,7 @@ export function SIGAAIAssistant() {
       badge: 'IA Curricular & Normativa MINEDU',
       content: `¡Hola! Soy **SIGA AI**, el asistente de inteligencia académica del **IESTP Suiza**.
 
-Estoy preparado para resolver tus dudas sobre el catálogo de carreras, la regla del **70% de créditos (DOC-10/15)** para pasar de semestre, el sistema de calificaciones, mallas curriculares y usuarios de prueba del sistema.
+Estoy preparado para resolver tus dudas sobre el catálogo de carreras, la regla del **70% de créditos (DOC-10/15)** para pasar de semestre, el sistema de calificaciones, mallas curriculares y el uso de tu cuenta.
 
 ¿En qué puedo ayudarte hoy?`,
       time: 'Ahora'
@@ -282,7 +277,7 @@ Estoy preparado para resolver tus dudas sobre el catálogo de carreras, la regla
     '¿Cuál es la nota mínima aprobatoria?',
     'Créditos de Desarrollo de Sistemas',
     '¿Cómo funciona la eliminación y duplicados?',
-    'Usuarios y contraseñas de prueba'
+    '¿Cómo obtengo o cambio mi contraseña?'
   ];
 
   return (

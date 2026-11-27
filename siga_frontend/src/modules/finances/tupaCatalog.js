@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { tesoreriaApi } from './lib/tesoreriaApi';
+import { usePrograms } from '../../core/api/usePrograms';
 
 // Tarifario TUPA, métodos de pago y reglas de cobro de Tesorería - IESTP Suiza 2026.
 // El catálogo y la configuración se guardan en la base de datos (mod-gestion-academica /tesoreria).
@@ -113,16 +114,18 @@ export const PAYMENT_METHODS = [
   { id: 'tarjeta_pos', nombre: 'Tarjeta POS (Débito/Crédito)', icono: 'CreditCard', descripcion: 'Pago con tarjeta Visa / Mastercard en módulo' }
 ];
 
-export const CAREERS_MAP = {
-  2: 'Enfermería Técnica',
-  3: 'Gestión Administrativa',
-  4: 'Asistencia Administrativa',
-  5: 'Contabilidad',
-  6: 'Mecatrónica Automotriz',
-  7: 'Electricidad Industrial',
-  8: 'Administración de Operaciones Turísticas',
-  9: 'Construcción Civil',
-  10: 'Producción Agropecuaria',
-  11: 'Manejo Forestal',
-  15: 'Desarrollo de Sistemas de Información'
-};
+/**
+ * Carreras { id: nombre } leídas de la base de datos (las mismas que Registro de Estudiantes).
+ * Antes era una lista fija con los id de una base anterior: el filtro no encontraba a nadie
+ * y los alumnos aparecían con otra carrera.
+ */
+export function useCareersMap() {
+  const programas = usePrograms();
+  return useMemo(
+    () => Object.fromEntries(programas.map((p) => [String(p.id), p.nombre])),
+    [programas]
+  );
+}
+
+export const nombreCarrera = (careersMap, programaId, porDefecto = 'Programa de Estudio General') =>
+  (programaId != null && careersMap[String(programaId)]) || porDefecto;

@@ -5,6 +5,7 @@ import { apiClient } from '../../core/api/client';
 import { useAuth } from '../../core/auth/useAuth';
 import { useToast } from '../../core/ui/ToastContext';
 import { GraduationCap, Calendar, X, FileSpreadsheet, SearchX, Eye } from 'lucide-react';
+import { buildActaHtml, imprimirActa } from './lib/actaOficial';
 
 function useSafeToast() {
   try {
@@ -42,6 +43,9 @@ export function CoordinatorSupervision() {
   const [selectedViewUD, setSelectedViewUD] = useState(null);
   const [udStudents, setUdStudents] = useState([]);
   const [loadingUD, setLoadingUD] = useState(false);
+  const [personal, setPersonal] = useState([]);
+  // Docente y estado de cierre del acta abierta (para el Acta Oficial)
+  const [actaInfo, setActaInfo] = useState({ docente: '', cerrada: false });
 
   // Bloquear scroll del body y cerrar con Escape mientras el acta está abierta.
   // El modal se renderiza en un Portal (document.body) para que `fixed inset-0`
@@ -74,6 +78,7 @@ export function CoordinatorSupervision() {
         
         setPrograms(progRes || []);
         setPeriods(perRes || []);
+        setPersonal(personalRes || []);
         
         let hasProgram = false;
         if (personalRes && user) {
@@ -132,22 +137,37 @@ export function CoordinatorSupervision() {
     fetchMalla();
   }, [selectedProgram, selectedPeriod]);
 
-  const handleViewActa = async (unidad, moduloNombre) => {
+  const handleViewActa = async (unidad, modulo) => {
     if (!selectedPeriod) {
       toast.warning("Por favor, seleccione un periodo académico primero.");
       return;
     }
-    setSelectedViewUD({ ...unidad, moduloNombre });
+    setSelectedViewUD({ ...unidad, moduloNombre: modulo.nombre, modulo });
+    setUdStudents([]);
+    setActaInfo({ docente: '', cerrada: false });
     setLoadingUD(true);
     try {
-      const enrolled = await apiClient.request(`/api/mod-gestion-academica/matriculas/unidad/${unidad.id}/periodo/${selectedPeriod}`).catch(() => []);
-      const grades = await apiClient.request(`/api/mod-evaluacion/registros/unidad/${unidad.id}/periodo/${selectedPeriod}`).catch(() => []);
-      
-      const combined = enrolled.map(est => {
-        const gradeRecord = grades.find(g => g.matricula_detalle_id === est.matricula_detalle_id);
-        
+      const [enrolled, grades, resumenActas] = await Promise.all([
+        apiClient.request(`/api/mod-gestion-academica/matriculas/unidad/${unidad.id}/periodo/${selectedPeriod}`).catch(() => []),
+        apiClient.request(`/api/mod-evaluacion/registros/unidad/${unidad.id}/periodo/${selectedPeriod}`).catch(() => []),
+        apiClient.request(`/api/mod-evaluacion/actas/periodo/${selectedPeriod}/programa/${selectedProgram}`).catch(() => null),
+      ]);
+
+      // Docente asignado (carga lectiva) y si el acta ya fue cerrada
+      const carga = (resumenActas?.cargas || []).find(c => c.unidad_didactica_id === unidad.id);
+      const docenteUsuario = carga ? personal.find(p => p?.usuario?.id === carga.docente_id)?.usuario : null;
+      setActaInfo({
+        docente: docenteUsuario ? (docenteUsuario.full_name || docenteUsuario.email) : '',
+        cerrada: !!carga?.acta_cerrada,
+      });
+
+      const combined = (enrolled || []).map(est => {
+        const gradeRecord = (grades || []).find(g => g.matricula_detalle_id === est.matricula_detalle_id);
+
         return {
           id: est.id,
+          codigo: est.codigo_estudiante,
+          dni: est.dni,
           name: `${est.apellidos}, ${est.nombres}`,
           nota_final: gradeRecord?.nota_final ?? '-',
           estado: gradeRecord?.estado || 'Sin Registrar'
@@ -160,6 +180,23 @@ export function CoordinatorSupervision() {
       console.error('Error fetching actas', e);
     }
     setLoadingUD(false);
+  };
+
+  // Acta Oficial con los datos reales (programa, módulo, unidad, periodo, docente y notas)
+  const handleExportActa = () => {
+    if (!selectedViewUD || loadingUD) return;
+    const html = buildActaHtml({
+      programa: programs.find(p => p.id.toString() === selectedProgram),
+      periodo: periods.find(p => p.id.toString() === selectedPeriod),
+      modulo: selectedViewUD.modulo,
+      unidad: selectedViewUD,
+      docente: actaInfo.docente,
+      actaCerrada: actaInfo.cerrada,
+      estudiantes: udStudents,
+      generadoPor: user?.full_name || user?.email,
+    });
+    imprimirActa(html);
+    toast.info('Se abrió la impresión del acta: elija "Guardar como PDF" para descargarla.');
   };
 
   const userRoles = Array.isArray(user?.roles) ? user.roles : (user?.role ? [user.role] : []);
@@ -257,7 +294,7 @@ export function CoordinatorSupervision() {
                           </span>
                         </div>
                         <button 
-                          onClick={() => handleViewActa(u, modulo.nombre)}
+                          onClick={() => handleViewActa(u, modulo)}
                           className="text-xs bg-primary-soft hover:bg-primary/20 text-primary font-semibold py-1.5 px-3 rounded-lg transition-colors border border-primary/20 flex items-center"
                         >
                           <Eye className="w-3.5 h-3.5 mr-1" /> Ver Acta
@@ -366,8 +403,9 @@ export function CoordinatorSupervision() {
                 Modo Auditoría: Solo Lectura
               </div>
               <button 
-                className="btn-primary text-sm px-4 py-2 flex items-center"
-                onClick={() => toast.info("Función 'Exportar a PDF (MINEDU)' en desarrollo.")}
+                className="btn-primary text-sm px-4 py-2 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleExportActa}
+                disabled={loadingUD}
               >
                 <FileSpreadsheet className="w-4 h-4 mr-1" /> Exportar Acta Oficial
               </button>

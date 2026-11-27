@@ -35,15 +35,24 @@ export SIGA_MODULE_EVALUACION_URL="http://127.0.0.1:8008"
 export SIGA_MODULE_ADMISION_URL="http://127.0.0.1:8009"
 
 echo "⚙️ Levantando 7 microservicios internos..."
-python -m uvicorn main:app --host 127.0.0.1 --port 8001 --app-dir modules/mod-usuarios &
-python -m uvicorn main:app --host 127.0.0.1 --port 8002 --app-dir modules/mod-planes-estudio &
-python -m uvicorn main:app --host 127.0.0.1 --port 8005 --app-dir modules/mod-programas-estudio &
-python -m uvicorn main:app --host 127.0.0.1 --port 8006 --app-dir modules/mod-gestion-academica &
-python -m uvicorn main:app --host 127.0.0.1 --port 8007 --app-dir modules/mod-auditoria &
-python -m uvicorn main:app --host 127.0.0.1 --port 8008 --app-dir modules/mod-evaluacion &
-python -m uvicorn main:app --host 127.0.0.1 --port 8009 --app-dir modules/mod-admision &
-
-sleep 2
+# Uno por uno: cada módulo crea sus tablas al arrancar y, en una base nueva, hacerlo en
+# paralelo choca ("duplicate key ... pg_type_typname_nsp_index") y deja tablas sin crear.
+iniciar_modulo() {
+    python -m uvicorn main:app --host 127.0.0.1 --port "$1" --app-dir "modules/$2" &
+    intentos=0
+    until python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:$1/health', timeout=2)" >/dev/null 2>&1 || [ "$intentos" -ge 60 ]; do
+        intentos=$((intentos + 1))
+        sleep 1
+    done
+    echo "   ✅ $2 listo en el puerto $1"
+}
+iniciar_modulo 8001 mod-usuarios
+iniciar_modulo 8002 mod-planes-estudio
+iniciar_modulo 8005 mod-programas-estudio
+iniciar_modulo 8006 mod-gestion-academica
+iniciar_modulo 8007 mod-auditoria
+iniciar_modulo 8008 mod-evaluacion
+iniciar_modulo 8009 mod-admision
 
 echo "🌐 Iniciando Core Gateway en 0.0.0.0:$PORT..."
 exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$PORT"

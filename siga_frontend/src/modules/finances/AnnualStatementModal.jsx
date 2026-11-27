@@ -1,14 +1,15 @@
 import { useMemo, useRef } from 'react';
 import { X, Printer, FileText } from 'lucide-react';
 import { ModalPortal } from './ModalPortal';
-import { CAREERS_MAP } from './tupaCatalog';
+import { useCareersMap, nombreCarrera } from './tupaCatalog';
 import { buildStatementHtml, printIframe } from './lib/printTemplates';
 
 // statement: estado de cuenta devuelto por el servidor ({ estudiante, movimientos, token, qrContenido, ... })
 export function AnnualStatementModal({ statement, onClose }) {
+  const careersMap = useCareersMap();
   const frameRef = useRef(null);
   const student = statement?.estudiante;
-  const careerName = student ? CAREERS_MAP[student.programa_id] || 'Programa de Estudio General' : '';
+  const careerName = student ? nombreCarrera(careersMap, student.programa_id) : '';
   const html = useMemo(
     () => (statement ? buildStatementHtml({
       student,

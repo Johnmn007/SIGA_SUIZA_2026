@@ -37,7 +37,7 @@ import {
   X,
   Tags
 } from 'lucide-react';
-import { PAYMENT_METHODS, CAREERS_MAP, useTupaCatalog, useCajaConfig, withCurrentConcept } from './tupaCatalog';
+import { PAYMENT_METHODS, useCareersMap, nombreCarrera, useTupaCatalog, useCajaConfig, withCurrentConcept } from './tupaCatalog';
 import { PaymentModal } from './PaymentModal';
 import { ReceiptModal } from './ReceiptModal';
 import { AnnualStatementModal } from './AnnualStatementModal';
@@ -63,6 +63,7 @@ const findMatriculaReceipt = (transactions, student) =>
   );
 
 export function FinancesDashboard() {
+  const careersMap = useCareersMap();
   const toast = useToast();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('caja'); // 'caja' | 'historial' | 'arqueo' | 'tarifario'
@@ -353,7 +354,7 @@ export function FinancesDashboard() {
             dni: String(s.dni ?? ''),
             nombre: `${s.nombres} ${s.apellidos}`,
             codigo: s.codigo_estudiante || '',
-            programa: CAREERS_MAP[s.programa_id] || 'Programa de Estudio General',
+            programa: nombreCarrera(careersMap, s.programa_id),
           }))
           .sort((a, b) => a.programa.localeCompare(b.programa) || a.nombre.localeCompare(b.nombre)),
       };
@@ -654,8 +655,8 @@ export function FinancesDashboard() {
                 onChange={(e) => setFilterCareer(e.target.value)}
                 className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
-                <option value="todas">Todas las Carreras Técnicas (11)</option>
-                {Object.entries(CAREERS_MAP).map(([id, name]) => (
+                <option value="todas">Todas las Carreras Técnicas ({Object.keys(careersMap).length})</option>
+                {Object.entries(careersMap).sort((a, b) => a[1].localeCompare(b[1], 'es')).map(([id, name]) => (
                   <option key={id} value={id}>{name}</option>
                 ))}
               </select>
@@ -733,7 +734,7 @@ export function FinancesDashboard() {
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {paginatedStudents.map(student => {
-                const career = CAREERS_MAP[student.programa_id] || 'Programa de Estudio General';
+                const career = nombreCarrera(careersMap, student.programa_id);
                 const isPaid = student.pago_matricula;
                 const isSelected = selectedStudentForDossier?.id === student.id;
                 const matriculaReceipt = isPaid ? findMatriculaReceipt(transactions, student) : null;
@@ -860,7 +861,7 @@ export function FinancesDashboard() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {paginatedStudents.map(student => {
-                      const career = CAREERS_MAP[student.programa_id] || 'General';
+                      const career = nombreCarrera(careersMap, student.programa_id, 'General');
                       const isPaid = student.pago_matricula;
                       const matriculaReceipt = isPaid ? findMatriculaReceipt(transactions, student) : null;
                       return (

@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react';
 import { UserCog, Users } from 'lucide-react';
 import { apiClient } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
+import { usePrograms } from '../../core/api/usePrograms';
+import { registrarPlanDeCarrera } from '../../core/api/planes';
+import { useAuth } from '../../core/auth/useAuth';
+import { filtrarEstudiantes } from '../../core/studentSearch';
 
 const TIPOS = [
   { id: 'Ingresante', tone: 'bg-sky-100 text-sky-700 border-sky-200', icon: '🆕' },
@@ -41,23 +45,44 @@ export function TiposAlumnosPanel() {
   const resumen = data?.resumen || {};
   const total = resumen.total || 0;
 
-  const programas = [...new Set(estudiantes.map((e) => e.programa_id).filter(Boolean))]
-    .sort((a, b) => a - b);
+  // Carreras que tienen alumnos, con su nombre real (no "Programa 3").
+  const [recargarCatalogo, setRecargarCatalogo] = useState(0);
+  const catalogo = usePrograms(recargarCatalogo);
+  const { user } = useAuth();
+  const rolesUsuario = (user?.roles || []).map((r) => (typeof r === 'string' ? r : r?.name));
+  const puedeRegistrarPlan = user?.is_superuser || rolesUsuario.some((r) => ['superadmin', 'admin', 'director', 'secretaria_academica'].includes(r));
+  const [registrandoPlan, setRegistrandoPlan] = useState(false);
+  const [avisoPlan, setAvisoPlan] = useState('');
 
-  const filtrados = estudiantes.filter((e) => {
-    if (tipoFiltro && e.tipo_alumno !== tipoFiltro) return false;
-    if (programaFiltro && String(e.programa_id) !== String(programaFiltro)) return false;
-    if (search.trim().length >= 2) {
-      const q = search.trim().toLowerCase();
-      return (
-        (e.dni || '').includes(q) ||
-        (e.nombres || '').toLowerCase().includes(q) ||
-        (e.apellidos || '').toLowerCase().includes(q) ||
-        (e.codigo_estudiante || '').toLowerCase().includes(q)
-      );
+  // El aviso aplica a la carrera elegida (cada carrera tiene su propio plan vigente)
+  const carreraElegida = programaFiltro ? catalogo.find((p) => String(p.id) === String(programaFiltro)) : null;
+  const carreraSinPlan = carreraElegida && !carreraElegida.plan_estudio_id ? carreraElegida : null;
+  const carrerasSinPlan = catalogo.filter((p) => !p.plan_estudio_id);
+
+  const registrarPlan = async (carrera) => {
+    setRegistrandoPlan(true);
+    setAvisoPlan('');
+    try {
+      await registrarPlanDeCarrera(carrera);
+      setRecargarCatalogo((n) => n + 1);
+      await cargar();
+      setAvisoPlan(`Plan de estudios registrado y vinculado a ${carrera.nombre}.`);
+    } catch (e) {
+      setAvisoPlan(`No se pudo registrar el plan: ${e.message}`);
+    } finally {
+      setRegistrandoPlan(false);
     }
-    return true;
-  });
+  };
+  const nombreCarrera = (id) => catalogo.find((p) => String(p.id) === String(id))?.nombre || `Programa ${id}`;
+  const programas = [...new Set(estudiantes.map((e) => e.programa_id).filter(Boolean))]
+    .map((id) => ({ id, nombre: nombreCarrera(id) }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+
+  const filtrados = filtrarEstudiantes(
+    estudiantes.filter((e) => !tipoFiltro || e.tipo_alumno === tipoFiltro),
+    search,
+    programaFiltro
+  );
 
   const toneDe = (tipo) => TIPOS.find((t) => t.id === tipo)?.tone || 'bg-slate-100 text-slate-600 border-slate-200';
 
@@ -115,7 +140,7 @@ export function TiposAlumnosPanel() {
         >
           <option value="">Todos los programas</option>
           {programas.map((p) => (
-            <option key={p} value={p}>Programa {p}</option>
+            <option key={p.id} value={p.id}>{p.nombre}</option>
           ))}
         </select>
         {(tipoFiltro || programaFiltro || search) && (
@@ -138,10 +163,28 @@ export function TiposAlumnosPanel() {
         <div className="p-3 rounded-xl bg-red-50 text-red-700 border border-red-100 text-sm font-medium">❌ {error}</div>
       )}
 
-      {data?.plan_vigente === null && (
-        <div className="p-3 rounded-xl bg-amber-50 text-amber-700 border border-amber-100 text-xs">
-          ℹ️ El programa no tiene un <b>plan de estudios vigente</b> definido, así que la detección de alumnos
-          <b> Histórico</b> está desactivada hasta que se registre uno.
+      {(carreraSinPlan || (!programaFiltro && carrerasSinPlan.length > 0)) && (
+        <div className="p-3 rounded-xl bg-amber-50 text-amber-700 border border-amber-100 text-xs flex flex-wrap items-center gap-3">
+          <span className="flex-1 min-w-[240px]">
+            ℹ️ {carreraSinPlan
+              ? <><b>{carreraSinPlan.nombre}</b> no tiene un <b>plan de estudios vigente</b>, así que en esa carrera la detección de alumnos <b>Histórico</b> está desactivada hasta que se registre uno.</>
+              : <>Sin <b>plan de estudios vigente</b>: <b>{carrerasSinPlan.map((p) => p.nombre).join(', ')}</b>. En esas carreras la detección de alumnos <b>Histórico</b> está desactivada.</>}
+          </span>
+          {puedeRegistrarPlan && (
+            <button
+              type="button"
+              disabled={registrandoPlan}
+              onClick={() => registrarPlan(carreraSinPlan || carrerasSinPlan[0])}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:opacity-50"
+            >
+              {registrandoPlan ? 'Registrando…' : `Registrar plan de ${(carreraSinPlan || carrerasSinPlan[0]).nombre}`}
+            </button>
+          )}
+        </div>
+      )}
+      {avisoPlan && (
+        <div className={`p-3 rounded-xl text-xs font-medium border ${avisoPlan.startsWith('No se pudo') ? 'bg-red-50 text-red-700 border-red-100' : 'bg-green-50 text-green-700 border-green-100'}`}>
+          {avisoPlan.startsWith('No se pudo') ? '❌' : '✅'} {avisoPlan}
         </div>
       )}
 

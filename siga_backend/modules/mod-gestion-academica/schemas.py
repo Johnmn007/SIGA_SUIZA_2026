@@ -81,6 +81,8 @@ class MatriculaResponse(MatriculaBase):
     id: int
     estado_matricula: str
     detalles: List[MatriculaDetalleResponse] = []
+    # Solo al matricular: cuenta del alumno creada o reactivada (usuario DNI@siga.edu)
+    cuenta_alumno: Optional[dict] = None
     model_config = ConfigDict(from_attributes=True)
 
 class IngestaAdmitido(BaseModel):

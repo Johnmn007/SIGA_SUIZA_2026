@@ -4,6 +4,8 @@ import { GraduationCap, Users, ClipboardList, MonitorSmartphone, Mail, Lock, Eye
 
 export function LoginForm() {
   const { login } = useAuth();
+  // TEMPORAL (pedido del equipo mientras se desarrolla): cuenta admin precargada para entrar rápido.
+  // QUITAR antes de entregar el sistema: el sitio es público y cualquiera entraría como Super Admin.
   const [form, setForm] = useState({
     email: 'admin@siga.edu',
     password: 'admin123',
@@ -17,7 +19,9 @@ export function LoginForm() {
     setLoading(true);
     setError('');
 
-    const result = await login(form.email, form.password);
+    // Al copiar/pegar o con el autocompletado se cuelan espacios o una mayúscula inicial,
+    // y el servidor compara exacto: se limpian antes de enviar.
+    const result = await login(form.email.trim().toLowerCase(), form.password.trim());
 
     if (!result.success) {
       setError(result.error);
@@ -91,7 +95,7 @@ export function LoginForm() {
                   type="email"
                   className="input-field pl-10"
                   id="email"
-                  placeholder="admin@siga.edu"
+                  placeholder="usuario@siga.edu"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   required
@@ -156,12 +160,6 @@ export function LoginForm() {
             <a href="#" className="text-sm font-semibold text-primary hover:text-primary-dark transition-colors">
               Contacta a Soporte
             </a>
-          </div>
-
-          <div className="mt-10 p-4 rounded-xl text-center bg-slate-light border border-dashed border-slate-300">
-            <p className="text-slate-500 text-sm">
-              <strong className="text-navy">Modo Demo Activo:</strong> admin@siga.edu / admin123
-            </p>
           </div>
         </div>
       </div>

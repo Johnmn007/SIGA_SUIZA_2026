@@ -18,7 +18,7 @@ import {
   Layers,
   ShieldCheck,
 } from 'lucide-react';
-import { CAREERS_MAP, withCurrentConcept } from './tupaCatalog';
+import { useCareersMap, nombreCarrera, withCurrentConcept } from './tupaCatalog';
 import { ModalPortal } from './ModalPortal';
 import { formatMoney, getReceiptVerificationCode, parseReceiptDate } from './lib/paymentUtils';
 import { exportStudentStatementXlsx } from './lib/libroDiarioExport';
@@ -81,6 +81,7 @@ export function StudentPaymentsModal({
   onPrintStatement,
   onViewReceipt,
 }) {
+  const careersMap = useCareersMap();
   const dialogRef = useRef(null);
   const [statusFilter, setStatusFilter] = useState('todos');
   const [query, setQuery] = useState('');
@@ -164,7 +165,7 @@ export function StudentPaymentsModal({
 
   if (!student) return null;
 
-  const careerName = CAREERS_MAP[student.programa_id] || 'Programa de Estudio General';
+  const careerName = nombreCarrera(careersMap, student.programa_id);
   const fullName = `${student.nombres} ${student.apellidos}`;
   const initials = `${student.nombres?.[0] || ''}${student.apellidos?.[0] || ''}`.toUpperCase();
   const counts = { todos: yearMovements.length, PAGADO: stats.paid.length, PENDIENTE: stats.pending.length };

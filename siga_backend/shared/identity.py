@@ -4,6 +4,7 @@ Valida X-Internal-Token emitido por el Gateway y X-User-ID, extrayendo
 roles y programa directamente de la base de datos sin acoplamiento a modelos ORM externos.
 """
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional
 import os
 import logging
@@ -27,6 +28,15 @@ def _get_secret_key() -> str:
     key = os.environ.get("SECRET_KEY")
     if key:
         return key
+    try:
+        from dotenv import dotenv_values
+        # El Gateway firma con la clave de siga_backend/.env (corre desde siga_backend/), pero cada
+        # módulo corre desde modules/<mod>/ y ahí ".env" no existe: se lee el mismo archivo por ruta.
+        key = dotenv_values(Path(__file__).resolve().parents[1] / ".env").get("SECRET_KEY")
+        if key:
+            return key
+    except Exception:
+        pass
     try:
         from app.core.config import settings
         if settings.secret_key:

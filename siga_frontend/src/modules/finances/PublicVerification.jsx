@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ShieldCheck, ShieldX, Printer, Loader2, Receipt, FileText } from 'lucide-react';
-import { CAREERS_MAP } from './tupaCatalog';
 import { buildReceiptHtml, buildStatementHtml, printIframe } from './lib/printTemplates';
 import { publicApiBase } from './lib/tesoreriaApi';
 import { formatMoney, INSTITUTION } from './lib/paymentUtils';
@@ -45,7 +44,7 @@ export default function PublicVerification() {
     return buildStatementHtml({
       student: est,
       payments: state.data.movimientos,
-      careerName: CAREERS_MAP[est.programa_id] || 'Programa de Estudio General',
+      careerName: est.programa_nombre || 'Programa de Estudio General',
       token: state.data.token,
       qrContent: state.data.qrContenido,
       emitted: state.data.emitido,

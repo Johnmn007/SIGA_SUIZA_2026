@@ -19,7 +19,12 @@ class SIGAApiClient {
 
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
-    const { timeoutMs, ...fetchOptions } = options;
+    const { timeoutMs, data, ...fetchOptions } = options;
+    // Algunas pantallas pasan `data` (estilo axios) en vez de `body`: antes la petición salía
+    // vacía y el servidor la rechazaba (p. ej. Parametrización, Editar carrera, Agregar unidad).
+    if (data !== undefined && fetchOptions.body === undefined) {
+      fetchOptions.body = typeof data === 'string' ? data : JSON.stringify(data);
+    }
     const controller = timeoutMs ? new AbortController() : null;
     const timeoutId = controller
       ? setTimeout(() => controller.abort(), timeoutMs)
@@ -55,10 +60,18 @@ class SIGAApiClient {
       }
 
       if (!response.ok) {
-        let errorMsg = `HTTP error! status: ${response.status}`;
+        let errorMsg = `El servidor respondió con error ${response.status}.`;
         try {
           const errorData = await response.json();
-          errorMsg = errorData.detail || errorMsg;
+          const detail = errorData.detail ?? errorData.message;
+          if (Array.isArray(detail)) {
+            // Errores de validación: texto legible en vez de "[object Object]".
+            errorMsg = detail.map((d) => `${(d.loc || []).slice(-1)[0] || 'dato'}: ${d.msg || JSON.stringify(d)}`).join(' · ');
+          } else if (detail && typeof detail === 'object') {
+            errorMsg = JSON.stringify(detail);
+          } else if (detail) {
+            errorMsg = String(detail);
+          }
         } catch {
           // ignore
         }

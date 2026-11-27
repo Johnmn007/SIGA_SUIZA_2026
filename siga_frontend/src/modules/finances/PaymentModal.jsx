@@ -16,7 +16,7 @@ import {
   CheckCircle2,
   EyeOff,
 } from 'lucide-react';
-import { PAYMENT_METHODS, CAREERS_MAP, getAvailableConcepts } from './tupaCatalog';
+import { PAYMENT_METHODS, useCareersMap, nombreCarrera, getAvailableConcepts } from './tupaCatalog';
 import { useToast } from '../../core/ui/ToastContext';
 import { ConceptFormModal } from './ConceptFormModal';
 import { ModalPortal } from './ModalPortal';
@@ -36,6 +36,7 @@ export function PaymentModal({
   onClose,
   onSuccess,
 }) {
+  const careersMap = useCareersMap();
   const toast = useToast();
   const { available, hidden } = useMemo(
     () => getAvailableConcepts(catalog, student, studentPayments),
@@ -66,7 +67,7 @@ export function PaymentModal({
   const selectedTarifa = selectedConcept
     ? selectedConcept.tarifas.find(t => t.id === selectedTarifaId) || selectedConcept.tarifas[0]
     : null;
-  const careerName = CAREERS_MAP[student.programa_id] || 'Programa de Estudio General';
+  const careerName = nombreCarrera(careersMap, student.programa_id);
 
   const isLibre = selectedConcept?.tipoPrecio === 'libre';
   const monto = !selectedConcept

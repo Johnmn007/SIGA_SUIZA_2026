@@ -20,17 +20,25 @@ export function AssignmentModal({
   const isOdd = periodoObj?.codigo?.endsWith('-I');
   const isEven = periodoObj?.codigo?.endsWith('-II');
   
-  const filteredUnidades = unidadesFlat.filter(u => {
-    if (isOdd) return [1, 3, 5].includes(u.periodo_sugerido);
-    if (isEven) return [2, 4, 6].includes(u.periodo_sugerido);
-    return true; // Fallback
-  });
+  // Ciclos que normalmente se dictan en el periodo (I → impares, II → pares). Los demás también se
+  // pueden asignar (carreras nuevas, grupos fuera de semestre); antes se ocultaban y el coordinador
+  // veía "No hay cursos disponibles" sin poder guardar nada.
+  const esDelPeriodo = (u) => {
+    const ciclo = Number(u.periodo_sugerido);
+    if (isOdd) return ciclo % 2 === 1;
+    if (isEven) return ciclo % 2 === 0;
+    return true;
+  };
+  const filteredUnidades = unidadesFlat.filter(esDelPeriodo);
+  const otrasUnidades = unidadesFlat.filter(u => !esDelPeriodo(u));
 
-  const grouped = filteredUnidades.reduce((acc, u) => {
+  const agrupar = (lista) => lista.reduce((acc, u) => {
     acc[u.periodo_sugerido] = acc[u.periodo_sugerido] || [];
     acc[u.periodo_sugerido].push(u);
     return acc;
   }, {});
+  const grouped = agrupar(filteredUnidades);
+  const groupedOtros = agrupar(otrasUnidades);
 
   const toggleCurso = (id) => {
     const idStr = String(id);
@@ -65,14 +73,21 @@ export function AssignmentModal({
         </div>
         
         <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
-          {Object.keys(grouped).sort().map(ciclo => (
-            <div key={ciclo} className="mb-6">
+          {[['main', grouped], ['otros', groupedOtros]].map(([seccion, grupos]) => (
+           <div key={seccion}>
+          {seccion === 'otros' && otrasUnidades.length > 0 && (
+            <div className="mb-4 mt-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 leading-relaxed">
+              <b>Otros ciclos</b> — normalmente no se dictan en el periodo {periodoObj?.codigo}, pero puede asignarlos si este programa los ofrece ahora.
+            </div>
+          )}
+          {Object.keys(grupos).sort((a, b) => Number(a) - Number(b)).map(ciclo => (
+            <div key={`${seccion}-${ciclo}`} className="mb-6">
               <h4 className="font-bold text-slate-700 border-b pb-2 mb-3 text-sm uppercase tracking-wider flex items-center">
                 <span className="w-6 h-6 rounded-full bg-primary-soft text-primary-dark flex items-center justify-center mr-2 text-xs font-bold">{ciclo}</span>
                 Ciclo {ciclo}
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {grouped[ciclo].map(u => (
+                {grupos[ciclo].map(u => (
                   <label key={u.id} className={`flex items-start p-3 rounded-xl border cursor-pointer transition-all ${cargaForm.unidades_didacticas_ids.includes(String(u.id)) ? 'border-primary bg-primary-soft/50 shadow-sm' : 'border-slate-200 bg-white hover:border-primary-light'}`}>
                     <div className="flex-shrink-0 mt-0.5">
                       <input 
@@ -91,10 +106,12 @@ export function AssignmentModal({
               </div>
             </div>
           ))}
-          
-          {filteredUnidades.length === 0 && (
+           </div>
+          ))}
+
+          {unidadesFlat.length === 0 && (
             <div className="text-center py-10 text-slate-500">
-              No hay cursos disponibles para este periodo.
+              Este programa aún no tiene cursos en su malla. Agréguelos en Gestión Académica Central → Ver Malla.
             </div>
           )}
         </div>

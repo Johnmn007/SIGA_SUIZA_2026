@@ -3,14 +3,18 @@ import { apiClient } from '../../core/api/client';
 import { Plus, Eye, FileText, Repeat, GraduationCap } from 'lucide-react';
 import { ConvalidacionesTab } from './ConvalidacionesTab';
 import { BecasTab } from './BecasTab';
+import { NuevaSolicitudModal } from './NuevaSolicitudModal';
 
 export function TramitesDashboard() {
   const [activeTab, setActiveTab] = useState('solicitudes');
   const [loading, setLoading] = useState(false);
-  
+
   // States for Solicitudes (TUPA)
   const [solicitudes, setSolicitudes] = useState([]);
-  
+  const [estudiantes, setEstudiantes] = useState([]);
+  const [mostrarNueva, setMostrarNueva] = useState(false);
+  const [aviso, setAviso] = useState('');
+
   const [error, setError] = useState('');
 
   const fetchSolicitudes = async () => {
@@ -21,6 +25,7 @@ export function TramitesDashboard() {
         apiClient.request('/api/mod-gestion-academica/tramites/'),
         apiClient.request('/api/mod-gestion-academica/estudiantes/').catch(() => []),
       ]);
+      setEstudiantes(Array.isArray(estudiantes) ? estudiantes : []);
       const nombres = new Map((estudiantes || []).map(e => [e.id, `${e.apellidos}, ${e.nombres}`]));
       setSolicitudes((tramites || []).map(t => ({ ...t, nombre_alumno: nombres.get(t.estudiante_id) })));
     } catch (err) {
@@ -48,6 +53,13 @@ export function TramitesDashboard() {
       setSolicitudes(anterior);
       setError('No se pudo actualizar el estado del trámite.');
     }
+  };
+
+  const alCrearSolicitud = (creada, estudiante) => {
+    setMostrarNueva(false);
+    setError('');
+    setSolicitudes(prev => [{ ...creada, nombre_alumno: `${estudiante.apellidos}, ${estudiante.nombres}` }, ...prev]);
+    setAviso(`Solicitud #${creada.id} registrada: ${creada.tipo_tramite} para ${estudiante.apellidos}, ${estudiante.nombres}.`);
   };
 
   const renderTabHeader = (id, label, icon) => (
@@ -87,11 +99,16 @@ export function TramitesDashboard() {
             <div className="space-y-6 animate-fade-in">
               <div className="flex justify-between items-center mb-4">
                 <h4 className="text-lg font-bold text-slate-700">Solicitudes Ingresadas</h4>
-                <button className="btn-primary py-1.5 px-4 text-sm rounded-lg flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => { setAviso(''); setMostrarNueva(true); }}
+                  className="btn-primary py-1.5 px-4 text-sm rounded-lg flex items-center gap-1.5"
+                >
                   <Plus size={16} /> Nueva Solicitud Manual
                 </button>
               </div>
-              
+
+              {aviso && <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{aviso}</div>}
               {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}
               {loading ? (
                 <div className="text-center py-10"><div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div></div>
@@ -156,6 +173,15 @@ export function TramitesDashboard() {
           {activeTab === 'becas' && <BecasTab />}
         </div>
       </div>
+
+      {mostrarNueva && (
+        <NuevaSolicitudModal
+          estudiantes={estudiantes}
+          cargandoEstudiantes={loading}
+          onClose={() => setMostrarNueva(false)}
+          onCreated={alCrearSolicitud}
+        />
+      )}
     </div>
   );
 }

@@ -125,14 +125,17 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
 
     // 2. Validar Fechas del Periodo
     if (selection.period) {
-      const today = new Date();
-      const finRegular = selection.period.fecha_fin_matricula_regular ? new Date(selection.period.fecha_fin_matricula_regular) : null;
-      const finExt = selection.period.fecha_fin_matricula_extemporanea ? new Date(selection.period.fecha_fin_matricula_extemporanea) : null;
-      
-      if (finExt && today > finExt) {
-        toast.error("MATRÍCULA CERRADA: La fase de matrícula extemporánea ha finalizado definitivamente para este periodo.");
+      // Se comparan solo fechas (AAAA-MM-DD): el día límite cuenta completo. Antes se comparaba
+      // contra la medianoche de ese día y el último día ya figuraba como vencido.
+      const dia = (v) => (v ? String(v).slice(0, 10) : null);
+      const hoy = new Date().toLocaleDateString('en-CA'); // AAAA-MM-DD en hora local
+      const finRegular = dia(selection.period.fecha_fin_matricula_regular);
+      const finExt = dia(selection.period.fecha_fin_matricula_extemporanea);
+
+      if (finExt && hoy > finExt) {
+        toast.error(`MATRÍCULA CERRADA: la matrícula extemporánea de ${selection.period.codigo || 'este periodo'} terminó el ${finExt.split('-').reverse().join('/')}. Si se amplió el plazo, corrige la fecha en Gestión Académica → Calendario.`);
         return;
-      } else if (finRegular && today > finRegular) {
+      } else if (finRegular && hoy > finRegular) {
         toast.warning("ADVERTENCIA: Fase de Matrícula Extemporánea. Se aplicarán las reglas correspondientes.");
       }
     }
@@ -549,6 +552,17 @@ export function EnrollmentProcess({ initialStudent, onCancel }) {
                 </div>
                 <h3 className="font-extrabold text-3xl text-slate-800 mb-2">¡Matrícula Registrada!</h3>
                 <p className="text-slate-500 text-center max-w-lg">La matrícula quedó <b>confirmada</b>. Emita la boleta con su código QR y cierre el proceso.</p>
+                {matricula?.cuenta_alumno && (
+                  <div className="mt-4 w-full max-w-lg rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 text-center">
+                    {matricula.cuenta_alumno.creada ? (
+                      <>🔑 Se creó la cuenta del alumno: usuario <b>{matricula.cuenta_alumno.usuario}</b> · contraseña: <b>su DNI</b>.</>
+                    ) : matricula.cuenta_alumno.reactivada ? (
+                      <>🔑 Se reactivó la cuenta del alumno <b>{matricula.cuenta_alumno.usuario}</b> con la contraseña que ya tenía.</>
+                    ) : (
+                      <>🔑 El alumno ya tiene su cuenta activa: <b>{matricula.cuenta_alumno.usuario}</b>.</>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

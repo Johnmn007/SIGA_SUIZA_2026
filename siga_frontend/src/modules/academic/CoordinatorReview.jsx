@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
+import { abrirDocumento } from '../../core/api/documentos';
 import { useToast } from '../../core/ui/ToastContext';
 import { FileText, BookOpen, ExternalLink, Filter, AlertCircle, X } from 'lucide-react';
 
@@ -26,7 +27,7 @@ function useSafeToast() {
   }
 }
 
-export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva, unidadesFlat }) {
+export function CoordinatorReview({ programId, periodId, docentes, usuarios = [], cargaLectiva, unidadesFlat }) {
   const { toast } = useSafeToast();
 
   const [silabos, setSilabos] = useState([]);
@@ -82,8 +83,9 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
   };
 
   const getDocenteName = (docenteId) => {
-    const d = docentes.find(d => d.id === docenteId);
-    return d ? d.full_name : `Docente #${docenteId}`;
+    // Busca en todo el personal (el docente puede ser de otra carrera o el propio administrador)
+    const d = docentes.find(d => d.id === docenteId) || usuarios.find(u => u.id === docenteId);
+    return d ? (d.full_name || d.email) : `Docente #${docenteId}`;
   };
 
   const getUnidadName = (cargaId) => {
@@ -131,9 +133,9 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
                   }`}>
                     {plan.estado}
                   </span>
-                  <a href={plan.archivo_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary-dark text-sm font-medium flex items-center">
+                  <button type="button" onClick={() => abrirDocumento(plan.archivo_url).catch(err => toast.error(err.message))} className="text-primary hover:text-primary-dark text-sm font-medium flex items-center">
                     <ExternalLink size={14} className="mr-1" /> Ver Doc
-                  </a>
+                  </button>
                 </div>
                 {plan.observaciones && <p className="text-xs text-red-600 mb-3 bg-red-50 p-2 rounded">Obs: {plan.observaciones}</p>}
 
@@ -194,9 +196,9 @@ export function CoordinatorReview({ programId, periodId, docentes, cargaLectiva,
                   }`}>
                     {silabo.estado}
                   </span>
-                  <a href={silabo.archivo_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary-dark text-sm font-medium flex items-center">
+                  <button type="button" onClick={() => abrirDocumento(silabo.archivo_url).catch(err => toast.error(err.message))} className="text-primary hover:text-primary-dark text-sm font-medium flex items-center">
                     <ExternalLink size={14} className="mr-1" /> Ver Doc
-                  </a>
+                  </button>
                 </div>
 
                 {silabo.observaciones && <p className="text-[10px] text-red-600 mb-3 bg-red-50 p-2 rounded">Obs: {silabo.observaciones}</p>}

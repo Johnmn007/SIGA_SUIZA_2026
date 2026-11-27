@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../core/auth/useAuth';
 import { apiClient } from '../../core/api/client';
+import { subirDocumento, abrirDocumento } from '../../core/api/documentos';
 import { useToast } from '../../core/ui/ToastContext';
 import { GraduationCap, Calendar, ClipboardList, BookOpen, FileText, Upload, ExternalLink, CheckCircle2, RefreshCw } from 'lucide-react';
 
@@ -155,15 +156,15 @@ export function DocentePlanning() {
       return;
     }
 
-    // Simular subida (en producción se subiría a S3/GCS y se obtendría la URL)
-    const simulatedUrl = `/docs/silabos/${file.name.replace(/\s+/g, '_')}`;
     const cargaId = target.id;
 
     try {
+      // El archivo se guarda de verdad en el servidor (antes solo se guardaba su nombre)
+      const archivoUrl = await subirDocumento(file);
       const payload = {
         carga_lectiva_id: parseInt(cargaId, 10),
         estado: "presentado",
-        archivo_url: simulatedUrl
+        archivo_url: archivoUrl
       };
       await apiClient.request('/api/mod-programas-estudio/silabos', {
         method: 'POST',
@@ -215,16 +216,15 @@ export function DocentePlanning() {
       return;
     }
 
-    // Simular subida
-    const simulatedUrl = `/docs/planes/${file.name.replace(/\s+/g, '_')}`;
-
     try {
+      // El archivo se guarda de verdad en el servidor (antes solo se guardaba su nombre)
+      const archivoUrl = await subirDocumento(file);
       const payload = {
         periodo_id: parseInt(selectedPeriod, 10),
         programa_id: parseInt(selectedProgram, 10),
         docente_id: parseInt(user.id, 10),
         estado: "presentado",
-        archivo_url: simulatedUrl
+        archivo_url: archivoUrl
       };
       await apiClient.request('/api/mod-programas-estudio/planes-trabajo', {
         method: 'POST',
@@ -323,15 +323,14 @@ export function DocentePlanning() {
                     <span className="text-sm font-bold text-green-700">Estado: {planActual.estado.toUpperCase()}</span>
                     <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> Entregado</span>
                   </div>
-                  <a 
-                    href={planActual.archivo_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => abrirDocumento(planActual.archivo_url).catch(err => toast.error(err.message))}
                     className="flex items-center space-x-2 text-sm text-primary hover:text-primary-dark font-medium mb-3"
                   >
                     <ExternalLink className="w-4 h-4" />
                     <span>Ver Documento</span>
-                  </a>
+                  </button>
                   {planActual.observaciones && (
                     <div className="mt-3 bg-white p-3 rounded-lg border border-red-100">
                       <p className="text-xs font-bold text-red-600 mb-1">Observaciones del Coordinador:</p>
@@ -422,7 +421,7 @@ export function DocentePlanning() {
                                   </span>
                                 </div>
                                 <div className="flex space-x-2 items-center">
-                                  <a href={silabo.archivo_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center"><ExternalLink className="w-3 h-3 mr-1" />Ver Doc</a>
+                                  <button type="button" onClick={() => abrirDocumento(silabo.archivo_url).catch(err => toast.error(err.message))} className="text-xs text-primary hover:underline flex items-center"><ExternalLink className="w-3 h-3 mr-1" />Ver Doc</button>
                                   {silabo.estado !== 'aprobado' && (
                                     <button onClick={() => triggerUploadSilabo(carga.id)} className="text-xs text-slate-500 hover:text-slate-700 underline flex items-center">
                                       <RefreshCw className="w-3 h-3 mr-1" /> Actualizar

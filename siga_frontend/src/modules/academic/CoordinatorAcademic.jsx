@@ -11,6 +11,7 @@ import { CoordinatorActas } from './CoordinatorActas';
 import { ScheduleBuilder } from './ScheduleBuilder';
 import { GraduationCap, Calendar, BookOpen, ClipboardCheck, UserCog, Clock, X, ClipboardList, BarChart3, ExternalLink, Trash2, Download, Copy, AlertTriangle, KeyRound, FileCheck } from 'lucide-react';
 import { AssignmentModal } from './AssignmentModal';
+import { exportarCargaLectivaExcel } from './lib/cargaLectivaExport';
 
 function useSafeToast() {
   try {
@@ -49,6 +50,10 @@ function useSafeConfirm() {
 
 export function CoordinatorAcademic() {
   const { user, openPasswordModal } = useAuth();
+  // Solo el administrador puede asignar docentes de otras carreras; el coordinador ve solo los de su programa
+  const rolesSesion = (Array.isArray(user?.roles) ? user.roles : (user?.role ? [user.role] : []))
+    .map(r => (typeof r === 'string' ? r : r?.name));
+  const esAdmin = !!user?.is_superuser || rolesSesion.some(r => ['superadmin', 'admin'].includes(r));
   const { toast } = useSafeToast();
   const { confirm } = useSafeConfirm();
 
@@ -67,6 +72,10 @@ export function CoordinatorAcademic() {
   const [personal, setPersonal] = useState([]);
   const [allDocentes, setAllDocentes] = useState([]);
   const [docentes, setDocentes] = useState([]);
+  // Docentes vinculados a otras carreras: también pueden dictar en este programa (p. ej. cursos transversales)
+  const [otrosDocentes, setOtrosDocentes] = useState([]);
+  // Todos los usuarios, para mostrar el nombre real de quien presentó un documento
+  const [usuarios, setUsuarios] = useState([]);
   const [unidadesFlat, setUnidadesFlat] = useState([]);
   const [cargaLectiva, setCargaLectiva] = useState([]);
   const [horarios, setHorarios] = useState([]);
@@ -91,6 +100,7 @@ export function CoordinatorAcademic() {
 
         setPrograms(progRes || []);
         setPeriods(perRes || []);
+        setUsuarios(Array.isArray(usuariosRes) ? usuariosRes : []);
 
         // Combinar personal institucional y usuarios con rol docente
         const staffList = Array.isArray(personalRes) ? [...personalRes] : [];
@@ -153,15 +163,30 @@ export function CoordinatorAcademic() {
     }
 
     // Filter personal for the selected program (or unassigned/global) and exclude secretaries
-    const filteredStaff = personal.filter(p => 
-      p?.perfil && 
-      (!p.perfil.programa_estudio_id || p.perfil.programa_estudio_id === parseInt(selectedProgram) || p.perfil.programa_estudio_id == selectedProgram) &&
+    // (los que no tienen programa solo los ve el administrador: el servidor no deja que el coordinador los asigne)
+    const filteredStaff = personal.filter(p =>
+      p?.perfil &&
+      ((esAdmin && !p.perfil.programa_estudio_id) || p.perfil.programa_estudio_id === parseInt(selectedProgram) || p.perfil.programa_estudio_id == selectedProgram) &&
       p.perfil.cargo_funcional !== 'SECRETARIA_PROGRAMA' &&
       p?.usuario
     );
     // Map to the format the form expects (d.id, d.full_name)
     const staffFormat = filteredStaff.map(p => p.usuario);
     setDocentes(staffFormat);
+
+    // Resto del instituto con rol docente o coordinador (el servidor acepta a cualquiera de ellos)
+    const idsPrograma = new Set(staffFormat.map(u => u.id));
+    const otros = personal
+      .filter(p =>
+        p?.usuario?.id &&
+        !idsPrograma.has(p.usuario.id) &&
+        p.usuario.is_active !== false &&
+        p?.perfil?.cargo_funcional !== 'SECRETARIA_PROGRAMA' &&
+        (p.usuario.roles || []).some(r => ['docente', 'coordinador_programa'].includes(r?.name || r))
+      )
+      .map(p => ({ ...p.usuario, programa_estudio_id: p.perfil?.programa_estudio_id ?? null }))
+      .sort((a, b) => (a.full_name || a.email || '').localeCompare(b.full_name || b.email || ''));
+    setOtrosDocentes(esAdmin ? otros : []);
 
     const fetchMalla = async () => {
       try {
@@ -180,7 +205,7 @@ export function CoordinatorAcademic() {
       }
     };
     fetchMalla();
-  }, [selectedProgram, personal]);
+  }, [selectedProgram, personal, esAdmin]);
 
   const fetchCargaYHorarios = useCallback(async () => {
     setLoading(true);
@@ -235,7 +260,9 @@ export function CoordinatorAcademic() {
       toast.success("Docente asignado correctamente a los cursos seleccionados.");
     } catch (error) {
       console.error("Error saving carga", error);
-      toast.error("Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
+      // Mostrar el motivo real que devuelve el servidor (curso ya asignado, periodo cerrado, etc.)
+      fetchCargaYHorarios();
+      toast.error(error?.message || "Error al guardar la carga lectiva (verifique que el curso no esté ya asignado en esa sección).");
     } finally {
       setSaving(false);
     }
@@ -311,17 +338,23 @@ export function CoordinatorAcademic() {
     return ud ? ud.nombre : `ID: ${id}`;
   };
 
-  const handleExportCSV = () => {
-    const headers = "Unidad Didactica,Docente,Turno,Seccion,Estado\n";
-    const rows = cargaLectiva.map(c => `"${getUDName(c.unidad_didactica_id)}","${getDocenteName(c.docente_id)}",${c.turno},${c.seccion},${c.estado}`).join('\n');
-    const blob = new Blob(["\uFEFF" + headers + rows], { type: 'text/csv;charset=utf-8;' }); // \uFEFF para soportar caracteres UTF-8 en Excel
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Carga_Lectiva_${selectedProgram}_${selectedPeriod}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Excel (.xlsx) real: el CSV con comas se abr\u00EDa en una sola columna en Excel en espa\u00F1ol
+  const handleExportExcel = () => {
+    try {
+      exportarCargaLectivaExcel({
+        programa: programs.find(p => String(p.id) === String(selectedProgram)),
+        periodo: periods.find(p => String(p.id) === String(selectedPeriod)),
+        cargaLectiva,
+        unidadesFlat,
+        buscarDocente: (id) => {
+          const u = [...allDocentes, ...docentes, ...otrosDocentes, ...usuarios].find(d => d.id === id);
+          return u ? { nombre: u.full_name || u.email, email: u.email } : null;
+        },
+      });
+    } catch (err) {
+      console.error('Error exportando la carga lectiva', err);
+      toast.error('No se pudo generar el Excel de la carga lectiva.');
+    }
   };
 
   const handleOpenCloneModal = () => {
@@ -540,10 +573,30 @@ export function CoordinatorAcademic() {
                             onChange={e => setCargaForm({...cargaForm, docente_id: e.target.value})}
                           >
                             <option value="">Seleccione Docente</option>
-                            {docentes.map(d => (
-                              <option key={d.id} value={d.id}>{d.full_name || d.email}</option>
-                            ))}
+                            {docentes.length > 0 && (
+                              <optgroup label="Docentes de este programa">
+                                {docentes.map(d => (
+                                  <option key={d.id} value={d.id}>{d.full_name || d.email}</option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {otrosDocentes.length > 0 && (
+                              <optgroup label="Otros docentes del instituto">
+                                {otrosDocentes.map(d => {
+                                  const prog = programs.find(p => p.id === d.programa_estudio_id)?.nombre;
+                                  return (
+                                    <option key={d.id} value={d.id}>{(d.full_name || d.email) + (prog ? ` (${prog})` : '')}</option>
+                                  );
+                                })}
+                              </optgroup>
+                            )}
                           </select>
+                          {docentes.length === 0 && (
+                            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2 leading-relaxed">
+                              Este programa aún no tiene docentes propios. {esAdmin ? 'Puede asignar uno de otra carrera, o vincularlo' : 'El administrador debe registrarlo'}
+                              en <b>Administración → Plana Docente / RRHH</b> eligiendo este programa de estudios.
+                            </p>
+                          )}
                         </div>
 
                         {cargaForm.docente_id && (
@@ -577,10 +630,10 @@ export function CoordinatorAcademic() {
                         <h3 className="text-lg font-semibold text-slate-text">Carga Lectiva Actual</h3>
                         {cargaLectiva.length > 0 && (
                           <button 
-                            onClick={handleExportCSV}
+                            onClick={handleExportExcel}
                             className="text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors border border-emerald-200"
                           >
-                            <Download size={16} /> Exportar CSV
+                            <Download size={16} /> Exportar Excel
                           </button>
                         )}
                       </div>
@@ -760,16 +813,17 @@ export function CoordinatorAcademic() {
               programId={selectedProgram}
               periodId={selectedPeriod}
               docentes={docentes}
+              usuarios={usuarios}
               cargaLectiva={cargaLectiva}
               unidadesFlat={unidadesFlat}
             />
           )}
 
           {!loading && activeTab === 'tutorias' && (
-            <CoordinatorTutorias 
+            <CoordinatorTutorias
               programId={selectedProgram}
               periodId={selectedPeriod}
-              docentes={docentes}
+              docentes={[...docentes, ...otrosDocentes]}
             />
           )}
 

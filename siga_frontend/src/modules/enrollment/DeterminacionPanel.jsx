@@ -1,8 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { ClipboardCheck, Scale } from 'lucide-react';
 import { apiClient } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
 import { getDefaultPeriod, getPeriodLabel } from './periodUtils';
+import { useAuth } from '../../core/auth/useAuth';
+import { StudentSearchBox } from './StudentSearchBox';
+import { programaInicial } from '../../core/studentSearch';
 
 /** Sección 4 del diagrama — Determinación del ciclo y cursos. */
 export function DeterminacionPanel() {
@@ -10,7 +13,8 @@ export function DeterminacionPanel() {
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
 
-  const [search, setSearch] = useState('');
+  const { user } = useAuth();
+  const [cargandoAlumnos, setCargandoAlumnos] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [programaId, setProgramaId] = useState('');
   const [periodoId, setPeriodoId] = useState('');
@@ -28,11 +32,12 @@ export function DeterminacionPanel() {
           apiClient.request('/api/mod-programas-estudio/periodos').catch(() => []),
         ]);
         setStudents(Array.isArray(est) ? est : []);
+        setCargandoAlumnos(false);
         const progs = Array.isArray(prog) ? prog : [];
         const pers = Array.isArray(per) ? per : [];
         setPrograms(progs);
         setPeriods(pers);
-        if (progs.length > 0) setProgramaId(String(progs[0].id));
+        setProgramaId(programaInicial(progs, user));
         const activo = getDefaultPeriod(pers);
         if (activo) setPeriodoId(String(activo.id));
       } catch (e) {
@@ -40,12 +45,13 @@ export function DeterminacionPanel() {
         setError(e.message);
       }
     })();
+    // Carga única al abrir: el panel solo se muestra con la sesión ya iniciada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const seleccionar = (s) => {
     setSelectedStudent(s);
     if (s?.programa_id) setProgramaId(String(s.programa_id));
-    setSearch('');
     setPropuesta(null);
     setError('');
   };
@@ -77,19 +83,6 @@ export function DeterminacionPanel() {
       setLoading(false);
     }
   };
-
-  const matches = useMemo(() => {
-    if (search.trim().length < 2 || selectedStudent) return [];
-    const q = search.trim().toLowerCase();
-    return students
-      .filter((s) =>
-        (s.dni || '').includes(q) ||
-        (s.nombres || '').toLowerCase().includes(q) ||
-        (s.apellidos || '').toLowerCase().includes(q) ||
-        (s.codigo_estudiante || '').toLowerCase().includes(q)
-      )
-      .slice(0, 8);
-  }, [students, search, selectedStudent]);
 
   const lista = (arr, tone) =>
     (arr || []).map((u) => (
@@ -134,29 +127,12 @@ export function DeterminacionPanel() {
                 <button onClick={() => { setSelectedStudent(null); setPropuesta(null); }} className="text-xs font-bold text-primary hover:underline">Cambiar</button>
               </div>
             ) : (
-              <div className="relative">
-                <input
-                  type="text"
-                  className="input-field w-full py-2.5 text-sm"
-                  placeholder="Buscar por DNI, nombre o código (mín. 2 letras)..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                {matches.length > 0 && (
-                  <ul className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
-                    {matches.map((s) => (
-                      <li
-                        key={s.id}
-                        onClick={() => seleccionar(s)}
-                        className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0"
-                      >
-                        <span className="font-medium text-slate-800">{s.nombres} {s.apellidos}</span>
-                        <span className="block text-xs text-slate-400">{s.dni} · {s.codigo_estudiante}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <StudentSearchBox
+                students={students}
+                programaId={programaId}
+                onSelect={seleccionar}
+                loading={cargandoAlumnos}
+              />
             )}
           </div>
 

@@ -7,6 +7,8 @@ import { apiClient, API_BASE } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
 import { getDefaultPeriod, getPeriodLabel, getPeriodLabelById, isHistoricalPeriod, isFirstPeriodOfYear } from './periodUtils';
 import './enrollmentPremium.css';
+import { useAuth } from '../../core/auth/useAuth';
+import { programaInicial } from '../../core/studentSearch';
 
 /**
  * Sección 1 del diagrama — Admisión.
@@ -16,6 +18,7 @@ import './enrollmentPremium.css';
  * al procesar, mostrando el resumen y la ficha de cada ingresante.
  */
 export function AdmissionPanel() {
+  const { user } = useAuth();
   const [programs, setPrograms] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [programaId, setProgramaId] = useState('');
@@ -41,13 +44,15 @@ export function AdmissionPanel() {
         const per = Array.isArray(pe) ? pe : [];
         setPrograms(prog);
         setPeriods(per);
-        if (prog.length > 0) setProgramaId(String(prog[0].id));
+        setProgramaId(programaInicial(prog, user));
         const activo = getDefaultPeriod(per);
         if (activo) setPeriodoId(String(activo.id));
       } catch (e) {
         console.error('No se pudieron cargar programas/periodos:', e);
       }
     })();
+    // Carga única al abrir: el panel solo se muestra con la sesión ya iniciada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const subir = async (dryRun) => {

@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { HeartHandshake, Star } from 'lucide-react';
 import { apiClient } from '../../core/api/client';
 import { SectionInfoBlock } from './SectionInfoBlock';
+import { StudentSearchBox } from './StudentSearchBox';
 
 const CASUISTICAS = [
   { value: 'Reingresante', label: 'Reingresante' },
@@ -19,7 +20,6 @@ const CONDICIONES_REINGRESO = [
 /** Sección 4 del diagrama — Tipos de alumnos especiales (Bloque 4). */
 export function EspecialesPanel() {
   const [students, setStudents] = useState([]);
-  const [search, setSearch] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
 
   const [casuistica, setCasuistica] = useState('Reingresante');
@@ -49,23 +49,8 @@ export function EspecialesPanel() {
     })();
   }, []);
 
-  const matches = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (q.length < 2 || selectedStudent) return [];
-    return students
-      .filter(
-        (s) =>
-          (s.dni || '').includes(q) ||
-          (s.nombres || '').toLowerCase().includes(q) ||
-          (s.apellidos || '').toLowerCase().includes(q) ||
-          (s.codigo_estudiante || '').toLowerCase().includes(q)
-      )
-      .slice(0, 8);
-  }, [students, search, selectedStudent]);
-
   const seleccionar = (s) => {
     setSelectedStudent(s);
-    setSearch('');
     setResultado(null);
     setError('');
   };
@@ -182,29 +167,7 @@ export function EspecialesPanel() {
                 </button>
               </div>
             ) : (
-              <div className="relative">
-                <input
-                  type="text"
-                  className="input-field w-full py-2.5 text-sm"
-                  placeholder="Buscar por DNI, nombre o código (mín. 2 letras)..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                {matches.length > 0 && (
-                  <ul className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
-                    {matches.map((s) => (
-                      <li
-                        key={s.id}
-                        onClick={() => seleccionar(s)}
-                        className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0"
-                      >
-                        <span className="font-medium text-slate-800">{s.nombres} {s.apellidos}</span>
-                        <span className="block text-xs text-slate-400">{s.dni} · {s.codigo_estudiante}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <StudentSearchBox students={students} onSelect={seleccionar} loading={loadingRefs} />
             )}
           </div>
 

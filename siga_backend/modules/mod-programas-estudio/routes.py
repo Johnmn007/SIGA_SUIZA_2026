@@ -130,6 +130,94 @@ async def crear_periodo(periodo: PeriodoCreate, request: Request, db: AsyncSessi
     await db.refresh(db_periodo)
     return db_periodo
 
+class PeriodoFechasUpdate(BaseModel):
+    fecha_inicio: datetime
+    fecha_fin: datetime
+    fecha_fin_matricula_regular: Optional[datetime] = None
+    fecha_fin_matricula_extemporanea: Optional[datetime] = None
+
+
+ROLES_CALENDARIO = {"admin", "secretaria_academica", "director"}
+
+
+@router.put("/periodos/{periodo_id}", response_model=PeriodoResponse)
+async def actualizar_fechas_periodo(periodo_id: int, fechas: PeriodoFechasUpdate, request: Request,
+                                    db: AsyncSession = Depends(get_db)):
+    """Corrige las fechas de un periodo existente (antes solo se podía crear o cambiar su estado,
+    así que una fecha de matrícula vencida no tenía arreglo)."""
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or set(ident.roles) & ROLES_CALENDARIO):
+        raise HTTPException(status_code=403, detail="No tiene permisos para modificar el calendario académico.")
+
+    db_periodo = (await db.execute(select(PeriodoAcademico).where(PeriodoAcademico.id == periodo_id))).scalar_one_or_none()
+    if not db_periodo:
+        raise HTTPException(status_code=404, detail="Periodo no encontrado")
+
+    data = {k: (v.replace(tzinfo=None) if v is not None and v.tzinfo else v) for k, v in fechas.model_dump().items()}
+    if data["fecha_fin"] < data["fecha_inicio"]:
+        raise HTTPException(status_code=400, detail="La fecha de fin no puede ser anterior a la de inicio.")
+    regular, extemporanea = data["fecha_fin_matricula_regular"], data["fecha_fin_matricula_extemporanea"]
+    if regular and extemporanea and extemporanea < regular:
+        raise HTTPException(status_code=400, detail="El cierre de matrícula extemporánea no puede ser anterior al de la regular.")
+
+    for k, v in data.items():
+        setattr(db_periodo, k, v)
+    db.add(OutboxEvent(event_type="periodo.fechas_actualizadas", payload={
+        "id": db_periodo.id, "codigo": db_periodo.codigo,
+        "metadata": {"request_id": request.headers.get("X-Request-ID", "unknown")},
+    }))
+    await db.commit()
+    await db.refresh(db_periodo)
+    return db_periodo
+
+
+@router.delete("/periodos/{periodo_id}")
+async def eliminar_periodo(periodo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Elimina un periodo SOLO si no tiene datos asociados. Si ya tiene matrículas, notas, carga
+    lectiva, etc., no se borra (quedarían registros sueltos) y se informa qué tiene."""
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or set(ident.roles) & ROLES_CALENDARIO):
+        raise HTTPException(status_code=403, detail="No tiene permisos para modificar el calendario académico.")
+
+    db_periodo = (await db.execute(select(PeriodoAcademico).where(PeriodoAcademico.id == periodo_id))).scalar_one_or_none()
+    if not db_periodo:
+        raise HTTPException(status_code=404, detail="Periodo no encontrado")
+
+    dependencias = [
+        ("matriculas", "matrícula(s)"),
+        ("evaluacion_registros", "nota(s) registrada(s)"),
+        ("carga_lectiva", "asignación(es) de carga lectiva"),
+        ("historial_academico", "registro(s) de historial académico"),
+        ("horarios_periodo", "horario(s)"),
+        ("planes_trabajo_docente", "plan(es) de trabajo docente"),
+        ("tutorias", "tutoría(s)"),
+    ]
+    encontrados = []
+    for tabla, etiqueta in dependencias:
+        try:
+            n = (await db.execute(text(f"SELECT count(*) FROM {tabla} WHERE periodo_id = :p"), {"p": periodo_id})).scalar() or 0
+        except Exception:
+            await db.rollback()  # la tabla puede no existir en una base nueva
+            n = 0
+        if n:
+            encontrados.append(f"{n} {etiqueta}")
+    if encontrados:
+        raise HTTPException(
+            status_code=409,
+            detail=(f"No se puede eliminar el periodo {db_periodo.codigo} porque ya tiene: {', '.join(encontrados)}. "
+                    "Solo se pueden eliminar periodos sin datos. Si ya no se usa, cámbielo a estado «histórico».")
+        )
+
+    codigo = db_periodo.codigo
+    await db.delete(db_periodo)
+    db.add(OutboxEvent(event_type="periodo.eliminado", payload={
+        "id": periodo_id, "codigo": codigo,
+        "metadata": {"request_id": request.headers.get("X-Request-ID", "unknown")},
+    }))
+    await db.commit()
+    return {"message": f"Periodo {codigo} eliminado"}
+
+
 @router.get("/periodos", response_model=List[PeriodoResponse])
 async def obtener_periodos(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(PeriodoAcademico).order_by(PeriodoAcademico.fecha_inicio.desc()))
@@ -225,7 +313,9 @@ async def actualizar_programa(programa_id: int, programa_data: ProgramaCreate, d
     if not programa:
         raise HTTPException(status_code=404, detail="Programa no encontrado")
 
-    for field, value in programa_data.model_dump().items():
+    # Solo los campos enviados: "Editar carrera" no manda plan_estudio_id y antes lo dejaba en NULL,
+    # desvinculando el plan de estudios (y desactivando la detección de alumnos "Histórico").
+    for field, value in programa_data.model_dump(exclude_unset=True).items():
         setattr(programa, field, value)
 
     await db.commit()
@@ -567,6 +657,20 @@ async def crear_carga_lectiva(programa_id: int, carga: CargaLectivaCreate, reque
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="El usuario asignado debe poseer rol docente o coordinador_programa"
         )
+
+    # El coordinador solo asigna docentes de su propio programa; docentes de otras carreras
+    # solo puede asignarlos el administrador.
+    if not es_superadmin(ident):
+        prog_doc = await db.execute(
+            text("SELECT programa_estudio_id FROM perfiles_personal WHERE user_id = :did"),
+            {"did": carga.docente_id}
+        )
+        fila_prog = prog_doc.fetchone()
+        if not fila_prog or fila_prog[0] != programa_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo puede asignar docentes de su propio programa de estudios. Para asignar un docente de otra carrera, pídalo al administrador."
+            )
 
     # 2. Validar que el periodo académico no esté cerrado
     per_res = await db.execute(
@@ -1506,3 +1610,88 @@ async def eliminar_tutoria(programa_id: int, tutoria_id: int, db: AsyncSession =
     await db.commit()
     return {"message": "Tutoría eliminada"}
 
+
+
+# ==========================================
+# DOCUMENTOS (sílabos y planes de trabajo)
+# ==========================================
+# Antes la subida era simulada: solo se guardaba "/docs/planes/<nombre>" y "Ver Doc" abría una
+# ruta inexistente (Vercel devolvía la app y parecía que todo se reiniciaba). Ahora el archivo
+# se guarda en la base de datos y se sirve por el gateway con la sesión del usuario.
+import base64
+import binascii
+from fastapi import Response
+from models import DocumentoArchivo
+
+MAX_DOCUMENTO_BYTES = 8 * 1024 * 1024  # 8 MB
+TIPOS_DOCUMENTO = {
+    "application/pdf", "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "image/png", "image/jpeg",
+}
+EXTENSIONES_DOCUMENTO = {
+    ".pdf": "application/pdf", ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xls": "application/vnd.ms-excel",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+}
+ROLES_DOCUMENTOS = {"docente", "coordinador_programa", "secretaria_academica", "secretaria_programa", "director", "admin"}
+
+
+class DocumentoSubida(BaseModel):
+    nombre: str
+    content_type: Optional[str] = None
+    contenido_base64: str
+
+
+@router.post("/archivos", status_code=status.HTTP_201_CREATED)
+async def subir_documento(doc: DocumentoSubida, request: Request, db: AsyncSession = Depends(get_db)):
+    ident = await get_identity(request, db)
+    if not (es_superadmin(ident) or ROLES_DOCUMENTOS.intersection(ident.roles)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para subir documentos")
+
+    nombre = (doc.nombre or "").strip().replace("\\", "/").split("/")[-1][:200] or "documento"
+    extension = ("." + nombre.rsplit(".", 1)[-1].lower()) if "." in nombre else ""
+    content_type = (doc.content_type or "").split(";")[0].strip().lower()
+    if content_type not in TIPOS_DOCUMENTO:
+        content_type = EXTENSIONES_DOCUMENTO.get(extension, "")
+    if content_type not in TIPOS_DOCUMENTO:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formato no permitido. Suba un PDF, Word, Excel o imagen (PNG/JPG).")
+
+    contenido = doc.contenido_base64.split(",", 1)[-1]  # admite "data:...;base64,xxxx"
+    try:
+        datos = base64.b64decode(contenido, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El archivo llegó dañado. Vuelva a intentarlo.")
+    if not datos:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El archivo está vacío.")
+    if len(datos) > MAX_DOCUMENTO_BYTES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El archivo supera el máximo de 8 MB.")
+
+    registro = DocumentoArchivo(nombre=nombre, content_type=content_type, tamano=len(datos), datos=datos, subido_por=ident.user_id)
+    db.add(registro)
+    await db.commit()
+    await db.refresh(registro)
+    return {
+        "id": registro.id,
+        "nombre": registro.nombre,
+        "tamano": registro.tamano,
+        "url": f"/api/mod-programas-estudio/archivos/{registro.id}",
+    }
+
+
+@router.get("/archivos/{archivo_id}")
+async def descargar_documento(archivo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    await get_identity(request, db)  # solo usuarios con sesión
+    registro = await db.get(DocumentoArchivo, archivo_id)
+    if not registro:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El documento no existe o fue eliminado")
+    nombre_ascii = registro.nombre.encode("ascii", "ignore").decode() or "documento"
+    return Response(
+        content=registro.datos,
+        media_type=registro.content_type,
+        headers={"Content-Disposition": f'inline; filename="{nombre_ascii}"', "Cache-Control": "private, max-age=0"},
+    )

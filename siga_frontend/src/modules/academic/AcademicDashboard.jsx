@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { apiClient } from '../../core/api/client';
+import { registrarPlanDeCarrera } from '../../core/api/planes';
 import { useToast } from '../../core/ui/ToastContext';
 import { CurriculumMesh } from './CurriculumMesh';
 import { PeriodManager } from './PeriodManager';
@@ -269,7 +270,15 @@ export function AcademicDashboard() {
         estado: newProgram.estado || 'activo'
       };
 
-      await apiClient.callModule('mod-programas-estudio', 'programas', 'POST', payload);
+      const creada = await apiClient.callModule('mod-programas-estudio', 'programas', 'POST', payload);
+
+      // Registrar y vincular su plan de estudios (las importadas desde MINEDU ya lo traen).
+      // No bloquea: si falla, la carrera queda creada y el plan se puede registrar después.
+      try {
+        if (creada?.id) await registrarPlanDeCarrera(creada);
+      } catch (errPlan) {
+        console.warn('No se pudo registrar el plan de la carrera nueva:', errPlan);
+      }
 
       setShowCreateModal(false);
       setCreateError('');
@@ -1420,7 +1429,7 @@ export function AcademicDashboard() {
       {/* ================= MODAL: CONFIGURAR PARAMETRIZACIÓN ================= */}
       {configProgram && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xl w-full max-w-lg overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../core/api/client';
 import { useToast } from '../../core/ui/ToastContext';
-import { Plus, Pencil, X, UserX, Users, ShieldCheck } from 'lucide-react';
+import { Plus, Pencil, X, UserX, Users, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
 export function UserManagement() {
   const toast = useToast();
@@ -18,6 +18,7 @@ export function UserManagement() {
     role_ids: []
   });
   const [editingId, setEditingId] = useState(null);
+  const [verClave, setVerClave] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -59,6 +60,7 @@ export function UserManagement() {
   const openNewUserModal = () => {
     setFormData({ email: '', full_name: '', password: '', is_active: true, is_superuser: false, role_ids: [] });
     setEditingId(null);
+    setVerClave(false);
     setShowModal(true);
   };
 
@@ -254,16 +256,28 @@ export function UserManagement() {
                 {!editingId && (
                   <div>
                     <label className="label text-slate-700">Contraseña</label>
-                    <input 
-                      type="password" 
-                      className="input-field" 
-                      name="password" 
-                      value={formData.password} 
-                      onChange={handleInputChange} 
-                      required 
-                      minLength="6" 
-                      placeholder="Mínimo 6 caracteres"
-                    />
+                    <div className="relative">
+                      <input
+                        type={verClave ? 'text' : 'password'}
+                        className="input-field pr-11"
+                        name="password"
+                        value={formData.password}
+                        onChange={handleInputChange}
+                        required
+                        minLength="6"
+                        placeholder="Mínimo 6 caracteres"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setVerClave(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors"
+                        aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        title={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      >
+                        {verClave ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
                   </div>
                 )}
                 

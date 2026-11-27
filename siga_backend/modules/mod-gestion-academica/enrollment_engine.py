@@ -15,7 +15,7 @@ El motor no accede a BD ni a la red: recibe un :class:`Contexto` ya construido
 (ver ``enrollment_service.py``). Esto lo hace 100 % testeable.
 """
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
 
 from domain import (
@@ -388,6 +388,19 @@ def _parse_fecha(valor) -> Optional[datetime]:
         return None
 
 
+def _hasta_fin_del_dia(fecha: Optional[datetime]) -> Optional[datetime]:
+    """Una fecha límite sin hora (medianoche) vale todo ese día: hasta las 23:59 hora de Perú.
+
+    Se devuelve en UTC (como ``datetime.utcnow()``): la medianoche siguiente en Perú (UTC-5)
+    son las 05:00 UTC del día siguiente. Antes el último día ya contaba como vencido.
+    """
+    if fecha is None:
+        return None
+    if (fecha.hour, fecha.minute, fecha.second) == (0, 0, 0):
+        return fecha + timedelta(days=1, hours=5)
+    return fecha
+
+
 def evaluar_ventana_matricula(periodo: Optional[dict], ahora: Optional[datetime] = None) -> tuple:
     """Determina si el periodo permite matricularse.
 
@@ -403,8 +416,8 @@ def evaluar_ventana_matricula(periodo: Optional[dict], ahora: Optional[datetime]
     if estado == EstadoPeriodo.PLANIFICACION.value:
         return False, False, "El periodo aún no abre matrícula."
 
-    fin_regular = _parse_fecha(periodo.get("fecha_fin_matricula_regular"))
-    fin_ext = _parse_fecha(periodo.get("fecha_fin_matricula_extemporanea"))
+    fin_regular = _hasta_fin_del_dia(_parse_fecha(periodo.get("fecha_fin_matricula_regular")))
+    fin_ext = _hasta_fin_del_dia(_parse_fecha(periodo.get("fecha_fin_matricula_extemporanea")))
 
     if fin_ext and ahora > fin_ext:
         return False, False, "La matrícula extemporánea ha finalizado."
